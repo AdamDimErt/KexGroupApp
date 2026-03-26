@@ -1,0 +1,11 @@
+{
+  "name": "@dashboard/testing",
+  "version": "1.0.0",
+  "private": true,
+  "main": "jest.config.js",
+  "dependencies": {
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "@types/jest": "^29.5.12"
+  }
+}

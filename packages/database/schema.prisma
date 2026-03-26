@@ -1,0 +1,379 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["auth", "finance"]
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENUMS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum Role {
+  ADMIN               // Суперадмин — управляет всеми тенантами
+  OWNER               // Владелец бизнеса — полный доступ (все 4 уровня drill-down)
+  FINANCE_DIRECTOR    // Фин. директор — уровни 1-3, сводные данные
+  OPERATIONS_DIRECTOR // Опер. директор — уровни 1-2, только операционные данные
+
+  @@schema("auth")
+}
+
+enum DataSource {
+  IIKO
+  ONE_C
+
+  @@schema("finance")
+}
+
+enum AllocationType {
+  DIRECT       // Прямой расход — привязан к точке
+  DISTRIBUTED  // Распределяемый — делится по удельному весу выручки
+
+  @@schema("finance")
+}
+
+enum SyncStatus {
+  SUCCESS
+  ERROR
+
+  @@schema("finance")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTH SCHEMA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Тенант = один клиент (KEX GROUP)
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String              // "KEX GROUP"
+  slug      String   @unique    // "kex-group"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  companies          Company[]
+  ddsArticleGroups   DdsArticleGroup[]
+  kitchenPurchases   KitchenPurchase[]
+  kitchenIncomes     KitchenIncome[]
+  syncLogs           SyncLog[]
+
+  @@schema("auth")
+}
+
+/// Пользователь системы (3 роли + админ)
+model User {
+  id        String   @id @default(uuid())
+  phone     String   @unique
+  name      String?             // ФИО
+  role      Role     @default(OPERATIONS_DIRECTOR)
+  isActive  Boolean  @default(true)
+  tenantId  String?             // null только для ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant              Tenant?              @relation(fields: [tenantId], references: [id])
+  restaurants         Restaurant[]         // Рестораны пользователя (для OPS_DIRECTOR)
+  auditLogs           AuditLog[]
+  notificationTokens  NotificationToken[]
+  notificationLogs    NotificationLog[]
+
+  @@schema("auth")
+}
+
+/// Журнал аудита — кто, когда, что смотрел
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String              // "LOGIN" | "VIEW_DASHBOARD" | "VIEW_RESTAURANT" | "LOGOUT"
+  entity    String?             // "restaurant:uuid" | "report:dds"
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@schema("auth")
+}
+
+/// FCM токен устройства для push-уведомлений
+model NotificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  fcmToken  String   @unique
+  platform  String              // "ios" | "android"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@schema("auth")
+}
+
+/// История push-уведомлений
+model NotificationLog {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String              // "SYNC_FAILURE" | "LOW_REVENUE" | "LARGE_EXPENSE" | "DAILY_SUMMARY"
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  data      Json?               // { restaurantId, amount, threshold }
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@schema("auth")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FINANCE SCHEMA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Компания (юрлицо: ТОО "Burger na Abaya", ТОО "A Doner")
+model Company {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String              // Название юрлица
+  inn       String?             // ИНН / БИН
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brands Brand[]
+
+  @@schema("finance")
+}
+
+/// Бренд / Структурное подразделение (Burger na Abaya, Doner na Abaya)
+model Brand {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String              // "Burger na Abaya"
+  slug        String   @unique    // "burger-na-abaya"
+  iikoGroupId String?  @unique    // ID структурного подразделения в iiko
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  restaurants Restaurant[]
+
+  @@schema("finance")
+}
+
+/// Торговая точка / Ресторан (BNA Бесагаш, DNA Аксай)
+model Restaurant {
+  id        String   @id @default(uuid())
+  brandId   String
+  iikoId    String?  @unique     // ID в системе iiko (торговое предприятие)
+  oneCId    String?  @unique     // ID в системе 1С
+  name      String               // "BNA Бесагаш"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  brand              Brand                @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  users              User[]               // Привязанные пользователи
+  snapshots          FinancialSnapshot[]
+  expenses           Expense[]
+  costAllocations    CostAllocation[]
+  kitchenShipments   KitchenShipment[]
+  cashDiscrepancies  CashDiscrepancy[]
+
+  @@schema("finance")
+}
+
+/// Группа статей ДДС ("Продукты", "Аренда", "ЗП", "IT")
+model DdsArticleGroup {
+  id        String   @id @default(uuid())
+  tenantId  String
+  name      String              // "Продукты", "Аренда помещений"
+  code      String?             // Код группы из iiko
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  articles DdsArticle[]
+
+  @@unique([tenantId, code])
+  @@schema("finance")
+}
+
+/// Статья ДДС (40+ штук из iiko/1С)
+model DdsArticle {
+  id             String         @id @default(uuid())
+  groupId        String
+  name           String              // "Аренда помещения", "Зарплата повара"
+  code           String?             // Уникальный код из iiko
+  source         DataSource          // IIKO или ONE_C
+  allocationType AllocationType      // DIRECT или DISTRIBUTED
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  group    DdsArticleGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@unique([groupId, code])
+  @@schema("finance")
+}
+
+/// Расход по статье ДДС (операция)
+model Expense {
+  id           String      @id @default(uuid())
+  articleId    String
+  restaurantId String?             // null = общий расход (для распределения по удельному весу)
+  date         DateTime    @db.Date
+  amount       Decimal     @db.Decimal(15, 2)
+  comment      String?             // Комментарий из iiko/1С
+  source       DataSource          // IIKO или ONE_C
+  syncId       String?     @unique // Idempotency key — дедупликация синхронизации
+  createdAt    DateTime    @default(now())
+
+  article         DdsArticle       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  restaurant      Restaurant?      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  costAllocations CostAllocation[]
+
+  @@index([restaurantId, date])
+  @@index([articleId, date])
+  @@schema("finance")
+}
+
+/// Распределённые затраты (рассчитанные по удельному весу выручки)
+model CostAllocation {
+  id              String   @id @default(uuid())
+  restaurantId    String
+  expenseId       String              // Исходный общий расход (Expense с restaurantId=null)
+  periodStart     DateTime @db.Date
+  periodEnd       DateTime @db.Date
+  coefficient     Decimal  @db.Decimal(10, 6) // Доля выручки (0.000000–1.000000)
+  originalAmount  Decimal  @db.Decimal(15, 2) // Исходная сумма затраты
+  allocatedAmount Decimal  @db.Decimal(15, 2) // Распределённая сумма = original × coefficient
+  createdAt       DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  expense    Expense    @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, expenseId, periodStart, periodEnd])
+  @@index([restaurantId, periodStart, periodEnd])
+  @@schema("finance")
+}
+
+/// Ежедневная сводка по точке (агрегат из iiko + 1С)
+model FinancialSnapshot {
+  id             String   @id @default(uuid())
+  restaurantId   String
+  date           DateTime @db.Date    // Бизнес-дата в Asia/Almaty
+  revenue        Decimal  @default(0) @db.Decimal(15, 2) // Выручка итого (из iiko)
+  revenueCash    Decimal  @default(0) @db.Decimal(15, 2) // Наличные
+  revenueKaspi   Decimal  @default(0) @db.Decimal(15, 2) // Kaspi QR
+  revenueHalyk   Decimal  @default(0) @db.Decimal(15, 2) // Halyk QR
+  revenueYandex  Decimal  @default(0) @db.Decimal(15, 2) // Яндекс Еда
+  directExpenses Decimal  @default(0) @db.Decimal(15, 2) // Прямые расходы (из iiko ДДС)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, date])
+  @@index([restaurantId, date])
+  @@schema("finance")
+}
+
+/// Отгрузки Цеха по точкам (прямая привязка, не распределяются)
+model KitchenShipment {
+  id           String   @id @default(uuid())
+  restaurantId String
+  date         DateTime @db.Date
+  productName  String              // "Бакалея", "Фритюрный жир"
+  quantity     Decimal  @db.Decimal(15, 3)
+  amount       Decimal  @db.Decimal(15, 2)
+  syncId       String?  @unique
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, date])
+  @@schema("finance")
+}
+
+/// Закупки сырья Цехом (общие, не привязаны к точке)
+model KitchenPurchase {
+  id           String   @id @default(uuid())
+  tenantId     String
+  date         DateTime @db.Date
+  productName  String              // "Бакалея", "Напитки", "Сиропы"
+  supplierName String?             // Поставщик
+  quantity     Decimal  @db.Decimal(15, 3)
+  amount       Decimal  @db.Decimal(15, 2)
+  syncId       String?  @unique
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+  @@schema("finance")
+}
+
+/// Поступления на счёт Цеха
+model KitchenIncome {
+  id          String   @id @default(uuid())
+  tenantId    String
+  date        DateTime @db.Date
+  amount      Decimal  @db.Decimal(15, 2)
+  description String?
+  syncId      String?  @unique
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+  @@schema("finance")
+}
+
+/// Недостачи и излишки по кассе
+model CashDiscrepancy {
+  id           String   @id @default(uuid())
+  restaurantId String
+  date         DateTime @db.Date
+  expected     Decimal  @db.Decimal(15, 2) // Ожидаемая сумма
+  actual       Decimal  @db.Decimal(15, 2) // Фактическая сумма
+  difference   Decimal  @db.Decimal(15, 2) // + излишек, - недостача
+  syncId       String?  @unique
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, date])
+  @@schema("finance")
+}
+
+/// Лог синхронизации с внешними системами
+model SyncLog {
+  id           String     @id @default(uuid())
+  tenantId     String
+  system       DataSource          // IIKO или ONE_C
+  status       SyncStatus          // SUCCESS или ERROR
+  errorMessage String?
+  attemptCount Int        @default(1)
+  durationMs   Int?                // Длительность синхронизации в мс
+  recordsCount Int?                // Количество обработанных записей
+  businessDate DateTime   @db.Date // Целевой день синхронизации
+  createdAt    DateTime   @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([system, status, createdAt])
+  @@schema("finance")
+}

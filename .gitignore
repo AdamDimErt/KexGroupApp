@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Environment (NEVER commit real secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Database
+packages/database/prisma/migrations/migration_lock.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Expo / React Native
+apps/mobile-dashboard/.expo/
+apps/mobile-dashboard/android/
+apps/mobile-dashboard/ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Firebase
+firebase-service-account.json
+
+# Misc
+*.pid
+*.seed
+*.pid.lock

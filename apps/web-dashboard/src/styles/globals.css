@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+
+  /* ── Backgrounds ── */
+  --bg-base:     #060E1A;
+  --bg-surface:  #0D1B2E;
+  --bg-elevated: #112338;
+  --bg-hover:    #162C44;
+
+  /* ── Borders ── */
+  --border-subtle:  rgba(59, 130, 246, 0.08);
+  --border-default: rgba(59, 130, 246, 0.14);
+  --border-strong:  rgba(59, 130, 246, 0.28);
+
+  /* ── Text ── */
+  --text-primary:   #EFF6FF;
+  --text-secondary: rgba(239, 246, 255, 0.50);
+  --text-muted:     rgba(239, 246, 255, 0.25);
+
+  /* ── Accent ── */
+  --accent:          #3B82F6;
+  --accent-gradient: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  --accent-dim:      rgba(59, 130, 246, 0.12);
+  --accent-glow:     rgba(59, 130, 246, 0.22);
+
+  /* ── Status ── */
+  --status-green:      #10B981;
+  --status-yellow:     #F59E0B;
+  --status-red:        #EF4444;
+  --status-green-dim:  rgba(16, 185, 129, 0.10);
+  --status-yellow-dim: rgba(245, 158, 11, 0.10);
+  --status-red-dim:    rgba(239, 68, 68, 0.10);
+
+  /* ── Semantic ── */
+  --positive: #10B981;
+  --negative: #F87171;
+
+  /* ── Typography ── */
+  --font-ui:   'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* ── Layout ── */
+  --nav-h:       68px;
+  --page-px:     20px;
+  --radius-card: 16px;
+
+  /* ── Tailwind compat aliases ── */
+  --background:         var(--bg-base);
+  --foreground:         var(--text-primary);
+  --card:               var(--bg-surface);
+  --card-foreground:    var(--text-primary);
+  --popover:            var(--bg-elevated);
+  --popover-foreground: var(--text-primary);
+  --primary:            var(--accent);
+  --primary-foreground: #EFF6FF;
+  --secondary:          var(--bg-elevated);
+  --secondary-foreground: var(--text-secondary);
+  --muted:              var(--bg-elevated);
+  --muted-foreground:   var(--text-muted);
+  --accent-ui:          var(--bg-elevated);
+  --accent-ui-foreground: var(--text-secondary);
+  --destructive:        #EF4444;
+  --destructive-foreground: #EFF6FF;
+  --border:             var(--border-subtle);
+  --input:              var(--bg-elevated);
+  --input-background:   var(--bg-elevated);
+  --switch-background:  rgba(59, 130, 246, 0.30);
+  --font-weight-medium: 600;
+  --font-weight-normal: 400;
+  --ring:               rgba(59, 130, 246, 0.40);
+  --chart-1: #3B82F6;
+  --chart-2: #10B981;
+  --chart-3: #F59E0B;
+  --chart-4: #A78BFA;
+  --chart-5: #F87171;
+  --radius:  1rem;
+  --sidebar:                      var(--bg-surface);
+  --sidebar-foreground:           var(--text-primary);
+  --sidebar-primary:              var(--accent);
+  --sidebar-primary-foreground:   #EFF6FF;
+  --sidebar-accent:               var(--bg-elevated);
+  --sidebar-accent-foreground:    var(--text-secondary);
+  --sidebar-border:               var(--border-subtle);
+  --sidebar-ring:                 rgba(59, 130, 246, 0.40);
+}
+
+@theme inline {
+  --color-background:              var(--background);
+  --color-foreground:              var(--foreground);
+  --color-card:                    var(--card);
+  --color-card-foreground:         var(--card-foreground);
+  --color-popover:                 var(--popover);
+  --color-popover-foreground:      var(--popover-foreground);
+  --color-primary:                 var(--primary);
+  --color-primary-foreground:      var(--primary-foreground);
+  --color-secondary:               var(--secondary);
+  --color-secondary-foreground:    var(--secondary-foreground);
+  --color-muted:                   var(--muted);
+  --color-muted-foreground:        var(--muted-foreground);
+  --color-accent:                  var(--accent-ui);
+  --color-accent-foreground:       var(--accent-ui-foreground);
+  --color-destructive:             var(--destructive);
+  --color-destructive-foreground:  var(--destructive-foreground);
+  --color-border:                  var(--border);
+  --color-input:                   var(--input);
+  --color-input-background:        var(--input-background);
+  --color-switch-background:       var(--switch-background);
+  --color-ring:                    var(--ring);
+  --color-chart-1:                 var(--chart-1);
+  --color-chart-2:                 var(--chart-2);
+  --color-chart-3:                 var(--chart-3);
+  --color-chart-4:                 var(--chart-4);
+  --color-chart-5:                 var(--chart-5);
+  --radius-sm:  calc(var(--radius) - 4px);
+  --radius-md:  calc(var(--radius) - 2px);
+  --radius-lg:  var(--radius);
+  --radius-xl:  calc(var(--radius) + 4px);
+  --color-sidebar:                     var(--sidebar);
+  --color-sidebar-foreground:          var(--sidebar-foreground);
+  --color-sidebar-primary:             var(--sidebar-primary);
+  --color-sidebar-primary-foreground:  var(--sidebar-primary-foreground);
+  --color-sidebar-accent:              var(--sidebar-accent);
+  --color-sidebar-accent-foreground:   var(--sidebar-accent-foreground);
+  --color-sidebar-border:              var(--sidebar-border);
+  --color-sidebar-ring:                var(--sidebar-ring);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+}
+
+/* ── Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar { width: 0; height: 0; }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted);
+  }
+}
+
+/* ── Utility classes ── */
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: -0.03em;
+}
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+
+/* ── Animations ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.fade-up   { animation: fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fade-up-1 { animation-delay: 0.05s; }
+.fade-up-2 { animation-delay: 0.10s; }
+.fade-up-3 { animation-delay: 0.15s; }
+.fade-up-4 { animation-delay: 0.20s; }
+.fade-up-5 { animation-delay: 0.25s; }
+
+.spin-anim { animation: spin 0.75s linear infinite; }
+
+/* ── Legacy helpers ── */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+html { font-size: var(--font-size); }

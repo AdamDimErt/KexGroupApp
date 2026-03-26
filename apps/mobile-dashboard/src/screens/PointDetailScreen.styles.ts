@@ -1,0 +1,65 @@
+import { StyleSheet } from 'react-native';
+import { colors } from '../theme';
+
+export const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  content: { paddingBottom: 100 },
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 60, gap: 12,
+  },
+  backBtn: { color: colors.textPrimary, fontSize: 28, fontWeight: '300' },
+  title: { color: colors.textPrimary, fontSize: 17, fontWeight: '700', flex: 1 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, gap: 6 },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 12, fontWeight: '600' },
+  // KPI Grid
+  kpiGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    paddingHorizontal: 20, marginTop: 16,
+  },
+  kpiCard: {
+    width: '48%', backgroundColor: colors.bgCard,
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: 14, padding: 16,
+  },
+  kpiBlue: {
+    backgroundColor: colors.accent,
+    borderColor: 'rgba(59,130,246,0.4)',
+  },
+  kpiTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  kpiLabel: { color: 'rgba(239,246,255,0.5)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
+  kpiValue: { color: colors.textPrimary, fontSize: 28, fontWeight: '500', marginTop: 4 },
+  srcBadge: { backgroundColor: 'rgba(59,130,246,0.15)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  srcText: { color: colors.accentLight, fontSize: 10, fontWeight: '600' },
+  // Chart
+  chartCard: {
+    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 16, padding: 20, marginHorizontal: 20, marginTop: 12,
+  },
+  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
+  chartTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  chartSub: { color: colors.textTertiary, fontSize: 12 },
+  chartArea: { position: 'relative', height: 160 },
+  planLine: {
+    position: 'absolute', left: 0, right: 0,
+    borderTopWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(239,246,255,0.15)',
+    flexDirection: 'row', justifyContent: 'flex-end',
+  },
+  planText: { color: colors.textTertiary, fontSize: 10, marginTop: -12 },
+  barsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 140, paddingTop: 20 },
+  barCol: { alignItems: 'center', gap: 6 },
+  bar: { backgroundColor: colors.accent, borderRadius: 4 },
+  barLabel: { color: colors.textTertiary, fontSize: 10 },
+  // Expenses
+  expCard: {
+    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 16, padding: 20, marginHorizontal: 20, marginTop: 12,
+  },
+  expTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: 16 },
+  expRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  expLabel: { color: colors.textPrimary, fontSize: 13, width: 110 },
+  expBarBg: { flex: 1, height: 6, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 3, marginRight: 12 },
+  expBarFill: { height: '100%', backgroundColor: 'rgba(59,130,246,0.35)', borderRadius: 3 },
+  expAmount: { color: colors.red, fontSize: 13, fontWeight: '500', width: 100, textAlign: 'right' },
+});

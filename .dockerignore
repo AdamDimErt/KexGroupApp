@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.local
+.env.*.local
+.git
+.gitignore
+*.md
+.claude
+.planning
+apps/web-dashboard
+apps/mobile-dashboard
+coverage
+.turbo

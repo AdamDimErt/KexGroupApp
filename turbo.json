@@ -1,0 +1,72 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "TZ",
+    "BUSINESS_TIMEZONE",
+    "POSTGRES_URL",
+    "REDIS_URL",
+    "JWT_SECRET",
+    "JWT_ACCESS_TTL",
+    "JWT_REFRESH_TTL",
+    "MOBIZON_API_KEY",
+    "MOBIZON_API_DOMAIN",
+    "TELEGRAM_GATEWAY_TOKEN",
+    "DEV_BYPASS_PHONES",
+    "DEV_BYPASS_CODE",
+    "IIKO_API_URL",
+    "IIKO_API_KEY",
+    "IIKO_SYNC_INTERVAL_MINUTES",
+    "ONEC_REST_URL",
+    "ONEC_REST_USER",
+    "ONEC_REST_PASS",
+    "AUTH_SERVICE_URL",
+    "FINANCE_SERVICE_URL",
+    "SERVICE_KEY",
+    "FIREBASE_PROJECT_ID",
+    "FIREBASE_SERVICE_ACCOUNT_PATH",
+    "ALERT_TG_BOT_TOKEN",
+    "ALERT_TG_CHAT_ID",
+    "ALERT_SYNC_FAILURE_MINUTES",
+    "ALERT_LOW_REVENUE_PERCENT",
+    "ALERT_LARGE_EXPENSE_AMOUNT",
+    "SENTRY_DSN",
+    "SENTRY_ENVIRONMENT",
+    "EXPO_PUBLIC_API_URL",
+    "EXPO_PUBLIC_SENTRY_DSN"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ]
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "^lint"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
