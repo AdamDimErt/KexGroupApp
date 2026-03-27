@@ -7,6 +7,10 @@ export class AppController {
   @Get('health')
   @ApiOperation({ summary: 'Health check' })
   health() {
-    return { status: 'ok', service: 'api-gateway', timestamp: new Date().toISOString() };
+    return {
+      status: 'ok',
+      service: 'api-gateway',
+      timestamp: new Date().toISOString(),
+    };
   }
 }

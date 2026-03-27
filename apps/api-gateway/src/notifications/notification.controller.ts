@@ -27,7 +27,11 @@ export class NotificationController {
     @Req() req: { user: { sub: string } },
     @Body() body: RegisterTokenDto,
   ) {
-    await this.notificationService.registerToken(req.user.sub, body.fcmToken, body.platform);
+    await this.notificationService.registerToken(
+      req.user.sub,
+      body.fcmToken,
+      body.platform,
+    );
     return { success: true };
   }
 
@@ -46,7 +50,10 @@ export class NotificationController {
     @Query('pageSize') pageSize?: string,
   ) {
     const p = Math.max(1, page ? parseInt(page, 10) || 1 : 1);
-    const ps = Math.min(100, Math.max(1, pageSize ? parseInt(pageSize, 10) || 20 : 20));
+    const ps = Math.min(
+      100,
+      Math.max(1, pageSize ? parseInt(pageSize, 10) || 20 : 20),
+    );
     return this.notificationService.getUserNotifications(req.user.sub, p, ps);
   }
 

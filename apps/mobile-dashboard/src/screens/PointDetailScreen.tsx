@@ -24,10 +24,23 @@ function expenseBarPct(amount: number, maxAmount: number): DimensionValue {
 export function PointDetailScreen({ pointId, onBack }: Props) {
   const {
     restaurant: r, statusColor: col, statusLabel, profit, profitColor,
-    hourlyData, planLine, maxBar, barW, expenseItems,
+    hourlyData, planLine, maxBar, barW, expenseItems, isLoading,
   } = usePointDetail(pointId);
 
   const maxExpense = expenseItems.length > 0 ? expenseItems[0].amount : 0;
+
+  if (!r || isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onBack}>
+            <Text style={styles.backBtn}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Загрузка...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -83,11 +96,13 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
         </View>
 
         <View style={styles.chartArea}>
-          <View style={[styles.planLine, { bottom: (planLine / maxBar) * 120 }]}>
-            <Text style={styles.planText}>план</Text>
-          </View>
+          {maxBar > 0 && (
+            <View style={[styles.planLine, { bottom: (planLine / maxBar) * 120 }]}>
+              <Text style={styles.planText}>план</Text>
+            </View>
+          )}
           <View style={styles.barsRow}>
-            {hourlyData.map((d, i) => (
+            {hourlyData.map((d: any, i: number) => (
               <View key={i} style={styles.barCol}>
                 <View style={[styles.bar, { height: (d.value / maxBar) * 120, width: barW }]} />
                 <Text style={styles.barLabel}>{d.hour}</Text>

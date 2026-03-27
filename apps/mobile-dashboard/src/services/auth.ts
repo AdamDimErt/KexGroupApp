@@ -36,7 +36,7 @@ const storage = {
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 export async function sendOtp(phone: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${API_URL}/auth/send-otp`, {
+  const res = await fetch(`${API_URL}/api/auth/send-otp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone }),
@@ -50,7 +50,7 @@ export async function verifyOtp(
   phone: string,
   code: string,
 ): Promise<{ accessToken: string; refreshToken: string; user: User }> {
-  const res = await fetch(`${API_URL}/auth/verify-otp`, {
+  const res = await fetch(`${API_URL}/api/auth/verify-otp`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone, code }),

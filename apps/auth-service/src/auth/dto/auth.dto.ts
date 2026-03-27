@@ -24,3 +24,9 @@ export class RefreshTokenDto {
   @IsNotEmpty({ message: 'Refresh token обязателен' })
   refreshToken: string;
 }
+
+export class LogoutDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Refresh token обязателен' })
+  refreshToken: string;
+}

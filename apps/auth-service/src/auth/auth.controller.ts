@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
-import { SendOtpDto, VerifyOtpDto, RefreshTokenDto } from './dto/auth.dto';
+import { SendOtpDto, VerifyOtpDto, RefreshTokenDto, LogoutDto } from './dto/auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -35,6 +35,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   refresh(@Body() body: RefreshTokenDto) {
     return this.authService.refresh(body.refreshToken);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  logout(@Body() body: LogoutDto) {
+    return this.authService.logout(body.refreshToken);
   }
 
   @Get('me')

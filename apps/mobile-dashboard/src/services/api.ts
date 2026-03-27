@@ -60,7 +60,7 @@ class ApiClient {
         const { refreshToken } = await getStoredTokens();
         if (!refreshToken) return null;
 
-        const res = await fetch(`${API_URL}/auth/refresh`, {
+        const res = await fetch(`${API_URL}/api/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
@@ -108,34 +108,71 @@ export class AuthError extends Error {
 
 // ─── API methods ───────────────────────────────────────────────────────────
 
+import type {
+  DashboardSummaryDto,
+  BrandDetailDto,
+  RestaurantDetailDto,
+  ArticleGroupDetailDto,
+  NotificationListDto,
+} from '../types';
+
 export const dashboardApi = {
   // Level 1 — Company dashboard
-  getSummary: (periodType: string, from?: string, to?: string) =>
-    api.request<any>(`/dashboard/summary?period=${periodType}${from ? `&from=${from}` : ''}${to ? `&to=${to}` : ''}`),
+  // GET /api/finance/dashboard?periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+  getDashboard: (periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<DashboardSummaryDto>(`/api/finance/dashboard?${params.toString()}`);
+  },
 
   // Level 1b — Brand detail
-  getBrand: (brandId: string, periodType: string) =>
-    api.request<any>(`/dashboard/brands/${brandId}?period=${periodType}`),
+  // GET /api/finance/brand/:id?periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+  getBrand: (brandId: string, periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<BrandDetailDto>(`/api/finance/brand/${brandId}?${params.toString()}`);
+  },
 
   // Level 2 — Restaurant detail
-  getRestaurant: (restaurantId: string, periodType: string) =>
-    api.request<any>(`/dashboard/restaurants/${restaurantId}?period=${periodType}`),
+  // GET /api/finance/restaurant/:id?periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+  getRestaurant: (restaurantId: string, periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<RestaurantDetailDto>(`/api/finance/restaurant/${restaurantId}?${params.toString()}`);
+  },
 
-  // Level 3 — Article group
-  getArticleGroup: (restaurantId: string, groupId: string, periodType: string) =>
-    api.request<any>(`/dashboard/restaurants/${restaurantId}/groups/${groupId}?period=${periodType}`),
+  // Level 3 — Article detail
+  // GET /api/finance/article/:id?restaurantId=xxx&periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+  getArticle: (articleId: string, restaurantId: string, periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ restaurantId, periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<ArticleGroupDetailDto>(`/api/finance/article/${articleId}?${params.toString()}`);
+  },
+};
 
-  // Level 4 — Operations
-  getOperations: (restaurantId: string, articleId: string, periodType: string) =>
-    api.request<any>(`/dashboard/restaurants/${restaurantId}/articles/${articleId}/operations?period=${periodType}`),
+// ─── Notification API ───────────────────────────────────────────────────────
 
-  // Reports
-  getDdsReport: (periodType: string) =>
-    api.request<any>(`/reports/dds?period=${periodType}`),
+export const notificationApi = {
+  // GET /api/notifications?page=1&pageSize=20
+  getNotifications: (page: number = 1, pageSize: number = 20) =>
+    api.request<NotificationListDto>(`/api/notifications?page=${page}&pageSize=${pageSize}`),
 
-  getKitchenReport: (periodType: string) =>
-    api.request<any>(`/reports/kitchen?period=${periodType}`),
+  // PATCH /api/notifications/:id/read
+  markAsRead: (notificationId: string) =>
+    api.request<{ success: boolean }>(`/api/notifications/${notificationId}/read`, { method: 'PATCH' }),
 
-  getTrendsReport: (periodType: string) =>
-    api.request<any>(`/reports/trends?period=${periodType}`),
+  // PATCH /api/notifications/read-all
+  markAllAsRead: () =>
+    api.request<{ success: boolean }>('/api/notifications/read-all', { method: 'PATCH' }),
+
+  // POST /api/notifications/register-token
+  registerToken: (fcmToken: string, platform: string) =>
+    api.request<{ success: boolean }>('/api/notifications/register-token', {
+      method: 'POST',
+      body: JSON.stringify({ token: fcmToken, platform }),
+    }),
 };

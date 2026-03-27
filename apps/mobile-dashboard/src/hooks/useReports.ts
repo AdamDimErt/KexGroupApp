@@ -2,6 +2,9 @@ import { useState, useMemo } from 'react';
 import { Dimensions } from 'react-native';
 import type { Period, KpiData, BarDataItem, RankingItem } from '../types';
 
+// TODO: Replace with real API calls to /api/finance/reports endpoints
+// Currently using mock data for MVP
+
 const periodLabels: Record<Period, string> = {
   day: 'День', week: 'Неделя', month: 'Месяц', quarter: 'Квартал',
 };

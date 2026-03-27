@@ -5,6 +5,12 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Enable CORS
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -17,4 +23,4 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   console.log(`Finance Service запущен на порту ${port}`);
 }
-bootstrap();
+void bootstrap();

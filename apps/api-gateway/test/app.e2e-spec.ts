@@ -16,8 +16,7 @@ describe('AppController (e2e)', () => {
   });
 
   it('/health (GET)', () => {
-    return supertest(app.getHttpServer())
-      .get('/health')
-      .expect(200);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    return supertest(app.getHttpServer()).get('/health').expect(200);
   });
 });

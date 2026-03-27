@@ -11,20 +11,31 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
-import { AuthSuccessDto, SendOtpResponseDto, UserDto, UserRole } from '@dashboard/shared-types';
+import {
+  AuthSuccessDto,
+  SendOtpResponseDto,
+  UserDto,
+  UserRole,
+} from '@dashboard/shared-types';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly MAX_ATTEMPTS = 5;
   private readonly BLOCK_DURATION_SEC = 900; // 15 min
-  private readonly OTP_TTL_SEC = 300;        // 5 min
+  private readonly OTP_TTL_SEC = 300; // 5 min
   private readonly REFRESH_TTL_SEC = 2592000; // 30 days
-  private readonly DEV_BYPASS_CODE = '111111';
 
   private get bypassPhones(): string[] {
     const raw = this.config.get<string>('DEV_BYPASS_PHONES') ?? '';
-    return raw.split(',').map(p => p.trim()).filter(Boolean);
+    return raw
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+
+  private get devOtpBypassCode(): string {
+    return this.config.get<string>('DEV_OTP_BYPASS_CODE') ?? '111111';
   }
 
   constructor(
@@ -48,16 +59,30 @@ export class AuthService {
     }
 
     if (this.bypassPhones.includes(phone)) {
-      await this.redis.set(`otp:${phone}`, this.DEV_BYPASS_CODE, 'EX', this.OTP_TTL_SEC);
-      this.logger.warn(`[DEV BYPASS] ${phone} — код: ${this.DEV_BYPASS_CODE}`);
-      return { success: true, message: 'Dev bypass: используй код 111111', retryAfterSec: 60 };
+      const bypassCode = this.devOtpBypassCode;
+      await this.redis.set(
+        `otp:${phone}`,
+        bypassCode,
+        'EX',
+        this.OTP_TTL_SEC,
+      );
+      this.logger.warn(`[DEV BYPASS] ${phone} — код: ${bypassCode}`);
+      return {
+        success: true,
+        message: `Dev bypass: используй код ${bypassCode}`,
+        retryAfterSec: 60,
+      };
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await this.redis.set(`otp:${phone}`, code, 'EX', this.OTP_TTL_SEC);
     await this.sendSms(phone, `Ваш код подтверждения: ${code}`);
 
-    return { success: true, message: 'Код отправлен по SMS', retryAfterSec: 60 };
+    return {
+      success: true,
+      message: 'Код отправлен по SMS',
+      retryAfterSec: 60,
+    };
   }
 
   // ─── Verify OTP → issue tokens ────────────────────────────────────────────
@@ -67,7 +92,10 @@ export class AuthService {
     const attempts = parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
 
     if (attempts >= this.MAX_ATTEMPTS) {
-      throw new HttpException('Аккаунт заблокирован на 15 минут.', HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        'Аккаунт заблокирован на 15 минут.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     const savedCode = await this.redis.get(`otp:${phone}`);
@@ -86,6 +114,12 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+  // ─── Logout ──────────────────────────────────────────────────────────────
+
+  async logout(refreshToken: string): Promise<void> {
+    await this.redis.del(`refresh:${refreshToken}`);
+  }
+
   // ─── Refresh token ────────────────────────────────────────────────────────
 
   async refresh(refreshToken: string): Promise<AuthSuccessDto> {
@@ -101,7 +135,9 @@ export class AuthService {
 
     if (!user || !user.isActive) {
       await this.redis.del(`refresh:${refreshToken}`);
-      throw new UnauthorizedException('Пользователь не найден или деактивирован');
+      throw new UnauthorizedException(
+        'Пользователь не найден или деактивирован',
+      );
     }
 
     // Ротация: удаляем старый refresh token, выдаём новый
@@ -124,7 +160,9 @@ export class AuthService {
 
   // ─── Private helpers ──────────────────────────────────────────────────────
 
-  private async issueTokens(user: Awaited<ReturnType<typeof this.findOrCreateUser>>): Promise<AuthSuccessDto> {
+  private async issueTokens(
+    user: Awaited<ReturnType<typeof this.findOrCreateUser>>,
+  ): Promise<AuthSuccessDto> {
     const accessToken = this.jwtService.sign({
       sub: user.id,
       role: user.role,
@@ -133,7 +171,12 @@ export class AuthService {
 
     // Refresh token — случайная строка, хранится в Redis
     const refreshToken = randomUUID();
-    await this.redis.set(`refresh:${refreshToken}`, user.id, 'EX', this.REFRESH_TTL_SEC);
+    await this.redis.set(
+      `refresh:${refreshToken}`,
+      user.id,
+      'EX',
+      this.REFRESH_TTL_SEC,
+    );
 
     return {
       accessToken,
@@ -142,15 +185,19 @@ export class AuthService {
     };
   }
 
-  private toUserDto(user: Awaited<ReturnType<typeof this.findOrCreateUser>>): UserDto {
+  private toUserDto(
+    user: Awaited<ReturnType<typeof this.findOrCreateUser>>,
+  ): UserDto {
     return {
       id: user.id,
       phone: user.phone,
       name: user.name,
       role: user.role as unknown as UserRole,
       tenantId: user.tenantId,
-      tenant: user.tenant ? { id: user.tenant.id, name: user.tenant.name, slug: user.tenant.slug } : null,
-      restaurantIds: user.restaurants.map(r => r.id),
+      tenant: user.tenant
+        ? { id: user.tenant.id, name: user.tenant.name, slug: user.tenant.slug }
+        : null,
+      restaurantIds: user.restaurants.map((r) => r.id),
     };
   }
 
@@ -177,7 +224,8 @@ export class AuthService {
 
   private async sendSms(phone: string, text: string): Promise<void> {
     const apiKey = this.config.get<string>('MOBIZON_API_KEY');
-    const domain = this.config.get<string>('MOBIZON_API_DOMAIN') ?? 'api.mobizon.kz';
+    const domain =
+      this.config.get<string>('MOBIZON_API_DOMAIN') ?? 'api.mobizon.kz';
 
     if (!apiKey) {
       this.logger.warn(`[DEV] SMS на ${phone}: ${text}`);
@@ -190,8 +238,10 @@ export class AuthService {
       url.searchParams.set('text', text);
       url.searchParams.set('apiKey', apiKey);
 
-      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10_000) });
-      const data = await res.json() as { code: number; message?: string };
+      const res = await fetch(url.toString(), {
+        signal: AbortSignal.timeout(10_000),
+      });
+      const data = (await res.json()) as { code: number; message?: string };
 
       if (data.code !== 0) {
         this.logger.error(`Mobizon ошибка [${data.code}]: ${data.message}`);

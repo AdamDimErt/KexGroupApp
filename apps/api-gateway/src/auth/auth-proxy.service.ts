@@ -13,7 +13,8 @@ export class AuthProxyService {
     private readonly http: HttpService,
     private readonly config: ConfigService,
   ) {
-    this.authUrl = config.get<string>('AUTH_SERVICE_URL') ?? 'http://localhost:3001';
+    this.authUrl =
+      config.get<string>('AUTH_SERVICE_URL') ?? 'http://localhost:3001';
   }
 
   async forward<T>(
@@ -31,7 +32,10 @@ export class AuthProxyService {
     } catch (err) {
       const axiosErr = err as AxiosError;
       if (axiosErr.response) {
-        throw new HttpException(axiosErr.response.data as object, axiosErr.response.status);
+        throw new HttpException(
+          axiosErr.response.data as object,
+          axiosErr.response.status,
+        );
       }
       this.logger.error(`Ошибка проксирования к auth-service: ${String(err)}`);
       throw new HttpException('Auth service недоступен', 503);

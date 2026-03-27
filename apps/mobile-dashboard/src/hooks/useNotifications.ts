@@ -1,18 +1,41 @@
-import type { Notification } from '../types';
+import { useApiQuery } from './useApi';
+import type { NotificationListDto } from '../types';
 
-const items: Notification[] = [
-  { id: '1', read: false, color: '#EF4444', title: 'Kex Кофе Абай', body: 'Выручка ниже плана на 15%', time: '10 мин' },
-  { id: '2', read: false, color: '#F59E0B', title: 'Kex Pizza Мега', body: 'Выручка ниже плана на 7.5%', time: '1 ч' },
-  { id: '3', read: true, color: '#3B82F6', title: 'Отчёт готов', body: 'Недельный отчёт 4–10 марта', time: '2 ч' },
-  { id: '4', read: true, color: '#10B981', title: 'Kex Burgers Галерея', body: 'Превышен дневной план на 10%', time: '3 ч' },
-  { id: '5', read: true, color: '#3B82F6', title: 'Синхронизация 1С', body: 'Данные обновлены успешно', time: '4 ч' },
-];
+// Map API notification types to colors
+const notificationTypeColors: Record<string, string> = {
+  SYNC_FAILURE: '#EF4444',
+  LOW_REVENUE: '#F59E0B',
+  LARGE_EXPENSE: '#EF4444',
+  DAILY_SUMMARY: '#3B82F6',
+};
 
-export function useNotifications() {
-  const unread = items.filter(n => !n.read).length;
+export function useNotifications(page: number = 1, pageSize: number = 20) {
+  const { data, isLoading, error } = useApiQuery<NotificationListDto>(
+    async () => {
+      const res = await fetch(`/api/notifications?page=${page}&pageSize=${pageSize}`);
+      if (!res.ok) throw new Error('Failed to fetch notifications');
+      return res.json();
+    },
+    [page, pageSize],
+  );
+
+  // Transform API notifications to legacy format
+  const items = (data?.notifications ?? []).map(n => ({
+    id: n.id,
+    read: n.isRead,
+    color: notificationTypeColors[n.type] || '#3B82F6',
+    title: n.title,
+    body: n.body,
+    time: new Date(n.createdAt).toLocaleString('ru-RU'),
+  }));
+
+  const unread = data?.unreadCount ?? 0;
 
   return {
     items,
     unread,
+    isLoading,
+    error,
+    total: data?.total ?? 0,
   };
 }

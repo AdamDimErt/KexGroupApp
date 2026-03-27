@@ -6,6 +6,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.setGlobalPrefix('api');
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -15,9 +17,10 @@ async function bootstrap() {
   );
 
   // CORS: в dev разрешаем localhost, в prod — только свой домен
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['https://api.kexgroup.kz']
-    : [/^http:\/\/localhost:\d+$/, /^http:\/\/192\.168\.\d+\.\d+:\d+$/];
+  const allowedOrigins =
+    process.env.NODE_ENV === 'production'
+      ? ['https://api.kexgroup.kz']
+      : [/^http:\/\/localhost:\d+$/, /^http:\/\/192\.168\.\d+\.\d+:\d+$/];
 
   app.enableCors({
     origin: allowedOrigins,
@@ -31,11 +34,12 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port, '0.0.0.0');
   console.log(`API Gateway запущен на порту ${port}`);
-  console.log(`Swagger: http://localhost:${port}/docs`);
+  console.log(`Swagger: http://localhost:${port}/api/docs`);
 }
-bootstrap();
+
+void bootstrap();

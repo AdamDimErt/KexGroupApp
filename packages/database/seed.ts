@@ -4,8 +4,8 @@ import { Pool } from 'pg';
 
 const connectionString = process.env.POSTGRES_URL ?? 'postgresql://root:root@127.0.0.1:5434/dashboard';
 const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const adapter = new PrismaPg(pool as any);
+const prisma = new PrismaClient({ adapter } as any);
 
 async function main() {
   console.log('🌱 Seeding database...\n');

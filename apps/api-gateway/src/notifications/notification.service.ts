@@ -27,7 +27,11 @@ export class NotificationService {
 
   // ─── Register FCM token ──────────────────────────────────────────────────
 
-  async registerToken(userId: string, fcmToken: string, platform: string): Promise<void> {
+  async registerToken(
+    userId: string,
+    fcmToken: string,
+    platform: string,
+  ): Promise<void> {
     await this.prisma.notificationToken.upsert({
       where: { fcmToken },
       update: { userId, platform, isActive: true, updatedAt: new Date() },
@@ -45,7 +49,11 @@ export class NotificationService {
 
   // ─── Send to user ────────────────────────────────────────────────────────
 
-  async sendToUser(userId: string, type: string, message: FcmMessage): Promise<void> {
+  async sendToUser(
+    userId: string,
+    type: string,
+    message: FcmMessage,
+  ): Promise<void> {
     const tokens = await this.prisma.notificationToken.findMany({
       where: { userId, isActive: true },
     });
@@ -56,7 +64,7 @@ export class NotificationService {
     }
 
     const results = await Promise.allSettled(
-      tokens.map(t => this.sendFcm(t.fcmToken, message)),
+      tokens.map((t) => this.sendFcm(t.fcmToken, message)),
     );
 
     // Deactivate failed tokens (e.g. uninstalled app)
@@ -64,7 +72,10 @@ export class NotificationService {
       const result = results[i];
       if (result.status === 'fulfilled' && !result.value.success) {
         const errorMsg = result.value.error ?? '';
-        if (errorMsg.includes('NOT_FOUND') || errorMsg.includes('UNREGISTERED')) {
+        if (
+          errorMsg.includes('NOT_FOUND') ||
+          errorMsg.includes('UNREGISTERED')
+        ) {
           await this.unregisterToken(tokens[i].fcmToken);
           this.logger.warn(`Deactivated stale token for user ${userId}`);
         }
@@ -78,21 +89,25 @@ export class NotificationService {
         type,
         title: message.title,
         body: message.body,
-        data: message.data ? JSON.parse(JSON.stringify(message.data)) : undefined,
+        data: message.data,
       },
     });
   }
 
   // ─── Send to all users with role ─────────────────────────────────────────
 
-  async sendToRole(role: string, type: string, message: FcmMessage): Promise<void> {
+  async sendToRole(
+    role: string,
+    type: string,
+    message: FcmMessage,
+  ): Promise<void> {
     const users = await this.prisma.user.findMany({
       where: { role: role as never, isActive: true },
       select: { id: true },
     });
 
     await Promise.allSettled(
-      users.map(u => this.sendToUser(u.id, type, message)),
+      users.map((u) => this.sendToUser(u.id, type, message)),
     );
   }
 
@@ -129,15 +144,27 @@ export class NotificationService {
 
   // ─── Alert triggers (called by aggregator-worker) ────────────────────────
 
-  async triggerLowRevenueAlert(restaurantName: string, amount: number, threshold: number): Promise<void> {
+  async triggerLowRevenueAlert(
+    restaurantName: string,
+    amount: number,
+    threshold: number,
+  ): Promise<void> {
     await this.sendToRole('OWNER', 'LOW_REVENUE', {
       title: 'Низкая выручка',
       body: `${restaurantName}: ${amount.toLocaleString('ru-RU')} ₸ (порог: ${threshold.toLocaleString('ru-RU')} ₸)`,
-      data: { restaurantName, amount: String(amount), threshold: String(threshold) },
+      data: {
+        restaurantName,
+        amount: String(amount),
+        threshold: String(threshold),
+      },
     });
   }
 
-  async triggerLargeExpenseAlert(restaurantName: string, articleName: string, amount: number): Promise<void> {
+  async triggerLargeExpenseAlert(
+    restaurantName: string,
+    articleName: string,
+    amount: number,
+  ): Promise<void> {
     await this.sendToRole('OWNER', 'LARGE_EXPENSE', {
       title: 'Крупный расход',
       body: `${restaurantName} — ${articleName}: ${amount.toLocaleString('ru-RU')} ₸`,
@@ -155,7 +182,10 @@ export class NotificationService {
 
   // ─── FCM HTTP v1 API ─────────────────────────────────────────────────────
 
-  private async sendFcm(fcmToken: string, message: FcmMessage): Promise<FcmSendResult> {
+  private async sendFcm(
+    fcmToken: string,
+    message: FcmMessage,
+  ): Promise<FcmSendResult> {
     const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
     if (!projectId) {
       this.logger.warn('[DEV] FCM not configured — skipping push');
@@ -169,7 +199,7 @@ export class NotificationService {
       const res = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -198,8 +228,11 @@ export class NotificationService {
         return { success: false, error: errBody };
       }
 
-      const data = await res.json() as { name: string };
-      return { success: true, messageId: data.name };
+      const data = (await res.json()) as unknown;
+      return {
+        success: true,
+        messageId: (data as { name: string }).name,
+      };
     } catch (e) {
       this.logger.error('FCM send failed', e);
       return { success: false, error: String(e) };
@@ -213,7 +246,9 @@ export class NotificationService {
     }
 
     const clientEmail = this.config.get<string>('FIREBASE_CLIENT_EMAIL');
-    const privateKey = this.config.get<string>('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
+    const privateKey = this.config
+      .get<string>('FIREBASE_PRIVATE_KEY')
+      ?.replace(/\\n/g, '\n');
 
     if (!clientEmail || !privateKey) {
       throw new Error('Firebase credentials not configured');
@@ -221,14 +256,18 @@ export class NotificationService {
 
     // JWT for Google OAuth2
     const now = Math.floor(Date.now() / 1000);
-    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({
-      iss: clientEmail,
-      scope: 'https://www.googleapis.com/auth/firebase.messaging',
-      aud: 'https://oauth2.googleapis.com/token',
-      iat: now,
-      exp: now + 3600,
-    })).toString('base64url');
+    const header = Buffer.from(
+      JSON.stringify({ alg: 'RS256', typ: 'JWT' }),
+    ).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        iss: clientEmail,
+        scope: 'https://www.googleapis.com/auth/firebase.messaging',
+        aud: 'https://oauth2.googleapis.com/token',
+        iat: now,
+        exp: now + 3600,
+      }),
+    ).toString('base64url');
 
     const { createSign } = await import('crypto');
     const sign = createSign('RSA-SHA256');
@@ -243,7 +282,10 @@ export class NotificationService {
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
     });
 
-    const data = await res.json() as { access_token: string; expires_in: number };
+    const data = (await res.json()) as {
+      access_token: string;
+      expires_in: number;
+    };
     this.accessToken = data.access_token;
     this.tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
 

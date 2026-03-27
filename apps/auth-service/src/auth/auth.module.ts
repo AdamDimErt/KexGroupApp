@@ -32,9 +32,11 @@ import { AuthService } from './auth.service';
       provide: 'PRISMA_CLIENT',
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const connectionString = config.get<string>('POSTGRES_URL') ?? 'postgresql://root:root@127.0.0.1:5434/dashboard';
+        const connectionString =
+          config.get<string>('POSTGRES_URL') ??
+          'postgresql://root:root@127.0.0.1:5434/dashboard';
         const pool = new Pool({ connectionString });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         const adapter = new PrismaPg(pool as any);
         return new PrismaClient({ adapter });
       },

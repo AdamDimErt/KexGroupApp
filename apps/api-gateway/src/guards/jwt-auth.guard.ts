@@ -21,7 +21,7 @@ export class JwtAuthGuard implements CanActivate {
 
     const token = authHeader.slice(7);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       (req as any).user = this.jwtService.verify(token);
     } catch {
       throw new UnauthorizedException('Токен недействителен или истёк');

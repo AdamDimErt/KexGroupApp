@@ -25,7 +25,9 @@ export class AuthProxyController {
   @Post('send-otp')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @ApiOperation({ summary: 'Отправить OTP на телефон' })
+  @ApiOperation({
+    summary: 'Отправить OTP на телефон (POST /api/auth/send-otp)',
+  })
   sendOtp(@Body() body: SendOtpRequestDto) {
     return this.proxy.forward('POST', '/auth/send-otp', body);
   }
@@ -33,14 +35,16 @@ export class AuthProxyController {
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiOperation({ summary: 'Проверить OTP и получить токены' })
+  @ApiOperation({
+    summary: 'Проверить OTP и получить токены (POST /api/auth/verify-otp)',
+  })
   verifyOtp(@Body() body: VerifyOtpRequestDto) {
     return this.proxy.forward('POST', '/auth/verify-otp', body);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Обновить access token' })
+  @ApiOperation({ summary: 'Обновить access token (POST /api/auth/refresh)' })
   refresh(@Body() body: { refreshToken: string }) {
     return this.proxy.forward('POST', '/auth/refresh', body);
   }
@@ -48,8 +52,12 @@ export class AuthProxyController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Получить профиль текущего пользователя' })
+  @ApiOperation({
+    summary: 'Получить профиль текущего пользователя (GET /api/auth/me)',
+  })
   getMe(@Headers('authorization') authHeader: string) {
-    return this.proxy.forward('GET', '/auth/me', undefined, { authorization: authHeader });
+    return this.proxy.forward('GET', '/auth/me', undefined, {
+      authorization: authHeader,
+    });
   }
 }

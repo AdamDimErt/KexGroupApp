@@ -4,7 +4,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AuthProxyModule } from './auth/auth-proxy.module';
+import { FinanceProxyModule } from './finance/finance-proxy.module';
 import { NotificationModule } from './notifications/notification.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -20,7 +22,9 @@ import { NotificationModule } from './notifications/notification.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 30 }]),
     AuthProxyModule,
+    FinanceProxyModule,
     NotificationModule,
+    HealthModule,
   ],
   controllers: [AppController],
 })
