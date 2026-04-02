@@ -81,6 +81,24 @@ export class SchedulerService {
     }
   }
 
+  // Every hour — sync kitchen shipments from iiko
+  @Cron('20 * * * *')
+  async syncKitchenShipments() {
+    try {
+      const now = new Date();
+      const dateFrom = new Date(now);
+      dateFrom.setDate(dateFrom.getDate() - 1);
+      const dateTo = now;
+
+      this.logger.log(`Syncing kitchen shipments from ${dateFrom} to ${dateTo}...`);
+      await this.iikoSync.syncKitchenShipments(dateFrom, dateTo);
+    } catch (error) {
+      this.logger.error(
+        `Kitchen shipment sync failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   // Every hour — sync 1C expenses
   @Cron('5 * * * *')
   async syncOneCExpenses() {

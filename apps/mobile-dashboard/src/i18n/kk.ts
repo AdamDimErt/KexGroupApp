@@ -51,6 +51,14 @@ export default {
     syncError: 'Синхрондау қатесі',
   },
 
+  // ─── Brand Detail ───────────────────────────────────────
+  brand: {
+    title: 'Бренд',
+    revenue: 'Түсім',
+    restaurants: 'Мейрамханалар',
+    points: 'нүктелер',
+  },
+
   // ─── Points (restaurants) ────────────────────────────────
   points: {
     title: 'Сауда нүктелері',

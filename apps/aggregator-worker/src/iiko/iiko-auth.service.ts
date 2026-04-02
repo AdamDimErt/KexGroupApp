@@ -7,7 +7,7 @@ import { firstValueFrom } from 'rxjs';
 export class IikoAuthService {
   private readonly logger = new Logger(IikoAuthService.name);
   private readonly redis: Redis;
-  private readonly baseUrl = 'https://api-ru.iiko.services/api/1';
+  private readonly baseUrl = process.env.IIKO_SERVER_URL || 'https://kexbrands-co.iiko.it:443/resto/api';
   private readonly tokenCacheKey = 'iiko:access_token';
   private readonly tokenCacheTTL = 55 * 60; // 55 minutes
 
@@ -33,9 +33,11 @@ export class IikoAuthService {
   }
 
   private async fetchNewToken(): Promise<string> {
-    const apiKey = process.env.IIKO_API_KEY;
-    if (!apiKey) {
-      throw new Error('IIKO_API_KEY is not set');
+    const login = process.env.IIKO_LOGIN;
+    const password = process.env.IIKO_PASSWORD;
+
+    if (!login || !password) {
+      throw new Error('IIKO_LOGIN and IIKO_PASSWORD environment variables are required');
     }
 
     const maxRetries = 3;
@@ -43,20 +45,23 @@ export class IikoAuthService {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
+        const authUrl = `${this.baseUrl}/auth`;
+        const formData = `login=${encodeURIComponent(login)}&pass=${encodeURIComponent(password)}`;
         const response = await firstValueFrom(
-          this.httpService.post(
-            `${this.baseUrl}/access_token`,
-            { apiLogin: apiKey },
-            { timeout: 30000 }
-          )
+          this.httpService.post(authUrl, formData, {
+            timeout: 30000,
+            responseType: 'text',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          })
         );
 
-        const token = response.data?.token;
+        // iiko Server API returns plain text token
+        const token = response.data?.trim();
         if (!token) {
-          throw new Error('No token in response');
+          throw new Error('Empty token response from auth endpoint');
         }
 
-        this.logger.log(`iiko access token obtained (attempt ${attempt + 1})`);
+        this.logger.log(`iiko Server API access token obtained (attempt ${attempt + 1})`);
         return token;
       } catch (error) {
         lastError = error as Error;

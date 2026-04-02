@@ -34,7 +34,10 @@ export class FinanceProxyController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const tenantId = (req as any).user?.tenantId ?? '';
+    const user = (req as any).user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds || []).join(',');
     const path = this.buildQueryString('/dashboard', {
       periodType,
       dateFrom,
@@ -43,6 +46,8 @@ export class FinanceProxyController {
     return this.proxy.forward('GET', path, undefined, {
       authorization: authHeader,
       'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
     });
   }
 
@@ -60,7 +65,7 @@ export class FinanceProxyController {
     @Query('dateTo') dateTo?: string,
   ) {
     const tenantId = (req as any).user?.tenantId ?? '';
-    const path = this.buildQueryString(`/brand/${brandId}`, {
+    const path = this.buildQueryString(`/dashboard/brand/${brandId}`, {
       periodType,
       dateFrom,
       dateTo,
@@ -85,7 +90,7 @@ export class FinanceProxyController {
     @Query('dateTo') dateTo?: string,
   ) {
     const tenantId = (req as any).user?.tenantId ?? '';
-    const path = this.buildQueryString(`/restaurant/${restaurantId}`, {
+    const path = this.buildQueryString(`/dashboard/restaurant/${restaurantId}`, {
       periodType,
       dateFrom,
       dateTo,
@@ -111,7 +116,7 @@ export class FinanceProxyController {
     @Query('dateTo') dateTo?: string,
   ) {
     const tenantId = (req as any).user?.tenantId ?? '';
-    const path = this.buildQueryString(`/article/${articleId}`, {
+    const path = this.buildQueryString(`/dashboard/article/${articleId}`, {
       restaurantId,
       periodType,
       dateFrom,

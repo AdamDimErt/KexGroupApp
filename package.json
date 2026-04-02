@@ -10,7 +10,9 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "typecheck": "turbo typecheck",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "dashboard": "npm run dev --workspace=web-dashboard",
+    "dashboard:build": "npm run build --workspace=web-dashboard"
   },
   "devDependencies": {
     "prettier": "^3.2.5",

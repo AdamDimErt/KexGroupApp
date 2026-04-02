@@ -1,5 +1,5 @@
 // ─── Навигация ────────────────────────────────────────────────────────────────
-export type Screen = 'login' | 'dashboard' | 'points' | 'point-details' | 'notifications' | 'reports';
+export type Screen = 'login' | 'dashboard' | 'brand-details' | 'points' | 'point-details' | 'notifications' | 'reports';
 
 // ─── Пользователь ────────────────────────────────────────────────────────────
 export type UserRole = 'ADMIN' | 'OWNER' | 'FINANCE_DIRECTOR' | 'OPERATIONS_DIRECTOR';

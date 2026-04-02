@@ -1,93 +1,101 @@
 import { useState, useMemo } from 'react';
 import { Dimensions } from 'react-native';
-import type { Period, KpiData, BarDataItem, RankingItem } from '../types';
-
-// TODO: Replace with real API calls to /api/finance/reports endpoints
-// Currently using mock data for MVP
+import { dashboardApi } from '../services/api';
+import { useApiQuery } from './useApi';
+import type { Period, KpiData, BarDataItem, RankingItem, DashboardSummaryDto } from '../types';
 
 const periodLabels: Record<Period, string> = {
   day: 'День', week: 'Неделя', month: 'Месяц', quarter: 'Квартал',
 };
 
-const kpiMap: Record<Period, KpiData> = {
-  day: { revenue: '₸8.24M', expenses: '₸5.10M', profit: '₸3.14M', revChg: '+12.4%', expChg: '+8.1%', profChg: '+18.7%' },
-  week: { revenue: '₸57.7M', expenses: '₸35.8M', profit: '₸21.9M', revChg: '+15.2%', expChg: '+9.4%', profChg: '+24.3%' },
-  month: { revenue: '₸247M', expenses: '₸153M', profit: '₸94M', revChg: '+18.4%', expChg: '+11.2%', profChg: '+28.7%' },
-  quarter: { revenue: '₸741M', expenses: '₸459M', profit: '₸282M', revChg: '+21.3%', expChg: '+13.5%', profChg: '+32.1%' },
-};
+// Map UI period to API periodType and date range
+function getPeriodParams(period: Period): { periodType: string; dateFrom: string; dateTo: string } {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const toDate = `${year}-${month}-${day}`;
 
-const barDataMap: Record<Period, BarDataItem[]> = {
-  day: [
-    { name: 'Галерея', fact: 2420, plan: 2200 },
-    { name: 'Мега', fact: 1850, plan: 2000 },
-    { name: 'Абай', fact: 1020, plan: 1200 },
-    { name: 'Нурлы', fact: 1680, plan: 1500 },
-    { name: 'Байтерек', fact: 1270, plan: 1100 },
-  ],
-  week: [
-    { name: 'Галерея', fact: 16940, plan: 15400 },
-    { name: 'Мега', fact: 12950, plan: 14000 },
-    { name: 'Абай', fact: 7140, plan: 8400 },
-    { name: 'Нурлы', fact: 11760, plan: 10500 },
-    { name: 'Байтерек', fact: 8890, plan: 7700 },
-  ],
-  month: [
-    { name: 'Галерея', fact: 72600, plan: 66000 },
-    { name: 'Мега', fact: 55500, plan: 60000 },
-    { name: 'Абай', fact: 30600, plan: 36000 },
-    { name: 'Нурлы', fact: 50400, plan: 45000 },
-    { name: 'Байтерек', fact: 38100, plan: 33000 },
-  ],
-  quarter: [
-    { name: 'Галерея', fact: 217800, plan: 198000 },
-    { name: 'Мега', fact: 166500, plan: 180000 },
-    { name: 'Абай', fact: 91800, plan: 108000 },
-    { name: 'Нурлы', fact: 151200, plan: 135000 },
-    { name: 'Байтерек', fact: 114300, plan: 99000 },
-  ],
-};
+  switch (period) {
+    case 'day': {
+      return { periodType: 'today', dateFrom: toDate, dateTo: toDate };
+    }
+    case 'week': {
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
+      const from = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+      return { periodType: 'thisWeek', dateFrom: from, dateTo: toDate };
+    }
+    case 'month': {
+      return { periodType: 'thisMonth', dateFrom: `${year}-${month}-01`, dateTo: toDate };
+    }
+    case 'quarter': {
+      const quarterMonth = Math.floor(today.getMonth() / 3) * 3;
+      const qStart = new Date(year, quarterMonth, 1);
+      const from = `${qStart.getFullYear()}-${String(qStart.getMonth() + 1).padStart(2, '0')}-01`;
+      return { periodType: 'thisMonth', dateFrom: from, dateTo: toDate };
+    }
+  }
+}
 
-const rankingMap: Record<Period, RankingItem[]> = {
-  day: [
-    { name: 'Kex Burgers Галерея', revenue: '₸2.42M', planPct: 110 },
-    { name: 'Kex Diner Нурлытау', revenue: '₸1.68M', planPct: 112 },
-    { name: 'Kex Pizza Мега', revenue: '₸1.85M', planPct: 93 },
-    { name: 'Kex Burgers Байтерек', revenue: '₸1.27M', planPct: 115 },
-    { name: 'Kex Кофе Абай', revenue: '₸1.02M', planPct: 85 },
-  ],
-  week: [
-    { name: 'Kex Burgers Галерея', revenue: '₸16.9M', planPct: 110 },
-    { name: 'Kex Pizza Мега', revenue: '₸13.0M', planPct: 93 },
-    { name: 'Kex Diner Нурлытау', revenue: '₸11.8M', planPct: 112 },
-    { name: 'Kex Burgers Байтерек', revenue: '₸8.9M', planPct: 115 },
-    { name: 'Kex Кофе Абай', revenue: '₸7.1M', planPct: 85 },
-  ],
-  month: [
-    { name: 'Kex Burgers Галерея', revenue: '₸72.6M', planPct: 110 },
-    { name: 'Kex Pizza Мега', revenue: '₸55.5M', planPct: 93 },
-    { name: 'Kex Diner Нурлытау', revenue: '₸50.4M', planPct: 112 },
-    { name: 'Kex Burgers Байтерек', revenue: '₸38.1M', planPct: 115 },
-    { name: 'Kex Кофе Абай', revenue: '₸30.6M', planPct: 85 },
-  ],
-  quarter: [
-    { name: 'Kex Burgers Галерея', revenue: '₸217M', planPct: 110 },
-    { name: 'Kex Pizza Мега', revenue: '₸167M', planPct: 93 },
-    { name: 'Kex Diner Нурлытау', revenue: '₸151M', planPct: 112 },
-    { name: 'Kex Burgers Байтерек', revenue: '₸114M', planPct: 115 },
-    { name: 'Kex Кофе Абай', revenue: '₸91.8M', planPct: 85 },
-  ],
-};
+function formatAmount(amount: number): string {
+  if (Math.abs(amount) >= 1000000) return `₸${(amount / 1000000).toFixed(1)}M`;
+  if (Math.abs(amount) >= 1000) return `₸${Math.round(amount / 1000)}K`;
+  return `₸${amount.toFixed(0)}`;
+}
 
 export const PERIODS: Period[] = ['day', 'week', 'month', 'quarter'];
 
 export function useReports() {
   const [period, setPeriod] = useState<Period>('week');
 
-  const kpi = kpiMap[period];
-  const barData = barDataMap[period];
-  const ranking = rankingMap[period];
+  const { periodType, dateFrom, dateTo } = getPeriodParams(period);
 
-  const maxFact = useMemo(() => Math.max(...barData.map(d => d.fact)), [barData]);
+  const { data: summary, isLoading, error } = useApiQuery<DashboardSummaryDto>(
+    () => dashboardApi.getDashboard(periodType, dateFrom, dateTo),
+    [period],
+  );
+
+  const kpi: KpiData = useMemo(() => {
+    if (!summary) {
+      return { revenue: '—', expenses: '—', profit: '—', revChg: '—', expChg: '—', profChg: '—' };
+    }
+    const profit = summary.financialResult;
+    return {
+      revenue: formatAmount(summary.totalRevenue),
+      expenses: formatAmount(summary.totalExpenses),
+      profit: formatAmount(profit),
+      revChg: '—', // TODO: compare with previous period when API supports it
+      expChg: '—',
+      profChg: '—',
+    };
+  }, [summary]);
+
+  const barData: BarDataItem[] = useMemo(() => {
+    if (!summary?.brands) return [];
+    return summary.brands.map(brand => ({
+      name: brand.name.length > 12 ? brand.name.substring(0, 12) + '...' : brand.name,
+      fact: brand.revenue,
+      plan: brand.revenue, // No plan data yet — show fact as plan
+    }));
+  }, [summary]);
+
+  const ranking: RankingItem[] = useMemo(() => {
+    if (!summary?.brands) return [];
+    return [...summary.brands]
+      .sort((a, b) => b.revenue - a.revenue)
+      .map(brand => ({
+        name: brand.name,
+        revenue: formatAmount(brand.revenue),
+        planPct: 100, // No plan data yet
+      }));
+  }, [summary]);
+
+  const maxFact = useMemo(() => {
+    if (barData.length === 0) return 1;
+    return Math.max(...barData.map(d => d.fact), 1);
+  }, [barData]);
+
   const screenW = Dimensions.get('window').width;
 
   return {
@@ -99,5 +107,7 @@ export function useReports() {
     ranking,
     maxFact,
     screenW,
+    isLoading,
+    error,
   };
 }

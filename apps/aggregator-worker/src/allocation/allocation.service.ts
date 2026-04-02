@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -74,11 +75,16 @@ export class AllocationService {
         for (const restaurant of restaurants) {
           const restRevenue = restaurantRevenue.get(restaurant.id) || 0;
 
-          // coefficient = restaurant_revenue / total_revenue
+          // coefficient = restaurant_revenue / total_revenue (Decimal precision 10,6)
           const coefficient = restRevenue === 0 ? 0 : restRevenue / totalRevenue;
+          // Round coefficient to 6 decimal places (matches Decimal(10,6))
+          const coefficientDecimal = new Prisma.Decimal(coefficient.toFixed(6));
 
-          // allocated_amount = original_amount × coefficient
-          const allocatedAmount = Number(expense.amount) * coefficient;
+          // allocated_amount = original_amount × coefficient (Decimal precision 15,2)
+          const originalAmount = new Prisma.Decimal(expense.amount.toString());
+          const allocatedAmount = new Prisma.Decimal(
+            (Number(originalAmount) * coefficient).toFixed(2),
+          );
 
           // Create cost allocation record
           await this.prisma.costAllocation.upsert({
@@ -91,17 +97,17 @@ export class AllocationService {
               },
             },
             update: {
-              coefficient: coefficient.toString(),
-              allocatedAmount: allocatedAmount.toString(),
+              coefficient: coefficientDecimal,
+              allocatedAmount,
             },
             create: {
               restaurantId: restaurant.id,
               expenseId: expense.id,
               periodStart: dateFrom,
               periodEnd: dateTo,
-              coefficient: coefficient.toString(),
+              coefficient: coefficientDecimal,
               originalAmount: expense.amount,
-              allocatedAmount: allocatedAmount.toString(),
+              allocatedAmount,
             },
           });
 

@@ -16,7 +16,7 @@ interface LoginScreenProps {
 export function LoginScreen({ onLogin }: LoginScreenProps) {
   const {
     step, phoneValue, setPhoneValue, selectedCountry, setSelectedCountry,
-    code, loading, error, codeRefs, rawPhone, isPhoneReady,
+    code, loading, error, devHint, codeRefs, rawPhone, isPhoneReady,
     handlePhoneSubmit, submitCode, handleCodeChange, handleKeyPress, goBackToPhone,
   } = useLogin(onLogin);
 
@@ -80,6 +80,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           <>
             <Text style={styles.label}>КОД ИЗ SMS</Text>
             <Text style={styles.otpHint}>Отправили на {rawPhone}</Text>
+            {devHint && <Text style={[styles.otpHint, { color: '#4CAF50', marginTop: 4 }]}>{devHint}</Text>}
 
             <View style={styles.codeRow}>
               {code.map((digit, idx) => (

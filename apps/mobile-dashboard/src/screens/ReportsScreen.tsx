@@ -1,12 +1,13 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useReports, PERIODS } from '../hooks/useReports';
 import { planColor } from '../utils/calculations';
+import { colors } from '../theme';
 import { styles } from './ReportsScreen.styles';
 import type { Period } from '../types';
 
 export function ReportsScreen() {
-  const { period, setPeriod, periodLabels, kpi, barData, ranking, maxFact } = useReports();
+  const { period, setPeriod, periodLabels, kpi, barData, ranking, maxFact, isLoading, error } = useReports();
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -30,6 +31,19 @@ export function ReportsScreen() {
           ))}
         </View>
       </View>
+
+      {isLoading && (
+        <View style={{ padding: 40, alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={{ color: colors.textTertiary, marginTop: 8 }}>Загрузка данных...</Text>
+        </View>
+      )}
+
+      {error && !isLoading && (
+        <View style={{ padding: 24, alignItems: 'center' }}>
+          <Text style={{ color: colors.red, fontSize: 14 }}>Ошибка: {error}</Text>
+        </View>
+      )}
 
       <View style={styles.body}>
         {/* KPI Cards — horizontal scroll */}

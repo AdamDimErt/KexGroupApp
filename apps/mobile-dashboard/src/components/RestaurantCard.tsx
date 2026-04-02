@@ -50,7 +50,7 @@ export function RestaurantCard({ name, city, revenue, transactions, dev, status,
         <View style={[styles.dot, { backgroundColor: col }]} />
         <View style={styles.info}>
           <Text style={styles.name}>{name}</Text>
-          <Text style={styles.meta}>{city} · {transactions} чеков</Text>
+          <Text style={styles.meta}>{city} · {transactions} точек</Text>
         </View>
         <View style={styles.right}>
           <Text style={styles.revenue}>{formatRevenue(revenue)}</Text>

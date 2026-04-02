@@ -18,20 +18,24 @@ export function useDashboard(onLogout: () => void) {
   const { data: summary, isLoading, error } = useDashboardSummary();
 
   const totalRevenue = summary?.totalRevenue ?? 0;
+  const totalExpenses = summary?.totalExpenses ?? 0;
+  const financialResult = summary?.financialResult ?? 0;
+  const totalRestaurantCount = (summary?.brands ?? []).reduce((sum, b) => sum + b.restaurantCount, 0);
 
   // Transform brands to restaurant items for compatibility with existing UI
+  const maxRevenue = Math.max(...(summary?.brands ?? []).map(b => b.revenue), 1);
   const restaurantItems: DashboardRestaurantItem[] = (summary?.brands ?? []).map(brand => {
     const status: 'green' | 'yellow' | 'red' = brand.financialResult >= 0 ? 'green' : (brand.changePercent < -10 ? 'red' : 'yellow');
     return {
       id: brand.id,
       name: brand.name,
-      city: brand.slug || 'N/A',  // Use slug as placeholder for city
-      type: `${brand.restaurantCount} филиал${brand.restaurantCount !== 1 ? 'ов' : ''}`,  // Show restaurant count as type
+      city: (brand.slug || brand.name).toUpperCase(),
+      type: `${brand.restaurantCount} филиал${brand.restaurantCount !== 1 ? 'ов' : ''}`,
       revenue: brand.revenue,
       transactions: brand.restaurantCount,
-      dev: brand.financialResult,
+      dev: brand.changePercent,
       status,
-      planPct: brand.revenue,
+      planPct: Math.round((brand.revenue / maxRevenue) * 100),
     };
   });
 
@@ -44,6 +48,9 @@ export function useDashboard(onLogout: () => void) {
 
   return {
     totalRevenue,
+    totalExpenses,
+    financialResult,
+    totalRestaurantCount,
     restaurantItems,
     confirmLogout,
     isLoading,

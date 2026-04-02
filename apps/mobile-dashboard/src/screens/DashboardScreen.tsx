@@ -1,20 +1,44 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors } from '../theme';
-import { restaurants } from '../data/restaurants';
 import { RestaurantCard } from '../components/RestaurantCard';
 import { useDashboard } from '../hooks/useDashboard';
 import { styles } from './DashboardScreen.styles';
 
 interface DashboardProps {
   onPointSelect: (id: string) => void;
+  onNavigateBrand?: (id: string, name: string) => void;
   onNavigateNotifications: () => void;
   onLogout: () => void;
 }
 
-export function DashboardScreen({ onPointSelect, onNavigateNotifications, onLogout }: DashboardProps) {
-  const { totalRevenue, restaurantItems, confirmLogout } = useDashboard(onLogout);
+export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onLogout }: DashboardProps) {
+  const { totalRevenue, totalExpenses, financialResult, totalRestaurantCount, restaurantItems, confirmLogout, isLoading, error } = useDashboard(onLogout);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', flex: 1 }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={[styles.heroGray, { marginTop: 12 }]}>Загрузка данных...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', flex: 1, padding: 24 }]}>
+        <Text style={[styles.heroLabel, { color: colors.red, marginBottom: 8 }]}>Ошибка загрузки</Text>
+        <Text style={styles.heroGray}>{typeof error === 'object' && error !== null && 'message' in error ? (error as Error).message : 'Неизвестная ошибка'}</Text>
+      </View>
+    );
+  }
+
+  const formatAmount = (amount: number) => {
+    if (Math.abs(amount) >= 1000000) return `₸${(amount / 1000000).toFixed(1)}M`;
+    if (Math.abs(amount) >= 1000) return `₸${(amount / 1000).toFixed(0)}K`;
+    return `₸${amount.toFixed(0)}`;
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -47,17 +71,19 @@ export function DashboardScreen({ onPointSelect, onNavigateNotifications, onLogo
             ))}
           </View>
         </View>
-        <Text style={styles.heroAmount}>₸ {(totalRevenue / 1000000).toFixed(1)}M</Text>
+        <Text style={styles.heroAmount}>{formatAmount(totalRevenue)}</Text>
         <View style={styles.heroSubRow}>
-          <Text style={styles.heroGreen}>↑ 12.4% к плану</Text>
-          <Text style={styles.heroGray}>Расходы: ₸5.1M</Text>
+          <Text style={financialResult >= 0 ? styles.heroGreen : styles.heroGray}>
+            {financialResult >= 0 ? '↑' : '↓'} Результат: {formatAmount(financialResult)}
+          </Text>
+          <Text style={styles.heroGray}>Расходы: {formatAmount(totalExpenses)}</Text>
         </View>
       </View>
 
-      {/* Список ресторанов */}
+      {/* Список брендов */}
       <View style={styles.listHeader}>
-        <Text style={styles.listTitle}>Рестораны</Text>
-        <Text style={styles.listCount}>{restaurants.length} точек</Text>
+        <Text style={styles.listTitle}>Бренды</Text>
+        <Text style={styles.listCount}>{totalRestaurantCount} точек</Text>
       </View>
 
       {restaurantItems.map(r => (
@@ -71,24 +97,9 @@ export function DashboardScreen({ onPointSelect, onNavigateNotifications, onLogo
           dev={r.dev}
           status={r.status}
           planPct={r.planPct}
-          onPress={() => onPointSelect(r.id)}
+          onPress={() => onNavigateBrand ? onNavigateBrand(r.id, r.name) : onPointSelect(r.id)}
         />
       ))}
-
-      {/* Остатки на счетах */}
-      <Text style={styles.balancesLabel}>ОСТАТКИ НА СЧЕТАХ · 1С</Text>
-      <View style={styles.balancesRow}>
-        {[
-          { bank: 'Kaspi Bank', balance: 2400000, upd: '10 мин' },
-          { bank: 'Halyk Bank', balance: 890000, upd: '10 мин' },
-        ].map(acc => (
-          <View key={acc.bank} style={styles.balanceCard}>
-            <Text style={styles.balanceBank}>{acc.bank}</Text>
-            <Text style={styles.balanceAmount}>₸{(acc.balance / 1000000).toFixed(2)}M</Text>
-            <Text style={styles.balanceUpd}>{acc.upd} назад</Text>
-          </View>
-        ))}
-      </View>
 
       <View style={{ height: 24 }} />
     </ScrollView>

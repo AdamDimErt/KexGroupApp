@@ -12,11 +12,13 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
   const [code, setCode]                         = useState(['', '', '', '', '', '']);
   const [loading, setLoading]                   = useState(false);
   const [error, setError]                       = useState<string | null>(null);
+  const [devHint, setDevHint]                   = useState<string | null>(null);
   const codeRefs                                = useRef<(TextInput | null)[]>([]);
 
   // Полный номер: код страны + введённые цифры
+  // ICountry uses idd.root (e.g. "+7") not callingCode
   const rawPhone = selectedCountry
-    ? `${selectedCountry.callingCode}${phoneValue.replace(/\D/g, '')}`
+    ? `${selectedCountry.idd?.root || ''}${phoneValue.replace(/\D/g, '')}`
     : phoneValue.replace(/\D/g, '');
 
   const isPhoneReady = rawPhone.replace(/\D/g, '').length >= 7;
@@ -27,7 +29,8 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
     setError(null);
     setLoading(true);
     try {
-      await sendOtp(rawPhone);
+      const result = await sendOtp(rawPhone);
+      if (result.message) setDevHint(result.message);
       setStep('code');
       setTimeout(() => codeRefs.current[0]?.focus(), 150);
     } catch (e) {
@@ -92,6 +95,7 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
     code,
     loading,
     error,
+    devHint,
     codeRefs,
     rawPhone,
     isPhoneReady,

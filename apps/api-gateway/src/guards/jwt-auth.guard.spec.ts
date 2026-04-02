@@ -84,7 +84,7 @@ describe('JwtAuthGuard', () => {
       role: 'OWNER',
       tenantId: 'tenant-id',
     };
-    const mockRequest = {
+    const mockRequest: Record<string, unknown> = {
       headers: {
         authorization: 'Bearer valid_token',
       },

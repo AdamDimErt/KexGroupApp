@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { DashboardService } from './dashboard.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -11,6 +12,7 @@ describe('DashboardService', () => {
     },
     brand: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
     },
     restaurant: {
       findMany: jest.fn(),
@@ -33,6 +35,16 @@ describe('DashboardService', () => {
     ddsArticle: {
       findMany: jest.fn(),
     },
+    ddsArticleGroup: {
+      findUnique: jest.fn(),
+    },
+    cashDiscrepancy: {
+      findMany: jest.fn(),
+    },
+  };
+
+  const mockConfigService = {
+    get: jest.fn().mockReturnValue('Asia/Almaty'),
   };
 
   beforeEach(async () => {
@@ -42,6 +54,10 @@ describe('DashboardService', () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();

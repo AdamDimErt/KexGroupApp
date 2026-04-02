@@ -90,8 +90,8 @@ describe('AllocationService', () => {
 
       // Verify first allocation
       const firstCall = (prisma.costAllocation.upsert as jest.Mock).mock.calls[0];
-      expect(firstCall[0].create.coefficient).toEqual('0.5');
-      expect(firstCall[0].create.allocatedAmount).toEqual('5000');
+      expect(firstCall[0].create.coefficient.toString()).toEqual('0.5');
+      expect(firstCall[0].create.allocatedAmount.toString()).toEqual('5000');
     });
 
     it('should handle zero total revenue', async () => {
@@ -172,10 +172,10 @@ describe('AllocationService', () => {
       expect(prisma.costAllocation.upsert).toHaveBeenCalledTimes(2);
 
       const calls = (prisma.costAllocation.upsert as jest.Mock).mock.calls;
-      expect(calls[0][0].create.coefficient).toEqual('0.7');
-      expect(calls[0][0].create.allocatedAmount).toEqual('700');
-      expect(calls[1][0].create.coefficient).toEqual('0.3');
-      expect(calls[1][0].create.allocatedAmount).toEqual('300');
+      expect(calls[0][0].create.coefficient.toString()).toEqual('0.7');
+      expect(calls[0][0].create.allocatedAmount.toString()).toEqual('700');
+      expect(calls[1][0].create.coefficient.toString()).toEqual('0.3');
+      expect(calls[1][0].create.allocatedAmount.toString()).toEqual('300');
     });
   });
 });

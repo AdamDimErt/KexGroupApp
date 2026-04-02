@@ -9,10 +9,10 @@ import {
 import { DashboardService } from './dashboard.service';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
 import {
-  CompanySummaryDto,
-  BrandSummaryDto,
-  RestaurantSummaryDto,
-  ArticleSummaryDto,
+  DashboardSummaryDto,
+  BrandDetailDto,
+  RestaurantDetailDto,
+  ArticleGroupDetailDto,
 } from './dto/summary.dto';
 
 @Controller('dashboard')
@@ -20,68 +20,91 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   /**
-   * GET /dashboard?dateFrom=2026-01-01&dateTo=2026-01-31
-   * Company level (level 1) - requires tenantId from JWT header
+   * GET /dashboard?dateFrom=2026-01-01&dateTo=2026-01-31&periodType=today
+   * Main dashboard — brand-level summary with totals
+   *
+   * x-user-role: OWNER | FINANCE_DIRECTOR | OPERATIONS_DIRECTOR
+   * x-user-restaurant-ids: comma-separated restaurant IDs (for OPS_DIRECTOR filtering)
    */
   @Get()
-  async getCompanySummary(
+  async getDashboardSummary(
     @Query() query: DashboardQueryDto,
     @Headers('x-tenant-id') tenantId?: string,
-  ): Promise<CompanySummaryDto[]> {
+    @Headers('x-user-role') userRole?: string,
+    @Headers('x-user-restaurant-ids') userRestaurantIds?: string,
+  ): Promise<DashboardSummaryDto> {
     if (!tenantId) {
       throw new BadRequestException('Missing x-tenant-id header');
     }
 
-    return this.dashboardService.getCompanySummary(
+    // OPS_DIRECTOR: filter to assigned restaurants only
+    const restaurantFilter = userRole === 'OPERATIONS_DIRECTOR' && userRestaurantIds
+      ? userRestaurantIds.split(',').map(id => id.trim()).filter(Boolean)
+      : undefined;
+
+    return this.dashboardService.getDashboardSummary(
       tenantId,
+      query.periodType || 'today',
       query.dateFrom,
       query.dateTo,
+      restaurantFilter,
     );
   }
 
   /**
-   * GET /dashboard/brand/:companyId?dateFrom=2026-01-01&dateTo=2026-01-31
-   * Brand level (level 2)
+   * GET /dashboard/brand/:brandId?periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+   * Brand detail (Level 1b): list of restaurants within a brand
+   * Returns BrandDetailDto with restaurants array
    */
-  @Get('brand/:companyId')
-  async getBrandSummary(
-    @Param('companyId') companyId: string,
-    @Query() query: DashboardQueryDto,
-  ): Promise<BrandSummaryDto[]> {
-    return this.dashboardService.getBrandSummary(
-      companyId,
-      query.dateFrom,
-      query.dateTo,
-    );
-  }
-
-  /**
-   * GET /dashboard/restaurant/:brandId?dateFrom=2026-01-01&dateTo=2026-01-31
-   * Restaurant level (level 3)
-   */
-  @Get('restaurant/:brandId')
-  async getRestaurantSummary(
+  @Get('brand/:brandId')
+  async getBrandDetail(
     @Param('brandId') brandId: string,
     @Query() query: DashboardQueryDto,
-  ): Promise<RestaurantSummaryDto[]> {
-    return this.dashboardService.getRestaurantSummary(
+  ): Promise<BrandDetailDto> {
+    return this.dashboardService.getBrandDetail(
       brandId,
+      query.periodType || 'today',
       query.dateFrom,
       query.dateTo,
     );
   }
 
   /**
-   * GET /dashboard/article/:restaurantId?dateFrom=2026-01-01&dateTo=2026-01-31
-   * Article level (level 4) - expenses by DDS article
+   * GET /dashboard/restaurant/:restaurantId?periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+   * Restaurant detail (Level 2): full financial detail for a single restaurant
+   * Returns RestaurantDetailDto with expense groups, cash discrepancies, revenue chart
    */
-  @Get('article/:restaurantId')
-  async getArticleSummary(
+  @Get('restaurant/:restaurantId')
+  async getRestaurantDetail(
     @Param('restaurantId') restaurantId: string,
     @Query() query: DashboardQueryDto,
-  ): Promise<ArticleSummaryDto[]> {
-    return this.dashboardService.getArticleSummary(
+  ): Promise<RestaurantDetailDto> {
+    return this.dashboardService.getRestaurantDetail(
       restaurantId,
+      query.periodType || 'today',
+      query.dateFrom,
+      query.dateTo,
+    );
+  }
+
+  /**
+   * GET /dashboard/article/:groupId?restaurantId=xxx&periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+   * Article group detail (Level 3): individual articles within an expense group
+   * Returns ArticleGroupDetailDto with articles array
+   */
+  @Get('article/:groupId')
+  async getArticleGroupDetail(
+    @Param('groupId') groupId: string,
+    @Query('restaurantId') restaurantId: string,
+    @Query() query: DashboardQueryDto,
+  ): Promise<ArticleGroupDetailDto> {
+    if (!restaurantId) {
+      throw new BadRequestException('Missing restaurantId query parameter');
+    }
+    return this.dashboardService.getArticleGroupDetail(
+      groupId,
+      restaurantId,
+      query.periodType || 'today',
       query.dateFrom,
       query.dateTo,
     );

@@ -51,6 +51,14 @@ export default {
     syncError: 'Ошибка синхронизации',
   },
 
+  // ─── Brand Detail ───────────────────────────────────────
+  brand: {
+    title: 'Бренд',
+    revenue: 'Выручка',
+    restaurants: 'Рестораны',
+    points: 'точек',
+  },
+
   // ─── Points (restaurants) ────────────────────────────────
   points: {
     title: 'Торговые точки',

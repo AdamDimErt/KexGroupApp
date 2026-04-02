@@ -3,6 +3,7 @@ import { View, StyleSheet, StatusBar, ActivityIndicator } from 'react-native';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { getStoredTokens, clearTokens } from './src/services/auth';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import { BrandDetailScreen } from './src/screens/BrandDetailScreen';
 import { PointsScreen } from './src/screens/PointsScreen';
 import { PointDetailScreen } from './src/screens/PointDetailScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
@@ -13,6 +14,8 @@ import type { Screen, User } from './src/types';
 
 export default function App() {
   const [screen, setScreen]   = useState<Screen>('login');
+  const [brandId, setBrandId] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState<string>('');
   const [pointId, setPointId] = useState<string | null>(null);
   const [authed, setAuthed]   = useState(false);
   const [user, setUser]       = useState<User | null>(null);
@@ -42,6 +45,12 @@ export default function App() {
     setScreen('login');
   };
 
+  const handleBrandSelect = (id: string, name: string) => {
+    setBrandId(id);
+    setBrandName(name);
+    setScreen('brand-details');
+  };
+
   const handlePointSelect = (id: string) => {
     setPointId(id);
     setScreen('point-details');
@@ -51,7 +60,9 @@ export default function App() {
     if (!authed) return <LoginScreen onLogin={handleLogin} />;
     switch (screen) {
       case 'dashboard':
-        return <DashboardScreen onPointSelect={handlePointSelect} onNavigateNotifications={() => setScreen('notifications')} onLogout={handleLogout} />;
+        return <DashboardScreen onPointSelect={handlePointSelect} onNavigateBrand={handleBrandSelect} onNavigateNotifications={() => setScreen('notifications')} onLogout={handleLogout} />;
+      case 'brand-details':
+        return <BrandDetailScreen brandId={brandId} brandName={brandName} onNavigateToRestaurant={handlePointSelect} onBack={() => setScreen('dashboard')} />;
       case 'points':
         return <PointsScreen onPointSelect={handlePointSelect} />;
       case 'point-details':
@@ -61,7 +72,7 @@ export default function App() {
       case 'notifications':
         return <NotificationsScreen />;
       default:
-        return <DashboardScreen onPointSelect={handlePointSelect} onNavigateNotifications={() => setScreen('notifications')} onLogout={handleLogout} />;
+        return <DashboardScreen onPointSelect={handlePointSelect} onNavigateBrand={handleBrandSelect} onNavigateNotifications={() => setScreen('notifications')} onLogout={handleLogout} />;
     }
   };
 

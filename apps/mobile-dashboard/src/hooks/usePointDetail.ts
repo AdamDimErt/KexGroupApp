@@ -14,11 +14,20 @@ export interface HourlyDataPoint {
   value: number;
 }
 
+export interface PaymentBreakdown {
+  cash: number;
+  kaspi: number;
+  halyk: number;
+  yandex: number;
+  other: number;
+}
+
 export interface EnrichedRestaurant {
   name: string;
   revenue: number;
   expenses: number;
   transactions: number;
+  paymentBreakdown: PaymentBreakdown;
 }
 
 export function usePointDetail(restaurantId: string | null) {
@@ -76,15 +85,28 @@ export function usePointDetail(restaurantId: string | null) {
     }));
 
     // Enrich restaurant with properties screen expects
-    const revenue = typeof restaurantDetail.revenue === 'number'
-      ? restaurantDetail.revenue
-      : restaurantDetail.revenue.total;
+    const revenueObj = restaurantDetail.revenue;
+    const revenue = typeof revenueObj === 'number'
+      ? revenueObj
+      : revenueObj.total;
+
+    // Extract payment type breakdown
+    const paymentBreakdown: PaymentBreakdown = typeof revenueObj === 'object' && revenueObj !== null
+      ? {
+          cash: revenueObj.cash || 0,
+          kaspi: revenueObj.kaspi || 0,
+          halyk: revenueObj.halyk || 0,
+          yandex: revenueObj.yandex || 0,
+          other: Math.max(0, (revenueObj.total || 0) - (revenueObj.cash || 0) - (revenueObj.kaspi || 0) - (revenueObj.halyk || 0) - (revenueObj.yandex || 0)),
+        }
+      : { cash: 0, kaspi: 0, halyk: 0, yandex: 0, other: 0 };
 
     const enrichedRestaurant: EnrichedRestaurant = {
       name: restaurantDetail.name,
       revenue,
       expenses: restaurantDetail.directExpensesTotal + restaurantDetail.distributedExpensesTotal,
-      transactions: restaurantDetail.revenueChart?.length ?? 0, // Use chart data points as proxy for transaction count
+      transactions: restaurantDetail.revenueChart?.length ?? 0,
+      paymentBreakdown,
     };
 
     return {
