@@ -3,7 +3,9 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'rea
 import { Feather } from '@expo/vector-icons';
 import { colors } from '../theme';
 import { RestaurantCard } from '../components/RestaurantCard';
+import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
 import { useDashboard } from '../hooks/useDashboard';
+import { useDashboardStore } from '../store/dashboard';
 import { styles } from './DashboardScreen.styles';
 
 interface DashboardProps {
@@ -15,6 +17,7 @@ interface DashboardProps {
 
 export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onLogout }: DashboardProps) {
   const { totalRevenue, totalExpenses, financialResult, totalRestaurantCount, restaurantItems, confirmLogout, isLoading, error } = useDashboard(onLogout);
+  const heroLabel = usePeriodHeroLabel('ВЫРУЧКА');
 
   if (isLoading) {
     return (
@@ -29,7 +32,7 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', flex: 1, padding: 24 }]}>
         <Text style={[styles.heroLabel, { color: colors.red, marginBottom: 8 }]}>Ошибка загрузки</Text>
-        <Text style={styles.heroGray}>{typeof error === 'object' && error !== null && 'message' in error ? (error as Error).message : 'Неизвестная ошибка'}</Text>
+        <Text style={styles.heroGray}>{typeof error === 'string' ? error : (typeof error === 'object' && error !== null && 'message' in error ? (error as Error).message : 'Неизвестная ошибка')}</Text>
       </View>
     );
   }
@@ -59,10 +62,13 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
         </View>
       </View>
 
+      {/* Period Selector */}
+      <PeriodSelector marginTop={16} />
+
       {/* Hero Card — общая выручка */}
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
-          <Text style={styles.heroLabel}>ВЫРУЧКА СЕГОДНЯ</Text>
+          <Text style={styles.heroLabel}>{heroLabel}</Text>
           <View style={styles.heroSourceRow}>
             {['iiko', '1С'].map(src => (
               <View key={src} style={styles.heroBadge}>

@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, type DimensionValue } from 'react-native';
 import { usePointDetail } from '../hooks/usePointDetail';
-import type { PaymentBreakdown } from '../hooks/usePointDetail';
+import { PeriodSelector, PERIOD_OPTIONS } from '../components/PeriodSelector';
+import { useDashboardStore } from '../store/dashboard';
 import { styles } from './PointDetailScreen.styles';
 
 interface Props {
@@ -27,13 +28,22 @@ function expenseBarPct(amount: number, maxAmount: number): DimensionValue {
   return `${(amount / maxAmount) * 100}%` as DimensionValue;
 }
 
-const PAYMENT_TYPES: { key: keyof PaymentBreakdown; label: string; color: string }[] = [
-  { key: 'cash', label: 'Наличные', color: '#10B981' },
-  { key: 'kaspi', label: 'Kaspi', color: '#F59E0B' },
-  { key: 'halyk', label: 'Halyk', color: '#3B82F6' },
-  { key: 'yandex', label: 'Yandex', color: '#EF4444' },
-  { key: 'other', label: 'Другое', color: '#8B5CF6' },
-];
+// Color palette for dynamic payment types — known iiko codes get fixed colors,
+// unknown types cycle through the fallback palette
+const KNOWN_PAYMENT_COLORS: Record<string, string> = {
+  Cash: '#10B981',
+  Kaspi: '#F59E0B',
+  Halyk: '#3B82F6',
+  Yandex_food: '#EF4444',
+  Glovo: '#FF6B35',
+  QrPay: '#06B6D4',
+  Card: '#8B5CF6',
+  Online: '#EC4899',
+};
+const FALLBACK_COLORS = ['#14B8A6', '#F97316', '#A855F7', '#6366F1', '#84CC16', '#EAB308'];
+function paymentColor(iikoCode: string, index: number): string {
+  return KNOWN_PAYMENT_COLORS[iikoCode] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+}
 
 // ─── Компонент (только разметка + стили) ──────────────────────────────────
 
@@ -42,6 +52,8 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
     restaurant: r, statusColor: col, statusLabel, profit, profitColor,
     hourlyData, planLine, maxBar, barW, expenseItems, isLoading,
   } = usePointDetail(pointId);
+  const period = useDashboardStore(s => s.period);
+  const periodLabel = PERIOD_OPTIONS.find(p => p.key === period)?.label ?? 'Сегодня';
 
   const maxExpense = expenseItems.length > 0 ? expenseItems[0].amount : 0;
 
@@ -71,6 +83,9 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
           <Text style={[styles.statusText, { color: col }]}>{statusLabel}</Text>
         </View>
       </View>
+
+      {/* Period Selector */}
+      <PeriodSelector marginTop={12} />
 
       {/* KPI Grid 2x2 */}
       <View style={styles.kpiGrid}>
@@ -105,23 +120,21 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
       </View>
 
       {/* Выручка по типам оплат */}
-      {r.paymentBreakdown && r.revenue > 0 && (() => {
-        const pb = r.paymentBreakdown;
-        const maxPb = Math.max(pb.cash, pb.kaspi, pb.halyk, pb.yandex, pb.other, 1);
+      {r.paymentTypes.length > 0 && r.revenue > 0 && (() => {
+        const maxPt = Math.max(...r.paymentTypes.map(pt => pt.amount), 1);
         return (
           <View style={styles.expCard}>
             <Text style={styles.expTitle}>Выручка по типам оплат</Text>
-            {PAYMENT_TYPES.map(pt => {
-              const val = pb[pt.key];
-              if (val <= 0) return null;
-              const pct = r.revenue > 0 ? Math.round((val / r.revenue) * 100) : 0;
+            {r.paymentTypes.map((pt, idx) => {
+              const color = paymentColor(pt.iikoCode, idx);
+              const pct = r.revenue > 0 ? Math.round((pt.amount / r.revenue) * 100) : 0;
               return (
-                <View key={pt.key} style={styles.expRow}>
-                  <Text style={[styles.expLabel, { width: 80 }]}>{pt.label}</Text>
+                <View key={pt.iikoCode} style={styles.expRow}>
+                  <Text style={[styles.expLabel, { width: 80 }]} numberOfLines={1}>{pt.name}</Text>
                   <View style={styles.expBarBg}>
-                    <View style={[styles.expBarFill, { width: expenseBarPct(val, maxPb), backgroundColor: pt.color }]} />
+                    <View style={[styles.expBarFill, { width: expenseBarPct(pt.amount, maxPt), backgroundColor: color }]} />
                   </View>
-                  <Text style={[styles.expAmount, { color: pt.color }]}>{fmtAmount(val)} ({pct}%)</Text>
+                  <Text style={[styles.expAmount, { color }]}>{fmtAmount(pt.amount)} ({pct}%)</Text>
                 </View>
               );
             })}
@@ -133,7 +146,7 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
       <View style={styles.chartCard}>
         <View style={styles.chartHeader}>
           <Text style={styles.chartTitle}>Выручка по часам</Text>
-          <Text style={styles.chartSub}>Сегодня</Text>
+          <Text style={styles.chartSub}>{periodLabel}</Text>
         </View>
 
         <View style={styles.chartArea}>

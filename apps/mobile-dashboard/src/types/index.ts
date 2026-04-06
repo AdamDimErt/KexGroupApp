@@ -27,12 +27,19 @@ export interface PeriodDto {
   to: string;    // ISO date string
 }
 
+export interface PaymentTypeAmountDto {
+  name: string;
+  iikoCode: string;
+  amount: number;
+}
+
 export interface RevenueBreakdownDto {
   total: number;
   cash: number;
   kaspi: number;
   halyk: number;
   yandex: number;
+  byType?: PaymentTypeAmountDto[];
 }
 
 export interface BrandIndicatorDto {
@@ -107,6 +114,7 @@ export interface RestaurantDetailDto {
   directExpensesTotal: number;
   distributedExpensesTotal: number;
   financialResult: number;
+  salesCount: number;                // Количество чеков за период
   cashDiscrepancies: CashDiscrepancyDto[];
   revenueChart: DailyRevenuePointDto[];
 }

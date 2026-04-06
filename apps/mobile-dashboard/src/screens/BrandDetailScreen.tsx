@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useBrandDetail } from '../hooks/useBrandDetail';
 import { RestaurantCard } from '../components/RestaurantCard';
+import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
 import { colors } from '../theme';
 import { styles } from './BrandDetailScreen.styles';
 
@@ -19,6 +20,7 @@ export function BrandDetailScreen({
   onBack,
 }: BrandDetailScreenProps) {
   const { totalRevenue, restaurants, isLoading, error } = useBrandDetail(brandId || '');
+  const heroLabel = usePeriodHeroLabel('ВЫРУЧКА');
 
   if (!brandId) {
     return (
@@ -46,10 +48,13 @@ export function BrandDetailScreen({
         <Text style={styles.title}>{brandName}</Text>
       </View>
 
+      {/* Period Selector */}
+      <PeriodSelector marginTop={12} />
+
       {/* Hero Card — brand revenue summary */}
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
-          <Text style={styles.heroLabel}>ВЫРУЧКА СЕГОДНЯ</Text>
+          <Text style={styles.heroLabel}>{heroLabel}</Text>
           <View style={styles.heroSourceRow}>
             {['iiko'].map(src => (
               <View key={src} style={styles.heroBadge}>

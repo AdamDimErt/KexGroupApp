@@ -60,31 +60,46 @@ export function useApiQuery<T>(
 
 // ─── Specific hooks ────────────────────────────────────────────────────────
 
-// TODO: Add date range calculation from periodType
-function getPeriodDates(periodType: string): { dateFrom?: string; dateTo?: string } {
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+function isoDate(y: number, m: number, d: number) { return `${y}-${pad2(m)}-${pad2(d)}`; }
+
+function getPeriodDates(
+  periodType: string,
+  customFrom?: string | null,
+  customTo?: string | null,
+): { dateFrom?: string; dateTo?: string } {
+  if (periodType === 'custom') {
+    if (customFrom && customTo) return { dateFrom: customFrom, dateTo: customTo };
+    return {};
+  }
+
   const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  const toDate = `${year}-${month}-${day}`;
+  const y = today.getFullYear();
+  const m = today.getMonth() + 1;
+  const d = today.getDate();
+  const toDate = isoDate(y, m, d);
 
   switch (periodType) {
     case 'today':
       return { dateFrom: toDate, dateTo: toDate };
-    case 'thisWeek':
+    case 'thisWeek': {
       const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
-      const fromDate = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
-      return { dateFrom: fromDate, dateTo: toDate };
+      weekStart.setDate(d - today.getDay());
+      return {
+        dateFrom: isoDate(weekStart.getFullYear(), weekStart.getMonth() + 1, weekStart.getDate()),
+        dateTo: toDate,
+      };
+    }
     case 'thisMonth':
-      return { dateFrom: `${year}-${month}-01`, dateTo: toDate };
-    case 'lastMonth':
-      const lastMonthDate = new Date(year, parseInt(month) - 2, 1);
-      const lastMonthYear = lastMonthDate.getFullYear();
-      const lastMonth = String(lastMonthDate.getMonth() + 1).padStart(2, '0');
-      const lastMonthEnd = new Date(year, parseInt(month) - 1, 0);
-      const endDay = String(lastMonthEnd.getDate()).padStart(2, '0');
-      return { dateFrom: `${lastMonthYear}-${lastMonth}-01`, dateTo: `${lastMonthYear}-${lastMonth}-${endDay}` };
+      return { dateFrom: isoDate(y, m, 1), dateTo: toDate };
+    case 'lastMonth': {
+      const lm = new Date(y, m - 2, 1);
+      const lmEnd = new Date(y, m - 1, 0);
+      return {
+        dateFrom: isoDate(lm.getFullYear(), lm.getMonth() + 1, 1),
+        dateTo: isoDate(lmEnd.getFullYear(), lmEnd.getMonth() + 1, lmEnd.getDate()),
+      };
+    }
     default:
       return {};
   }
@@ -92,36 +107,44 @@ function getPeriodDates(periodType: string): { dateFrom?: string; dateTo?: strin
 
 export function useDashboardSummary() {
   const period = useDashboardStore(s => s.period);
-  const { dateFrom, dateTo } = getPeriodDates(period);
+  const customFrom = useDashboardStore(s => s.customFrom);
+  const customTo = useDashboardStore(s => s.customTo);
+  const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
   return useApiQuery(
     () => dashboardApi.getDashboard(period, dateFrom, dateTo),
-    [period],
+    [period, customFrom, customTo],
   );
 }
 
 export function useBrandDetail(brandId: string) {
   const period = useDashboardStore(s => s.period);
-  const { dateFrom, dateTo } = getPeriodDates(period);
+  const customFrom = useDashboardStore(s => s.customFrom);
+  const customTo = useDashboardStore(s => s.customTo);
+  const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
   return useApiQuery(
     () => dashboardApi.getBrand(brandId, period, dateFrom, dateTo),
-    [brandId, period],
+    [brandId, period, customFrom, customTo],
   );
 }
 
 export function useRestaurantDetail(restaurantId: string) {
   const period = useDashboardStore(s => s.period);
-  const { dateFrom, dateTo } = getPeriodDates(period);
+  const customFrom = useDashboardStore(s => s.customFrom);
+  const customTo = useDashboardStore(s => s.customTo);
+  const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
   return useApiQuery(
     () => dashboardApi.getRestaurant(restaurantId, period, dateFrom, dateTo),
-    [restaurantId, period],
+    [restaurantId, period, customFrom, customTo],
   );
 }
 
 export function useArticleDetail(articleId: string, restaurantId: string) {
   const period = useDashboardStore(s => s.period);
-  const { dateFrom, dateTo } = getPeriodDates(period);
+  const customFrom = useDashboardStore(s => s.customFrom);
+  const customTo = useDashboardStore(s => s.customTo);
+  const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
   return useApiQuery(
     () => dashboardApi.getArticle(articleId, restaurantId, period, dateFrom, dateTo),
-    [articleId, restaurantId, period],
+    [articleId, restaurantId, period, customFrom, customTo],
   );
 }

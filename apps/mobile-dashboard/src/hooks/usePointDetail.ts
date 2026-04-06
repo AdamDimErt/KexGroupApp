@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Dimensions } from 'react-native';
 import { useRestaurantDetail } from './useApi';
 import { colors } from '../theme';
+import type { PaymentTypeAmountDto } from '../types';
 
 const statusLabels: Record<'green' | 'yellow' | 'red', string> = {
   green: 'Норма',
@@ -14,20 +15,12 @@ export interface HourlyDataPoint {
   value: number;
 }
 
-export interface PaymentBreakdown {
-  cash: number;
-  kaspi: number;
-  halyk: number;
-  yandex: number;
-  other: number;
-}
-
 export interface EnrichedRestaurant {
   name: string;
   revenue: number;
   expenses: number;
   transactions: number;
-  paymentBreakdown: PaymentBreakdown;
+  paymentTypes: PaymentTypeAmountDto[];
 }
 
 export function usePointDetail(restaurantId: string | null) {
@@ -90,23 +83,18 @@ export function usePointDetail(restaurantId: string | null) {
       ? revenueObj
       : revenueObj.total;
 
-    // Extract payment type breakdown
-    const paymentBreakdown: PaymentBreakdown = typeof revenueObj === 'object' && revenueObj !== null
-      ? {
-          cash: revenueObj.cash || 0,
-          kaspi: revenueObj.kaspi || 0,
-          halyk: revenueObj.halyk || 0,
-          yandex: revenueObj.yandex || 0,
-          other: Math.max(0, (revenueObj.total || 0) - (revenueObj.cash || 0) - (revenueObj.kaspi || 0) - (revenueObj.halyk || 0) - (revenueObj.yandex || 0)),
-        }
-      : { cash: 0, kaspi: 0, halyk: 0, yandex: 0, other: 0 };
+    // Extract dynamic payment types from byType array (sorted by amount desc)
+    const paymentTypes: PaymentTypeAmountDto[] =
+      typeof revenueObj === 'object' && revenueObj !== null && Array.isArray(revenueObj.byType)
+        ? revenueObj.byType.filter(pt => pt.amount > 0)
+        : [];
 
     const enrichedRestaurant: EnrichedRestaurant = {
       name: restaurantDetail.name,
       revenue,
       expenses: restaurantDetail.directExpensesTotal + restaurantDetail.distributedExpensesTotal,
-      transactions: restaurantDetail.revenueChart?.length ?? 0,
-      paymentBreakdown,
+      transactions: restaurantDetail.salesCount ?? 0,
+      paymentTypes,
     };
 
     return {
