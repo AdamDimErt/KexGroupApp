@@ -32,12 +32,18 @@ interface PaymentItem {
 }
 
 /** Map iiko payment type name to our revenue field */
-type PaymentTypeField = 'revenueCash' | 'revenueKaspi' | 'revenueHalyk' | 'revenueYandex' | 'other';
+type PaymentTypeField =
+  | 'revenueCash'
+  | 'revenueKaspi'
+  | 'revenueHalyk'
+  | 'revenueYandex'
+  | 'other';
 
 @Injectable()
 export class IikoSyncService {
   private readonly logger = new Logger(IikoSyncService.name);
-  private readonly baseUrl = process.env.IIKO_SERVER_URL || 'https://kexbrands-co.iiko.it:443/resto/api';
+  private readonly baseUrl =
+    process.env.IIKO_SERVER_URL || 'https://kexbrands-co.iiko.it:443/resto/api';
   private readonly httpTimeout = 30000;
   private readonly maxFailures = 3;
   private readonly circuitBreakerResetMs = 15 * 60 * 1000; // 15 minutes
@@ -80,9 +86,14 @@ export class IikoSyncService {
   }
 
   private formatDate(date: Date): string {
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
+    // Always format in Almaty time (UTC+5) so a date like
+    // "2026-03-31T00:00:00+05:00" (= 2026-03-30T19:00:00Z) produces "31.03.2026"
+    // and not "30.03.2026" as UTC getters would give on a UTC server.
+    const almatyOffsetMs = 5 * 60 * 60 * 1000;
+    const d = new Date(date.getTime() + almatyOffsetMs);
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const year = d.getUTCFullYear();
     return `${day}.${month}.${year}`;
   }
 
@@ -92,19 +103,42 @@ export class IikoSyncService {
     return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
   }
 
+  /**
+   * Delete all FinancialSnapshot rows within the given date range.
+   * Used by backfill to clear stale data before re-importing.
+   */
+  async clearSnapshots(from: Date, to: Date): Promise<number> {
+    const result = await this.prisma.financialSnapshot.deleteMany({
+      where: {
+        date: { gte: from, lte: to },
+      },
+    });
+    return result.count;
+  }
+
   async syncOrganizations(): Promise<void> {
     const startTime = Date.now();
     const tenantId = await this.getTenantId();
 
     try {
       const token = await this.iikoAuth.getAccessToken();
-      const xmlData = await this.makeRequest('GET', '/corporation/departments', token);
+      const xmlData = await this.makeRequest(
+        'GET',
+        '/corporation/departments',
+        token,
+      );
 
       // Parse XML response
-      const parsed = this.xmlParser.parse(xmlData);
-      const items = (parsed.corporateItemDtoes?.corporateItemDto || []).map((item: any) =>
-        Array.isArray(item) ? item : [item]
-      ).flat() as CorporateItemDto[];
+      const parsed = this.xmlParser.parse(xmlData) as Record<string, unknown>;
+      const rawCorporate = parsed['corporateItemDtoes'] as
+        | Record<string, unknown>
+        | undefined;
+      const rawItems = rawCorporate?.['corporateItemDto'];
+      const items = (this.normalizeArray(rawItems) as unknown[])
+        .map((item: unknown): unknown[] =>
+          Array.isArray(item) ? (item as unknown[]) : [item],
+        )
+        .flat() as CorporateItemDto[];
 
       if (!Array.isArray(items)) {
         this.logger.warn('No items found in corporation response');
@@ -112,20 +146,11 @@ export class IikoSyncService {
       }
 
       // Separate brands (ORGDEVELOPMENT) and restaurants (DEPARTMENT)
-      const brands = items.filter(item => item.type === 'ORGDEVELOPMENT');
-      const restaurants = items.filter(item => item.type === 'DEPARTMENT');
-
-      // Create brand lookup with brand IDs (from real structure)
-      const brandIds = {
-        'BNA': 'f3864940-8072-4dde-9c03-d1fec8d661c4',
-        'DNA': 'f401ea70-f72c-408b-b3a3-935e779c8043',
-      };
+      const brands = items.filter((item) => item.type === 'ORGDEVELOPMENT');
+      const restaurants = items.filter((item) => item.type === 'DEPARTMENT');
 
       // Process brands
       for (const brand of brands) {
-        const key = brand.name.substring(0, 3).toUpperCase();
-        const brandId = brandIds[key as keyof typeof brandIds];
-
         await this.prisma.brand.upsert({
           where: { iikoGroupId: brand.id },
           update: {
@@ -150,8 +175,10 @@ export class IikoSyncService {
 
       // Map intermediate parent IDs to brands (from real data)
       const intermediateParentMap: Record<string, string> = {
-        '0c6e8c78-ad8c-44a7-9165-b537cba775f2': 'f3864940-8072-4dde-9c03-d1fec8d661c4', // BNA
-        'bec562e9-1225-4436-9743-e3ff1e74fc7a': 'f401ea70-f72c-408b-b3a3-935e779c8043', // DNA
+        '0c6e8c78-ad8c-44a7-9165-b537cba775f2':
+          'f3864940-8072-4dde-9c03-d1fec8d661c4', // BNA
+        'bec562e9-1225-4436-9743-e3ff1e74fc7a':
+          'f401ea70-f72c-408b-b3a3-935e779c8043', // DNA
       };
 
       // Process restaurants
@@ -170,7 +197,7 @@ export class IikoSyncService {
 
         if (!brand) {
           this.logger.warn(
-            `Brand not found for restaurant ${restaurant.name} (parent: ${restaurant.parentId}, mapped: ${brandId}), skipping`
+            `Brand not found for restaurant ${restaurant.name} (parent: ${restaurant.parentId}, mapped: ${brandId}), skipping`,
           );
           continue;
         }
@@ -196,15 +223,23 @@ export class IikoSyncService {
         'IIKO',
         'SUCCESS',
         brands.length + restaurants.length,
-        durationMs
+        durationMs,
       );
       this.logger.log(
-        `✓ Synced ${restaurants.length} restaurants and ${brands.length} brands`
+        `✓ Synced ${restaurants.length} restaurants and ${brands.length} brands`,
       );
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync organizations: ${errorMessage}`);
       throw error;
     }
@@ -228,7 +263,9 @@ export class IikoSyncService {
 
       const token = await this.iikoAuth.getAccessToken();
 
-      const restaurantIikoIds = restaurants.map(r => r.iikoId).filter(Boolean);
+      const restaurantIikoIds = restaurants
+        .map((r) => r.iikoId)
+        .filter(Boolean);
 
       if (restaurantIikoIds.length === 0) {
         this.logger.log('No iikoIds found, skipping revenue sync');
@@ -236,21 +273,37 @@ export class IikoSyncService {
       }
 
       const dateFromStr = this.formatDate(dateFrom);
-      const dateToStr = this.formatDate(dateTo);
+      // iiko /reports/sales uses exclusive dateTo — "31.03.2026" does NOT include March 31.
+      // Add 1 day so the intended last day is actually included in the response.
+      const dateToExclusive = new Date(dateTo.getTime() + 24 * 60 * 60 * 1000);
+      const dateToStr = this.formatDate(dateToExclusive);
       let processedCount = 0;
+
+      // Step 1: Bulk OLAP fetch for ALL departments at once (2 queries total, not 68)
+      // Returns: deptName → dateKey → {cash, kaspi, halyk, yandex, salesCount}
+      const bulkOlapData = await this.fetchBulkOlapData(dateFromStr, dateToStr, token);
+
+      // Collect all unique payment type names from OLAP data and sync to PaymentType table
+      await this.syncPaymentTypesFromOlapData(bulkOlapData, tenantId);
 
       // Query revenue for each restaurant
       for (const restaurant of restaurants) {
         try {
-          // Step 1: Get total revenue from /reports/sales (daily breakdown)
+          // Step 2: Get total revenue from /reports/sales (daily breakdown per restaurant)
           const xmlData = await this.makeRequest(
             'GET',
             `/reports/sales?department=${restaurant.iikoId}&dateFrom=${dateFromStr}&dateTo=${dateToStr}`,
             token,
           );
 
-          const parsed = this.xmlParser.parse(xmlData);
-          const rawDayValues = parsed.dayDishValues?.dayDishValue;
+          const parsed = this.xmlParser.parse(xmlData) as Record<
+            string,
+            unknown
+          >;
+          const rawDayValuesObj = parsed['dayDishValues'] as
+            | Record<string, unknown>
+            | undefined;
+          const rawDayValues = rawDayValuesObj?.['dayDishValue'];
           const dayValues = this.normalizeArray(rawDayValues) as DayDishValue[];
 
           if (dayValues.length === 0) continue;
@@ -261,19 +314,16 @@ export class IikoSyncService {
             const dateKey = String(dayValue.date || '').trim();
             if (!dateKey) continue;
             const amount = parseFloat(String(dayValue.value || 0));
-            revenueByDate.set(dateKey, (revenueByDate.get(dateKey) || 0) + amount);
+            revenueByDate.set(
+              dateKey,
+              (revenueByDate.get(dateKey) || 0) + amount,
+            );
           }
 
-          // Step 2: Get payment type breakdown from /reports/sales/byDepartment
-          // iiko Server API returns revenue grouped by payment types
-          const paymentByDate = await this.fetchPaymentTypeBreakdown(
-            restaurant.iikoId!,
-            dateFromStr,
-            dateToStr,
-            token,
-          );
+          // Step 3: Look up OLAP data for this restaurant by name (iiko returns names, not UUIDs)
+          const paymentByDate = bulkOlapData.get(restaurant.name) || new Map();
 
-          // Step 3: Upsert FinancialSnapshot for each day with actual values
+          // Step 4: Upsert FinancialSnapshot for each day with actual values
           for (const [dateStr, dailyRevenue] of revenueByDate.entries()) {
             if (dailyRevenue === 0) continue;
 
@@ -281,7 +331,8 @@ export class IikoSyncService {
             if (!snapshotDate) continue;
 
             // Get payment breakdown for this day (or estimate from total if unavailable)
-            const payments = paymentByDate.get(dateStr) || this.estimatePayments(dailyRevenue);
+            const payments =
+              paymentByDate.get(dateStr) || this.estimatePayments(dailyRevenue);
 
             await this.prisma.financialSnapshot.upsert({
               where: {
@@ -296,6 +347,7 @@ export class IikoSyncService {
                 revenueKaspi: payments.kaspi,
                 revenueHalyk: payments.halyk,
                 revenueYandex: payments.yandex,
+                salesCount: payments.salesCount,
               },
               create: {
                 restaurantId: restaurant.id,
@@ -305,8 +357,33 @@ export class IikoSyncService {
                 revenueKaspi: payments.kaspi,
                 revenueHalyk: payments.halyk,
                 revenueYandex: payments.yandex,
+                salesCount: payments.salesCount,
               },
             });
+
+            // Sync dynamic payment type breakdown to SnapshotPayment
+            const paymentsForDate = paymentByDate.get(dateStr);
+            if (paymentsForDate && paymentsForDate.raw.size > 0) {
+              // Get the snapshot id
+              const snap = await this.prisma.financialSnapshot.findUnique({
+                where: { restaurantId_date: { restaurantId: restaurant.id, date: snapshotDate } },
+                select: { id: true },
+              });
+              if (snap) {
+                for (const [payTypeName, payAmount] of paymentsForDate.raw.entries()) {
+                  if (payAmount <= 0) continue;
+                  const pt = await this.prisma.paymentType.findUnique({
+                    where: { tenantId_iikoCode: { tenantId, iikoCode: payTypeName } },
+                  });
+                  if (!pt) continue;
+                  await this.prisma.snapshotPayment.upsert({
+                    where: { snapshotId_paymentTypeId: { snapshotId: snap.id, paymentTypeId: pt.id } },
+                    update: { amount: payAmount },
+                    create: { snapshotId: snap.id, paymentTypeId: pt.id, amount: payAmount },
+                  });
+                }
+              }
+            }
           }
 
           processedCount++;
@@ -320,96 +397,173 @@ export class IikoSyncService {
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logSync(tenantId, 'IIKO', 'SUCCESS', processedCount, durationMs);
-      this.logger.log(`✓ Synced revenue for ${processedCount} restaurants (with payment types)`);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'SUCCESS',
+        processedCount,
+        durationMs,
+      );
+      this.logger.log(
+        `✓ Synced revenue for ${processedCount} restaurants (with payment types)`,
+      );
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync revenue: ${errorMessage}`);
       throw error;
     }
   }
 
   /**
-   * Fetch payment type breakdown using iiko Server API v2 OLAP.
-   * POST /v2/reports/olap with JSON body — groups revenue by PayTypes + Department + date.
-   * Returns Map<dateString, {cash, kaspi, halyk, yandex}>.
+   * Fetch payment type breakdown + guest counts for ALL departments in one bulk OLAP call.
+   * POST /v2/reports/olap — no Department filter (iiko ignores UUID filters, returns names).
+   * Returns Map<deptName, Map<dateKey, {cash, kaspi, halyk, yandex, salesCount}>>.
    *
-   * IMPORTANT: READ-ONLY — this POST only fetches report data, never creates/modifies anything!
+   * Two separate OLAP queries:
+   *   1. PayTypes + Department + Date → DishDiscountSumInt (revenue breakdown)
+   *   2. Department + Date → GuestNum (check counts, no PayType duplication)
+   *
+   * IMPORTANT: READ-ONLY — these POSTs only fetch report data, never create/modify anything!
    */
-  private async fetchPaymentTypeBreakdown(
-    departmentId: string,
+  private async fetchBulkOlapData(
     dateFrom: string,
     dateTo: string,
     token: string,
-  ): Promise<Map<string, { cash: number; kaspi: number; halyk: number; yandex: number }>> {
-    const result = new Map<string, { cash: number; kaspi: number; halyk: number; yandex: number }>();
+  ): Promise<
+    Map<string, Map<string, { cash: number; kaspi: number; halyk: number; yandex: number; salesCount: number; raw: Map<string, number> }>>
+  > {
+    // result: deptName → dateKey → payment data
+    const result = new Map<
+      string,
+      Map<string, { cash: number; kaspi: number; halyk: number; yandex: number; salesCount: number; raw: Map<string, number> }>
+    >();
 
+    const isoFrom = this.convertToIsoDate(dateFrom);
+    const isoTo = this.convertToIsoDate(dateTo);
+    const dateFilter = {
+      filterType: 'DateRange',
+      periodType: 'CUSTOM',
+      from: isoFrom,
+      to: isoTo,
+    };
+
+    // ── Query 1: Revenue breakdown by payment type ─────────────────────────
     try {
-      // Convert dd.MM.yyyy → yyyy-MM-dd for v2 OLAP filter
-      const isoFrom = this.convertToIsoDate(dateFrom);
-      const isoTo = this.convertToIsoDate(dateTo);
-
-      // POST /v2/reports/olap — JSON body with PayTypes grouping
-      const olapResult = await this.makePostJsonRequest<{
-        data: Array<{ PayTypes: string; 'OpenDate.Typed'?: string; DishDiscountSumInt?: number; Department?: string }>;
+      const payResult = await this.makePostJsonRequest<{
+        data: Array<{
+          PayTypes?: string;
+          'OpenDate.Typed'?: string;
+          DishDiscountSumInt?: number;
+          Department?: string;
+        }>;
       }>(
         '/v2/reports/olap',
         {
           reportType: 'SALES',
           buildSummary: 'false',
-          groupByRowFields: ['PayTypes', 'OpenDate.Typed', 'Department'],
+          groupByRowFields: ['PayTypes', 'Department', 'OpenDate.Typed'],
           aggregateFields: ['DishDiscountSumInt'],
-          filters: {
-            'OpenDate.Typed': {
-              filterType: 'DateRange',
-              periodType: 'CUSTOM',
-              from: isoFrom,
-              to: isoTo,
-            },
-            'Department': {
-              filterType: 'IncludeValues',
-              values: [departmentId],
-            },
-          },
+          filters: { 'OpenDate.Typed': dateFilter },
         },
         token,
       );
 
-      if (olapResult?.data && Array.isArray(olapResult.data)) {
-        for (const row of olapResult.data) {
+      if (payResult?.data && Array.isArray(payResult.data)) {
+        for (const row of payResult.data) {
+          const deptName = String(row.Department || '').trim();
           const payTypeName = String(row.PayTypes || '').trim();
           const dateStr = String(row['OpenDate.Typed'] || '').trim();
           const amount = row.DishDiscountSumInt || 0;
 
-          if (!payTypeName || !dateStr || amount === 0) continue;
-
-          // Convert date to dd.MM.yyyy format to match sales report keys
+          if (!deptName || !payTypeName || !dateStr) continue;
           const dateKey = this.normalizeToDateKey(dateStr);
           if (!dateKey) continue;
 
-          const existing = result.get(dateKey) || { cash: 0, kaspi: 0, halyk: 0, yandex: 0 };
-          const field = this.classifyPaymentType(payTypeName);
+          if (!result.has(deptName)) result.set(deptName, new Map());
+          const deptMap = result.get(deptName)!;
+          const existing = deptMap.get(dateKey) || { cash: 0, kaspi: 0, halyk: 0, yandex: 0, salesCount: 0, raw: new Map<string, number>() };
 
-          if (field === 'revenueCash') existing.cash += amount;
-          else if (field === 'revenueKaspi') existing.kaspi += amount;
-          else if (field === 'revenueHalyk') existing.halyk += amount;
-          else if (field === 'revenueYandex') existing.yandex += amount;
-          else existing.cash += amount; // Unknown → cash (conservative)
+          if (amount > 0) {
+            const field = this.classifyPaymentType(payTypeName);
+            if (field === 'revenueCash') existing.cash += amount;
+            else if (field === 'revenueKaspi') existing.kaspi += amount;
+            else if (field === 'revenueHalyk') existing.halyk += amount;
+            else if (field === 'revenueYandex') existing.yandex += amount;
+            else existing.cash += amount;
+            // Always store raw amount keyed by payment type name for dynamic sync
+            existing.raw.set(payTypeName, (existing.raw.get(payTypeName) || 0) + amount);
+          }
 
-          result.set(dateKey, existing);
+          deptMap.set(dateKey, existing);
         }
-
-        if (result.size > 0) {
-          this.logger.log(`✓ Payment type breakdown from OLAP: ${result.size} days, ${olapResult.data.length} rows`);
-        }
+        this.logger.log(
+          `✓ OLAP payment breakdown: ${result.size} departments, ${payResult.data.length} rows`,
+        );
       }
     } catch (error) {
       this.logger.warn(
         `Could not fetch payment type breakdown (v2 OLAP): ${
           error instanceof Error ? error.message : String(error)
-        }. Will estimate from total revenue.`,
+        }`,
+      );
+    }
+
+    // ── Query 2: Guest counts (salesCount) by department — no PayTypes grouping ──
+    // Grouping without PayTypes avoids double-counting GuestNum for split payments.
+    try {
+      const guestResult = await this.makePostJsonRequest<{
+        data: Array<{
+          'OpenDate.Typed'?: string;
+          GuestNum?: number;
+          Department?: string;
+        }>;
+      }>(
+        '/v2/reports/olap',
+        {
+          reportType: 'SALES',
+          buildSummary: 'false',
+          groupByRowFields: ['Department', 'OpenDate.Typed'],
+          aggregateFields: ['GuestNum'],
+          filters: { 'OpenDate.Typed': dateFilter },
+        },
+        token,
+      );
+
+      if (guestResult?.data && Array.isArray(guestResult.data)) {
+        for (const row of guestResult.data) {
+          const deptName = String(row.Department || '').trim();
+          const dateStr = String(row['OpenDate.Typed'] || '').trim();
+          const guestNum = row.GuestNum || 0;
+
+          if (!deptName || !dateStr) continue;
+          const dateKey = this.normalizeToDateKey(dateStr);
+          if (!dateKey) continue;
+
+          if (!result.has(deptName)) result.set(deptName, new Map());
+          const deptMap = result.get(deptName)!;
+          const existing = deptMap.get(dateKey) || { cash: 0, kaspi: 0, halyk: 0, yandex: 0, salesCount: 0, raw: new Map<string, number>() };
+          existing.salesCount = guestNum;
+          deptMap.set(dateKey, existing);
+        }
+        this.logger.log(
+          `✓ OLAP guest counts: ${guestResult.data.length} rows`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Could not fetch guest counts (v2 OLAP GuestNum): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
     }
 
@@ -466,27 +620,44 @@ export class IikoSyncService {
     }
 
     // Halyk QR / Halyk Bank / HALYK QR / Халык банк Web
-    if (lower.includes('halyk') || lower.includes('халык') || lower.includes('homebank')) {
+    if (
+      lower.includes('halyk') ||
+      lower.includes('халык') ||
+      lower.includes('homebank')
+    ) {
       return 'revenueHalyk';
     }
 
     // Yandex Eda / Яндекс
-    if (lower.includes('яндекс') || lower.includes('yandex') || lower.includes('я.еда')) {
+    if (
+      lower.includes('яндекс') ||
+      lower.includes('yandex') ||
+      lower.includes('я.еда')
+    ) {
       return 'revenueYandex';
     }
 
-    // QrPay → Kaspi (QrPay is Kaspi QR payment in KEX context)
+    // QrPay → treated as cash in legacy fixed fields, tracked separately via SnapshotPayment
     if (lower === 'qrpay' || lower.includes('qr pay')) {
-      return 'revenueKaspi';
+      return 'revenueCash';
     }
 
     // Glovo / Wolt → other (delivery aggregators, not a payment type per se)
-    if (lower.includes('глово') || lower.includes('glovo') || lower.includes('wolt')) {
+    if (
+      lower.includes('глово') ||
+      lower.includes('glovo') ||
+      lower.includes('wolt')
+    ) {
       return 'other';
     }
 
     // Card payments → other
-    if (lower.includes('карт') || lower.includes('card') || lower.includes('visa') || lower.includes('mastercard')) {
+    if (
+      lower.includes('карт') ||
+      lower.includes('card') ||
+      lower.includes('visa') ||
+      lower.includes('mastercard')
+    ) {
       return 'other';
     }
 
@@ -499,12 +670,21 @@ export class IikoSyncService {
    * estimate by putting all revenue as cash (conservative default).
    * This will be overwritten when real payment data becomes available.
    */
-  private estimatePayments(totalRevenue: number): { cash: number; kaspi: number; halyk: number; yandex: number } {
+  private estimatePayments(totalRevenue: number): {
+    cash: number;
+    kaspi: number;
+    halyk: number;
+    yandex: number;
+    salesCount: number;
+    raw: Map<string, number>;
+  } {
     return {
       cash: totalRevenue, // Conservative: all as cash until real data
       kaspi: 0,
       halyk: 0,
       yandex: 0,
+      salesCount: 0, // Unknown until OLAP data is available
+      raw: new Map<string, number>(),
     };
   }
 
@@ -543,6 +723,37 @@ export class IikoSyncService {
     return [value];
   }
 
+  /**
+   * Extract all unique payment type names from OLAP bulk data and upsert into PaymentType table.
+   * This ensures that when iiko adds/renames/removes payment types, our DB stays in sync.
+   */
+  private async syncPaymentTypesFromOlapData(
+    bulkOlapData: Map<string, Map<string, { raw: Map<string, number>; [key: string]: unknown }>>,
+    tenantId: string,
+  ): Promise<void> {
+    const allPayTypeNames = new Set<string>();
+
+    for (const deptMap of bulkOlapData.values()) {
+      for (const dayData of deptMap.values()) {
+        for (const name of dayData.raw.keys()) {
+          if (name) allPayTypeNames.add(name);
+        }
+      }
+    }
+
+    if (allPayTypeNames.size === 0) return;
+
+    for (const name of allPayTypeNames) {
+      await this.prisma.paymentType.upsert({
+        where: { tenantId_iikoCode: { tenantId, iikoCode: name } },
+        update: { name, isActive: true, updatedAt: new Date() },
+        create: { tenantId, iikoCode: name, name, isActive: true },
+      });
+    }
+
+    this.logger.log(`✓ Payment types synced: ${allPayTypeNames.size} types (${Array.from(allPayTypeNames).join(', ')})`);
+  }
+
   async syncExpenses(dateFrom: Date, dateTo: Date): Promise<void> {
     const startTime = Date.now();
     const tenantId = await this.getTenantId();
@@ -553,7 +764,9 @@ export class IikoSyncService {
         include: { brand: { include: { company: true } } },
       });
 
-      const restaurantIikoIds = restaurants.map(r => r.iikoId).filter(Boolean);
+      const restaurantIikoIds = restaurants
+        .map((r) => r.iikoId)
+        .filter(Boolean);
       if (restaurantIikoIds.length === 0) {
         this.logger.log('No restaurants found, skipping expense sync');
         return;
@@ -571,21 +784,33 @@ export class IikoSyncService {
           const xmlData = await this.makeRequest(
             'GET',
             `/reports/productExpense?department=${restaurant.iikoId}&dateFrom=${dateFromStr}&dateTo=${dateToStr}`,
-            token
+            token,
           );
 
           // Parse XML response
-          const parsed = this.xmlParser.parse(xmlData);
-          const dayValues = (parsed.dayDishValues?.dayDishValue || []).map((item: any) =>
-            Array.isArray(item) ? item : [item]
-          ).flat() as DayDishValue[];
+          const parsed = this.xmlParser.parse(xmlData) as Record<
+            string,
+            unknown
+          >;
+          const rawExpenseDayObj = parsed['dayDishValues'] as
+            | Record<string, unknown>
+            | undefined;
+          const rawExpenseDayValues = rawExpenseDayObj?.['dayDishValue'];
+          const dayValues = (
+            this.normalizeArray(rawExpenseDayValues) as unknown[]
+          )
+            .map((item: unknown): unknown[] =>
+              Array.isArray(item) ? (item as unknown[]) : [item],
+            )
+            .flat() as DayDishValue[];
 
           if (!Array.isArray(dayValues)) continue;
 
           // Process each expense entry
           for (const dayValue of dayValues) {
             const productName = dayValue.productName || 'Unknown';
-            const productId = dayValue.productId || dayValue.productName || 'unknown';
+            const productId =
+              dayValue.productId || dayValue.productName || 'unknown';
             const amount = parseFloat(String(dayValue.value || 0));
             const expenseDate = this.parseDate(dayValue.date);
 
@@ -654,18 +879,32 @@ export class IikoSyncService {
           this.logger.warn(
             `Failed to sync expenses for restaurant ${restaurant.name} (${restaurant.iikoId}): ${
               error instanceof Error ? error.message : String(error)
-            }`
+            }`,
           );
         }
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logSync(tenantId, 'IIKO', 'SUCCESS', processedCount, durationMs);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'SUCCESS',
+        processedCount,
+        durationMs,
+      );
       this.logger.log(`✓ Synced ${processedCount} expense records`);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync expenses: ${errorMessage}`);
       throw error;
     }
@@ -701,16 +940,37 @@ export class IikoSyncService {
             token,
           );
 
-          const parsed = this.xmlParser.parse(xmlData);
+          const parsed = this.xmlParser.parse(xmlData) as Record<
+            string,
+            unknown
+          >;
+          const rawDiscObj = parsed['cashDiscrepancies'] as
+            | Record<string, unknown>
+            | undefined;
           const discrepancies = this.normalizeArray(
-            parsed.cashDiscrepancies?.cashDiscrepancy,
-          );
+            rawDiscObj?.['cashDiscrepancy'],
+          ) as Array<{
+            expectedAmount?: unknown;
+            actualAmount?: unknown;
+            date?: unknown;
+          }>;
 
           for (const disc of discrepancies) {
-            const expected = parseFloat(String(disc.expectedAmount || 0));
-            const actual = parseFloat(String(disc.actualAmount || 0));
+            const expectedRaw =
+              typeof disc.expectedAmount === 'number' ||
+              typeof disc.expectedAmount === 'string'
+                ? disc.expectedAmount
+                : 0;
+            const actualRaw =
+              typeof disc.actualAmount === 'number' ||
+              typeof disc.actualAmount === 'string'
+                ? disc.actualAmount
+                : 0;
+            const expected = parseFloat(String(expectedRaw));
+            const actual = parseFloat(String(actualRaw));
             const difference = actual - expected;
-            const discDate = disc.date ? this.parseDate(disc.date) : dateFrom;
+            const dateRaw = typeof disc.date === 'string' ? disc.date : '';
+            const discDate = dateRaw ? this.parseDate(dateRaw) : dateFrom;
             const syncId = `iiko:cashdiscrepancy:${restaurant.iikoId}:${discDate.toISOString()}`;
 
             await this.prisma.cashDiscrepancy.upsert({
@@ -738,12 +998,26 @@ export class IikoSyncService {
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logSync(tenantId, 'IIKO', 'SUCCESS', processedCount, durationMs);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'SUCCESS',
+        processedCount,
+        durationMs,
+      );
       this.logger.log(`✓ Synced ${processedCount} cash discrepancy records`);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync cash discrepancies: ${errorMessage}`);
       throw error;
     }
@@ -779,17 +1053,57 @@ export class IikoSyncService {
             token,
           );
 
-          const parsed = this.xmlParser.parse(xmlData);
+          const parsed = this.xmlParser.parse(xmlData) as Record<
+            string,
+            unknown
+          >;
+          const rawStoreOps = parsed['storeOperations'] as
+            | Record<string, unknown>
+            | undefined;
+          const rawDayDish = parsed['dayDishValues'] as
+            | Record<string, unknown>
+            | undefined;
           const shipments = this.normalizeArray(
-            parsed.storeOperations?.storeOperation ||
-              parsed.dayDishValues?.dayDishValue,
-          );
+            rawStoreOps?.['storeOperation'] ?? rawDayDish?.['dayDishValue'],
+          ) as Array<{
+            productName?: unknown;
+            product?: unknown;
+            quantity?: unknown;
+            amount?: unknown;
+            sum?: unknown;
+            value?: unknown;
+            date?: unknown;
+          }>;
 
           for (const shipment of shipments) {
-            const productName = shipment.productName || shipment.product || 'Unknown';
-            const quantity = parseFloat(String(shipment.quantity || shipment.amount || 0));
-            const amount = parseFloat(String(shipment.sum || shipment.value || 0));
-            const shipmentDate = shipment.date ? this.parseDate(shipment.date) : dateFrom;
+            const rawProductName =
+              typeof shipment.productName === 'string'
+                ? shipment.productName
+                : typeof shipment.product === 'string'
+                  ? shipment.product
+                  : 'Unknown';
+            const productName: string = rawProductName;
+            const quantityRaw =
+              typeof shipment.quantity === 'number' ||
+              typeof shipment.quantity === 'string'
+                ? shipment.quantity
+                : typeof shipment.amount === 'number' ||
+                    typeof shipment.amount === 'string'
+                  ? shipment.amount
+                  : 0;
+            const quantity = parseFloat(String(quantityRaw));
+            const amountRaw =
+              typeof shipment.sum === 'number' ||
+              typeof shipment.sum === 'string'
+                ? shipment.sum
+                : typeof shipment.value === 'number' ||
+                    typeof shipment.value === 'string'
+                  ? shipment.value
+                  : 0;
+            const amount = parseFloat(String(amountRaw));
+            const dateRaw =
+              typeof shipment.date === 'string' ? shipment.date : '';
+            const shipmentDate = dateRaw ? this.parseDate(dateRaw) : dateFrom;
 
             if (!amount || isNaN(amount)) continue;
 
@@ -820,12 +1134,26 @@ export class IikoSyncService {
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logSync(tenantId, 'IIKO', 'SUCCESS', processedCount, durationMs);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'SUCCESS',
+        processedCount,
+        durationMs,
+      );
       this.logger.log(`✓ Synced ${processedCount} kitchen shipment records`);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'IIKO',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync kitchen shipments: ${errorMessage}`);
       throw error;
     }
@@ -881,7 +1209,8 @@ export class IikoSyncService {
     // Check circuit breaker
     if (this.isCircuitOpen(endpointGroup)) {
       const state = this.circuitBreakerStates.get(endpointGroup)!;
-      const remainingMs = this.circuitBreakerResetMs - (Date.now() - state.lastFailureTime);
+      const remainingMs =
+        this.circuitBreakerResetMs - (Date.now() - state.lastFailureTime);
       throw new Error(
         `Circuit breaker OPEN for ${endpointGroup}: ${state.failures} failures, retry in ${Math.ceil(remainingMs / 1000)}s`,
       );
@@ -899,12 +1228,12 @@ export class IikoSyncService {
           this.httpService.get(url, {
             timeout: this.httpTimeout,
             responseType: 'text',
-            headers: { 'Accept': 'application/xml' },
+            headers: { Accept: 'application/xml' },
           }),
         );
 
         this.recordSuccess(endpointGroup);
-        return response.data;
+        return response.data as string;
       } catch (error) {
         const backoffMs = Math.pow(2, attempt) * 1000;
         this.logger.warn(
@@ -914,7 +1243,7 @@ export class IikoSyncService {
         );
 
         if (attempt < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
         } else {
           this.recordFailure(endpointGroup);
           throw error;
@@ -939,7 +1268,8 @@ export class IikoSyncService {
 
     if (this.isCircuitOpen(endpointGroup)) {
       const state = this.circuitBreakerStates.get(endpointGroup)!;
-      const remainingMs = this.circuitBreakerResetMs - (Date.now() - state.lastFailureTime);
+      const remainingMs =
+        this.circuitBreakerResetMs - (Date.now() - state.lastFailureTime);
       throw new Error(
         `Circuit breaker OPEN for ${endpointGroup}: ${state.failures} failures, retry in ${Math.ceil(remainingMs / 1000)}s`,
       );
@@ -958,7 +1288,7 @@ export class IikoSyncService {
         );
 
         this.recordSuccess(endpointGroup);
-        return response.data;
+        return response.data as T;
       } catch (error) {
         const backoffMs = Math.pow(2, attempt) * 1000;
         this.logger.warn(
@@ -968,7 +1298,7 @@ export class IikoSyncService {
         );
 
         if (attempt < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
         } else {
           this.recordFailure(endpointGroup);
           throw error;
@@ -1020,7 +1350,9 @@ export class IikoSyncService {
         },
       });
     } catch (error) {
-      this.logger.error(`Failed to log sync: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Failed to log sync: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

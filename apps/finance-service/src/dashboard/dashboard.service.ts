@@ -17,6 +17,7 @@ import {
   CashDiscrepancyResponseDto,
   DailyRevenuePointDto,
   ArticleIndicatorDto,
+  PaymentTypeAmountDto,
 } from './dto/summary.dto';
 
 /**
@@ -24,6 +25,11 @@ import {
  * All business dates must be interpreted in this timezone.
  */
 const TIMEZONE_OFFSET_HOURS = 5;
+
+/**
+ * ISO offset string derived from TIMEZONE_OFFSET_HOURS, e.g. "+05:00"
+ */
+const TZ_OFFSET = `+${String(TIMEZONE_OFFSET_HOURS).padStart(2, '0')}:00`;
 
 @Injectable()
 export class DashboardService {
@@ -43,7 +49,7 @@ export class DashboardService {
   private parseStartDate(dateStr: string): Date {
     // dateStr = "2026-01-15"
     // Almaty midnight = UTC (00:00 - 5h) = previous day 19:00 UTC
-    return new Date(`${dateStr}T00:00:00+05:00`);
+    return new Date(`${dateStr}T00:00:00${TZ_OFFSET}`);
   }
 
   /**
@@ -51,7 +57,7 @@ export class DashboardService {
    * Returns UTC Date representing 23:59:59.999 Almaty time.
    */
   private parseEndDate(dateStr: string): Date {
-    return new Date(`${dateStr}T23:59:59.999+05:00`);
+    return new Date(`${dateStr}T23:59:59.999${TZ_OFFSET}`);
   }
 
   /**
@@ -473,19 +479,20 @@ export class DashboardService {
     });
 
     // Get all allocated expenses for all restaurants in one aggregated query (group by restaurantId)
-    const allocatedExpensesByRestaurant = await this.prisma.costAllocation.groupBy({
-      by: ['restaurantId'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        periodStart: {
-          lte: endDate,
+    const allocatedExpensesByRestaurant =
+      await this.prisma.costAllocation.groupBy({
+        by: ['restaurantId'],
+        where: {
+          restaurantId: { in: restaurantIds },
+          periodStart: {
+            lte: endDate,
+          },
+          periodEnd: {
+            gte: startDate,
+          },
         },
-        periodEnd: {
-          gte: startDate,
-        },
-      },
-      _sum: { allocatedAmount: true },
-    });
+        _sum: { allocatedAmount: true },
+      });
 
     // Create maps for quick lookup
     const revenueMap = new Map(
@@ -572,21 +579,23 @@ export class DashboardService {
     );
 
     // Build result
-    const result: ArticleSummaryDto[] = expensesByArticle.map((item) => {
-      const article = articleMap.get(item.articleId);
-      if (!article) {
-        return null;
-      }
-      return {
-        id: article.id,
-        name: article.name,
-        code: article.code,
-        source: article.source,
-        allocationType: article.allocationType,
-        amount: this.toNumber(item._sum.amount),
-        coefficient,
-      };
-    }).filter(Boolean) as ArticleSummaryDto[];
+    const result: ArticleSummaryDto[] = expensesByArticle
+      .map((item) => {
+        const article = articleMap.get(item.articleId);
+        if (!article) {
+          return null;
+        }
+        return {
+          id: article.id,
+          name: article.name,
+          code: article.code,
+          source: article.source,
+          allocationType: article.allocationType,
+          amount: this.toNumber(item._sum.amount),
+          coefficient,
+        };
+      })
+      .filter(Boolean) as ArticleSummaryDto[];
 
     return result;
   }
@@ -648,9 +657,7 @@ export class DashboardService {
       },
     });
 
-    const snapshotMap = new Map(
-      snapshots.map((s) => [s.restaurantId, s]),
-    );
+    const snapshotMap = new Map(snapshots.map((s) => [s.restaurantId, s]));
 
     // Distributed expenses per restaurant
     const allocations = await this.prisma.costAllocation.groupBy({
@@ -696,7 +703,7 @@ export class DashboardService {
         id: r.id,
         name: r.name,
         brandId: r.brandId,
-        revenue: { total: revenue, cash, kaspi, halyk, yandex },
+        revenue: { total: revenue, cash, kaspi, halyk, yandex, byType: [] },
         directExpenses: directExp,
         distributedExpenses: distributedExp,
         financialResult,
@@ -739,17 +746,18 @@ export class DashboardService {
         name: '',
         brandName: '',
         period: { type: periodType, from: dateFrom, to: dateTo },
-        revenue: { total: 0, cash: 0, kaspi: 0, halyk: 0, yandex: 0 },
+        revenue: { total: 0, cash: 0, kaspi: 0, halyk: 0, yandex: 0, byType: [] },
         expenseGroups: [],
         directExpensesTotal: 0,
         distributedExpensesTotal: 0,
         financialResult: 0,
+        salesCount: 0,
         cashDiscrepancies: [],
         revenueChart: [],
       };
     }
 
-    // Revenue breakdown (aggregated)
+    // Revenue breakdown + salesCount (aggregated)
     const revenueAgg = await this.prisma.financialSnapshot.aggregate({
       where: {
         restaurantId,
@@ -761,8 +769,37 @@ export class DashboardService {
         revenueKaspi: true,
         revenueHalyk: true,
         revenueYandex: true,
+        salesCount: true,
       },
     });
+
+    // Dynamic payment type breakdown
+    const snapshotIds = (await this.prisma.financialSnapshot.findMany({
+      where: { restaurantId, date: { gte: startDate, lte: endDate } },
+      select: { id: true },
+    })).map(s => s.id);
+
+    const paymentsByType = await this.prisma.snapshotPayment.groupBy({
+      by: ['paymentTypeId'],
+      where: { snapshotId: { in: snapshotIds } },
+      _sum: { amount: true },
+    });
+
+    const paymentTypeIds = paymentsByType.map(p => p.paymentTypeId);
+    const paymentTypes = await this.prisma.paymentType.findMany({
+      where: { id: { in: paymentTypeIds } },
+      select: { id: true, name: true, iikoCode: true },
+    });
+    const ptMap = new Map(paymentTypes.map(pt => [pt.id, pt]));
+
+    const byType: PaymentTypeAmountDto[] = paymentsByType
+      .map(p => {
+        const pt = ptMap.get(p.paymentTypeId);
+        if (!pt) return null;
+        return { name: pt.name, iikoCode: pt.iikoCode, amount: this.toNumber(p._sum.amount) };
+      })
+      .filter((x): x is PaymentTypeAmountDto => x !== null)
+      .sort((a, b) => b.amount - a.amount);
 
     const revenueBreakdown: RevenueBreakdownDto = {
       total: this.toNumber(revenueAgg._sum.revenue),
@@ -770,6 +807,7 @@ export class DashboardService {
       kaspi: this.toNumber(revenueAgg._sum.revenueKaspi),
       halyk: this.toNumber(revenueAgg._sum.revenueHalyk),
       yandex: this.toNumber(revenueAgg._sum.revenueYandex),
+      byType,
     };
 
     // Expense groups: expenses grouped by article group
@@ -791,7 +829,10 @@ export class DashboardService {
     const articleMap = new Map(articles.map((a) => [a.id, a]));
 
     // Aggregate by group
-    const groupTotals = new Map<string, { name: string; total: number; count: number }>();
+    const groupTotals = new Map<
+      string,
+      { name: string; total: number; count: number }
+    >();
     let directExpensesTotal = 0;
 
     for (const exp of expensesByGroup) {
@@ -813,14 +854,14 @@ export class DashboardService {
       }
     }
 
-    const expenseGroups: ExpenseGroupDto[] = Array.from(groupTotals.entries()).map(
-      ([groupId, data]) => ({
-        groupId,
-        groupName: data.name,
-        totalAmount: data.total,
-        articleCount: data.count,
-      }),
-    );
+    const expenseGroups: ExpenseGroupDto[] = Array.from(
+      groupTotals.entries(),
+    ).map(([groupId, data]) => ({
+      groupId,
+      groupName: data.name,
+      totalAmount: data.total,
+      articleCount: data.count,
+    }));
 
     // Distributed expenses total
     const allocatedAgg = await this.prisma.costAllocation.aggregate({
@@ -831,7 +872,9 @@ export class DashboardService {
       },
       _sum: { allocatedAmount: true },
     });
-    const distributedExpensesTotal = this.toNumber(allocatedAgg._sum.allocatedAmount);
+    const distributedExpensesTotal = this.toNumber(
+      allocatedAgg._sum.allocatedAmount,
+    );
 
     // Cash discrepancies
     const cashDiscs = await this.prisma.cashDiscrepancy.findMany({
@@ -842,12 +885,14 @@ export class DashboardService {
       orderBy: { date: 'asc' },
     });
 
-    const cashDiscrepancies: CashDiscrepancyResponseDto[] = cashDiscs.map((cd) => ({
-      date: cd.date.toISOString().split('T')[0],
-      expected: this.toNumber(cd.expected),
-      actual: this.toNumber(cd.actual),
-      difference: this.toNumber(cd.difference),
-    }));
+    const cashDiscrepancies: CashDiscrepancyResponseDto[] = cashDiscs.map(
+      (cd) => ({
+        date: cd.date.toISOString().split('T')[0],
+        expected: this.toNumber(cd.expected),
+        actual: this.toNumber(cd.actual),
+        difference: this.toNumber(cd.difference),
+      }),
+    );
 
     // Daily revenue chart
     const dailySnapshots = await this.prisma.financialSnapshot.findMany({
@@ -873,7 +918,9 @@ export class DashboardService {
       expenseGroups,
       directExpensesTotal,
       distributedExpensesTotal,
-      financialResult: revenueBreakdown.total - directExpensesTotal - distributedExpensesTotal,
+      financialResult:
+        revenueBreakdown.total - directExpensesTotal - distributedExpensesTotal,
+      salesCount: this.toNumber(revenueAgg._sum.salesCount),
       cashDiscrepancies,
       revenueChart,
     };
@@ -921,7 +968,13 @@ export class DashboardService {
     // Get all articles in this group
     const articlesInGroup = await this.prisma.ddsArticle.findMany({
       where: { groupId },
-      select: { id: true, name: true, code: true, source: true, allocationType: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        source: true,
+        allocationType: true,
+      },
     });
 
     const articleIds = articlesInGroup.map((a) => a.id);

@@ -71,12 +71,19 @@ export class PeriodDto {
   to: string;
 }
 
+export class PaymentTypeAmountDto {
+  name: string;
+  iikoCode: string;
+  amount: number;
+}
+
 export class RevenueBreakdownDto {
   total: number;
   cash: number;
   kaspi: number;
   halyk: number;
   yandex: number;
+  byType: PaymentTypeAmountDto[]; // Dynamic list from iiko
 }
 
 export class RestaurantIndicatorDto {
@@ -129,6 +136,7 @@ export class RestaurantDetailDto {
   directExpensesTotal: number;
   distributedExpensesTotal: number;
   financialResult: number;
+  salesCount: number;
   cashDiscrepancies: CashDiscrepancyResponseDto[];
   revenueChart: DailyRevenuePointDto[];
 }

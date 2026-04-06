@@ -61,6 +61,7 @@ model Tenant {
   kitchenPurchases   KitchenPurchase[]
   kitchenIncomes     KitchenIncome[]
   syncLogs           SyncLog[]
+  paymentTypes       PaymentType[]
 
   @@schema("auth")
 }
@@ -280,10 +281,12 @@ model FinancialSnapshot {
   revenueHalyk   Decimal  @default(0) @db.Decimal(15, 2) // Halyk QR
   revenueYandex  Decimal  @default(0) @db.Decimal(15, 2) // Яндекс Еда
   directExpenses Decimal  @default(0) @db.Decimal(15, 2) // Прямые расходы (из iiko ДДС)
+  salesCount     Int      @default(0)                    // Количество чеков (из iiko OLAP)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payments   SnapshotPayment[]
 
   @@unique([restaurantId, date])
   @@index([restaurantId, date])
@@ -375,5 +378,39 @@ model SyncLog {
 
   @@index([tenantId, createdAt])
   @@index([system, status, createdAt])
+  @@schema("finance")
+}
+
+/// Тип оплаты из iiko — синхронизируется автоматически при каждой выгрузке OLAP
+model PaymentType {
+  id        String   @id @default(uuid())
+  tenantId  String
+  iikoCode  String              // Имя типа оплаты из iiko OLAP (используется как ключ)
+  name      String              // Display name (равно iikoCode, можно переименовать)
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payments SnapshotPayment[]
+
+  @@unique([tenantId, iikoCode])
+  @@index([tenantId])
+  @@schema("finance")
+}
+
+/// Сумма выручки по конкретному типу оплаты за день (динамически из iiko OLAP)
+model SnapshotPayment {
+  id            String  @id @default(uuid())
+  snapshotId    String
+  paymentTypeId String
+  amount        Decimal @db.Decimal(15, 2)
+
+  snapshot    FinancialSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  paymentType PaymentType       @relation(fields: [paymentTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, paymentTypeId])
+  @@index([snapshotId])
   @@schema("finance")
 }
