@@ -30,6 +30,7 @@
 - **02-04** (2026-04-07): 32-test suite for AuthService — added enableBiometric (2 tests) and verifyBiometric (6 tests) describe blocks covering success, rejection, inactive user, audit log events (BIOMETRIC_ENABLE/BIOMETRIC_LOGIN), and token rotation. All 32 tests pass. Commit: 5a06969
 - **03-01** (2026-04-07): syncNomenclature() added to IikoSyncService — fetches iiko nomenclature groups via GET /v2/entities/products/group/list, upserts DdsArticleGroup by tenantId_code, writes SyncLog. Daily 03:00 Asia/Almaty cron added to SchedulerService. 4 unit tests all pass (upsert, SUCCESS log, ERROR log+throw, scheduler wiring). Commits: 281b4eb, d0947a4
 - **03-02** (2026-04-07): @sentry/node integrated — Sentry.init() before NestFactory.create() in main.ts, Sentry.withScope+captureException in 5 IikoSyncService and 3 OneCyncService catch blocks, jest.mock for test isolation, 2 success-path tests. All 20 tests pass. Commits: 5a41601, f5c6b9a
+- **03-03** (2026-04-07): Dead letter pattern implemented — needsManualReview Boolean @default(false) added to SyncLog schema + manual migration SQL; logSync() in IikoSyncService and OneCyncService marks 3 consecutive ERRORs needsManualReview=true via inner-try/catch-protected dead letter check; 3 unit tests pass (trigger on 3 errors, no trigger on mixed, resilient to dead letter failure). All 23 tests pass. Commits: bcd0a15, c19fed1
 
 ## Key Decisions
 - **[02-00]** When DB unavailable, create Prisma migration SQL files manually in migrations/ directory with timestamp naming convention; apply later with `npx prisma migrate dev`
@@ -45,6 +46,9 @@
 - **[03-02]** @sentry/node as production dependency (not devDependency) — Sentry.init runs at app boot
 - **[03-02]** enabled: !!process.env.SENTRY_DSN guard makes Sentry a no-op in dev/test without DSN
 - **[03-02]** jest.mock('@sentry/node') placed before imports (hoisted by Jest) to prevent real network calls in unit tests
+- **[03-03]** Dead letter check wrapped in inner try/catch so DB failures never break logSync() caller — dead letter is best-effort
+- **[03-03]** Trigger condition: exactly 3 recent logs, all ERROR — strict 3-window check prevents false positives on 2 errors
+- **[03-03]** Manual migration SQL only (no prisma migrate dev) — consistent with 02-00 decision (no live DB available)
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
