@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-07T12:11:44.018Z"
+last_updated: "2026-04-07T12:18:58.002Z"
 progress:
   total_phases: 9
   completed_phases: 4
   total_plans: 19
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
 
 ## Current Phase
 
-**Phase 7: Mobile Screens** — IN PROGRESS. Plan 07-01 complete: infrastructure layer established (types, API methods, navigation, role-gate tests). Next: 07-02 — PointDetailScreen (Level 2 drill-down).
+**Phase 7: Mobile Screens** — IN PROGRESS. Plans 07-01 and 07-02 complete: infrastructure layer + Level 3/4 drill-down screens (ArticleDetailScreen, OperationsScreen) with role-gating and haptic feedback. Full 4-level navigation chain operational. Next: remaining Phase 7 plans.
 
 ## What's Working
 
@@ -54,6 +54,7 @@ progress:
 - **05-02** (2026-04-07): E2E test suite for finance proxy — finance-proxy.e2e-spec.ts with 6 passing tests proving role enforcement. OWNER gets 200 on article operations and reports/dds; FINANCE_DIRECTOR gets 403 on OWNER-only route; OPERATIONS_DIRECTOR gets 403 on OWNER+FD dds route; OPERATIONS_DIRECTOR gets 200 on all-roles kitchen route; 404 on non-existent route. Real RolesGuard tested via overrideGuard(JwtAuthGuard). All 21 unit tests still pass. Commit: 0056f3c
 - **06-01** (2026-04-07): Mobile Foundation completion — ios.minimumOsVersion=15.1, android.minSdkVersion=26, @sentry/react-native installed+plugin+init+wrap, useInactivityLogout hook (10-min AppState threshold), OTP resend timer (60s countdown) in useLogin+LoginScreen. tsc --noEmit passes. Commits: c689a36, dc110e8, da72fee
 - **07-01** (2026-04-07): Mobile infrastructure layer — Screen type extended to 9 values (article-detail, operations added), 7 new DTOs (OperationDto, OperationsListDto, 4 Report* types), 5 new dashboardApi methods (getOperations + 4 reports), useOperations hook, getPeriodDates exported, App.tsx wired for Level 3/4 navigation with placeholder screens, 8 role-gate tests (OWNER-only Level 4, OWNER+FIN_DIR Level 3). expo-haptics + async-storage installed. tsc passes. Commits: 1539565, 2784305, f979ee1
+- **07-02** (2026-04-07): Level 3/4 drill-down screens — ArticleDetailScreen shows DDS articles with source badge, change%, allocation badge; role-gated (OWNER drills to Level 4, FIN_DIRECTOR read-only, OPS_DIRECTOR stops at Level 2); OperationsScreen shows paginated operations with date, amount, comment, source, coefficient; load-more pagination; both screens use Haptics.impactAsync on pull-to-refresh; App.tsx placeholder components replaced with real imports. tsc passes. Commits: 864c87c, 7d592b5
 
 ## Key Decisions
 
@@ -92,6 +93,8 @@ progress:
 - **[07-01]** Inline placeholder ArticleDetailScreen and OperationsScreen in App.tsx so Wave 2 can replace them with real imports without breaking compilation
 - **[07-01]** ts-jest inline tsconfig ({ strict: true }) used in jest config instead of file path reference (rootDir=src makes relative paths resolve to wrong directory)
 - **[07-01]** onNavigateArticle added as optional prop to PointDetailScreen to allow navigation wiring without breaking existing call sites that don't pass it
+- **[07-02]** canDrillToLevel4 = role === 'OWNER' — OWNER taps article row to reach Level 4; FIN_DIRECTOR gets read-only Level 3 view; OPS_DIRECTOR stopped at Level 2 by App.tsx navigation guard
+- **[07-02]** OperationsScreen manages page state locally — load-more increments page; pull-to-refresh invokes refetch() resetting via refreshKey in useApiQuery
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
