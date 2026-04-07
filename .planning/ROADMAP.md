@@ -184,7 +184,7 @@ Kexbrands ЦО (Корпорация)
 **Статус: 🔄 ~60% готово**
 **Срок по ТЗ: входит в Этап 1 (3-4 недели)**
 
-**Plans:** 5 plans
+**Plans:** 2/5 plans executed
 
 Plans:
 - [x] 02-00-PLAN.md -- Leader schema migration (biometricEnabled field)
@@ -559,7 +559,7 @@ Plans:
 | Этап | Название | Статус | Готовность |
 |------|---------|--------|------------|
 | 1 | Инфраструктура + DB | 🔄 В процессе | ~90% |
-| 2 | Auth Service (3 роли, OTP, PIN) | 🔄 В процессе | ~60% |
+| 2 | 2/5 | In Progress|  |
 | 3 | Aggregator (iiko + 1С + распределение) | 🔄 В процессе | ~70% |
 | 4 | Finance Service (4 уровня + отчёты) | 🔄 В процессе | ~75% |
 | 5 | API Gateway | 🔄 В процессе | ~70% |
