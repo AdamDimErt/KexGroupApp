@@ -20,7 +20,7 @@
 - Нет 4-уровневого drill-down
 - Finance/Aggregator/Gateway — пустые заглушки
 - Мобилка не подключена к API
-- Нет Sentry
+- Sentry: backend (aggregator-worker) подключён; mobile — ещё нет
 - Нет локализации (русский + казахский)
 
 ## Completed Plans
@@ -42,6 +42,9 @@
 - **[03-01]** iiko nomenclature endpoint GET /v2/entities/products/group/list with flexible XML root key handling (MEDIUM confidence — logger.debug logs actual keys for first-run observability)
 - **[03-01]** DdsArticle upsert NOT in syncNomenclature — handled by existing syncExpenses() flow to avoid duplication
 - **[03-01]** In Jest tests, spy on xmlParser.parse directly to control parsed structure rather than returning raw XML from makeRequest mock
+- **[03-02]** @sentry/node as production dependency (not devDependency) — Sentry.init runs at app boot
+- **[03-02]** enabled: !!process.env.SENTRY_DSN guard makes Sentry a no-op in dev/test without DSN
+- **[03-02]** jest.mock('@sentry/node') placed before imports (hoisted by Jest) to prevent real network calls in unit tests
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
