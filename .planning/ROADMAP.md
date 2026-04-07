@@ -187,7 +187,7 @@ Kexbrands ЦО (Корпорация)
 **Plans:** 5 plans
 
 Plans:
-- [ ] 02-00-PLAN.md -- Leader schema migration (biometricEnabled field)
+- [x] 02-00-PLAN.md -- Leader schema migration (biometricEnabled field)
 - [ ] 02-01-PLAN.md -- AuditLog integration + JWT TTL reduction
 - [ ] 02-02-PLAN.md -- Telegram Gateway OTP (primary channel + SMS fallback)
 - [ ] 02-03-PLAN.md -- Biometric endpoints (service + controller)
@@ -209,7 +209,7 @@ Plans:
 - [ ] **PIN/биометрия (Face ID / отпечаток пальца):**
   - [ ] Endpoint `POST /auth/biometric/enable` — включить биометрию для пользователя (сохранить флаг в DB)
   - [ ] Endpoint `POST /auth/biometric/verify` — выдать JWT по refresh token + biometric flag
-  - [ ] Поле `biometricEnabled: Boolean` в модели User
+  - [x] Поле `biometricEnabled: Boolean` в модели User
 - [ ] **Автовыход при неактивности** (настраиваемый таймаут, по ТЗ)
 - [ ] **AuditLog:** записывать каждый логин (userId, action, IP, timestamp)
 - [ ] Unit-тесты для auth.service.ts (Jest)
