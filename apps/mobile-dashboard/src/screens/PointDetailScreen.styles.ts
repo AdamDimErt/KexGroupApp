@@ -62,4 +62,41 @@ export const styles = StyleSheet.create({
   expBarBg: { flex: 1, height: 6, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 3, marginRight: 12 },
   expBarFill: { height: '100%', backgroundColor: 'rgba(59,130,246,0.35)', borderRadius: 3 },
   expAmount: { color: colors.red, fontSize: 13, fontWeight: '500', width: 100, textAlign: 'right' },
+  // Revenue chart (daily bar chart)
+  revenueChartCard: {
+    backgroundColor: '#12122A',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+  },
+  revenueChartTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  revenueChartContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 100,
+    paddingHorizontal: 4,
+  },
+  revenueChartBarWrapper: {
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 1,
+  },
+  revenueChartBar: {
+    width: '80%',
+    backgroundColor: '#6C5CE7',
+    borderRadius: 2,
+    minHeight: 2,
+  },
+  revenueChartLabel: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 4,
+  },
 });

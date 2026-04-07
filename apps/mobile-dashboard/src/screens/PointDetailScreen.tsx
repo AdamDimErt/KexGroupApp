@@ -1,8 +1,11 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, type DimensionValue } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, type DimensionValue } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { usePointDetail } from '../hooks/usePointDetail';
 import { PeriodSelector, PERIOD_OPTIONS } from '../components/PeriodSelector';
 import { useDashboardStore } from '../store/dashboard';
+import { useAuthStore } from '../store/auth';
+import { colors } from '../theme';
 import { styles } from './PointDetailScreen.styles';
 
 interface Props {
@@ -48,15 +51,24 @@ function paymentColor(iikoCode: string, index: number): string {
 
 // ─── Компонент (только разметка + стили) ──────────────────────────────────
 
-export function PointDetailScreen({ pointId, onBack }: Props) {
+export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props) {
   const {
     restaurant: r, statusColor: col, statusLabel, profit, profitColor,
     hourlyData, planLine, maxBar, barW, expenseItems, isLoading,
+    expenseGroups, directExpensesTotal, distributedExpensesTotal,
+    financialResult, cashDiscrepancies, revenueChart, refetch,
   } = usePointDetail(pointId);
   const period = useDashboardStore(s => s.period);
   const periodLabel = PERIOD_OPTIONS.find(p => p.key === period)?.label ?? 'Сегодня';
+  const role = useAuthStore(s => s.user?.role);
+  const canDrillToLevel3 = role === 'OWNER' || role === 'FINANCE_DIRECTOR';
 
-  const maxExpense = expenseItems.length > 0 ? expenseItems[0].amount : 0;
+  const maxExpense = expenseGroups.length > 0 ? Math.max(...expenseGroups.map(g => g.totalAmount)) : 0;
+
+  const handleRefresh = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    refetch();
+  };
 
   if (!r || isLoading) {
     return (
@@ -72,7 +84,12 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor={colors.accent} />}
+    >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack}>
@@ -167,19 +184,92 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
         </View>
       </View>
 
-      {/* Расходы · 1С */}
+      {/* Расходы по группам статей ДДС */}
       <View style={styles.expCard}>
-        <Text style={styles.expTitle}>Расходы · 1С</Text>
-        {expenseItems.map((item, i) => (
-          <View key={i} style={styles.expRow}>
-            <Text style={styles.expLabel}>{item.label}</Text>
-            <View style={styles.expBarBg}>
-              <View style={[styles.expBarFill, { width: expenseBarPct(item.amount, maxExpense) }]} />
+        <Text style={styles.expTitle}>Расходы по группам</Text>
+        {expenseGroups.map((group) => {
+          const barWidth = maxExpense > 0 ? expenseBarPct(group.totalAmount, maxExpense) : '0%';
+          const row = (
+            <View style={styles.expRow}>
+              <Text style={styles.expLabel}>{group.groupName}</Text>
+              <View style={styles.expBarBg}>
+                <View style={[styles.expBarFill, { width: barWidth as DimensionValue }]} />
+              </View>
+              <Text style={styles.expAmount}>-₸{group.totalAmount.toLocaleString()}</Text>
+              {canDrillToLevel3 && <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.3)', marginLeft: 4 }}>›</Text>}
             </View>
-            <Text style={styles.expAmount}>-₸{item.amount.toLocaleString()}</Text>
-          </View>
-        ))}
+          );
+          if (canDrillToLevel3 && onNavigateArticle) {
+            return (
+              <TouchableOpacity key={group.groupId} onPress={() => onNavigateArticle(group.groupId)} activeOpacity={0.7}>
+                {row}
+              </TouchableOpacity>
+            );
+          }
+          return <View key={group.groupId}>{row}</View>;
+        })}
       </View>
+
+      {/* Финансовый результат */}
+      <View style={styles.expCard}>
+        <Text style={styles.expTitle}>Финансовый результат</Text>
+        <View style={styles.expRow}>
+          <Text style={styles.expLabel}>Прямые расходы</Text>
+          <Text style={styles.expAmount}>-₸{directExpensesTotal.toLocaleString()}</Text>
+        </View>
+        <View style={styles.expRow}>
+          <Text style={styles.expLabel}>Распределённые расходы</Text>
+          <Text style={styles.expAmount}>-₸{distributedExpensesTotal.toLocaleString()}</Text>
+        </View>
+        <View style={[styles.expRow, { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 12 }]}>
+          <Text style={[styles.expLabel, { fontWeight: '700' }]}>Итого</Text>
+          <Text style={[styles.expAmount, { color: financialResult >= 0 ? '#10B981' : '#EF4444', fontWeight: '700' }]}>
+            ₸{financialResult.toLocaleString()}
+          </Text>
+        </View>
+      </View>
+
+      {/* Недостачи и излишки */}
+      {cashDiscrepancies.length > 0 && (
+        <View style={styles.expCard}>
+          <Text style={styles.expTitle}>Недостачи и излишки</Text>
+          {cashDiscrepancies.map((disc, i) => {
+            const diffColor = disc.difference >= 0 ? '#10B981' : '#EF4444';
+            const diffSign = disc.difference >= 0 ? '+' : '';
+            return (
+              <View key={i} style={styles.expRow}>
+                <Text style={styles.expLabel}>{new Date(disc.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}</Text>
+                <Text style={[styles.expAmount, { color: diffColor }]}>
+                  {diffSign}₸{disc.difference.toLocaleString()}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* График выручки по дням за период */}
+      {revenueChart.length > 0 && (() => {
+        const maxRevenue = Math.max(...revenueChart.map(p => p.revenue), 1);
+        const CHART_HEIGHT = 100;
+        return (
+          <View style={styles.revenueChartCard}>
+            <Text style={styles.revenueChartTitle}>Выручка по дням</Text>
+            <View style={styles.revenueChartContainer}>
+              {revenueChart.slice(-14).map((point, i) => {
+                const barHeight = Math.max((point.revenue / maxRevenue) * CHART_HEIGHT, 2);
+                const dayLabel = new Date(point.date).getDate().toString();
+                return (
+                  <View key={i} style={styles.revenueChartBarWrapper}>
+                    <View style={[styles.revenueChartBar, { height: barHeight }]} />
+                    <Text style={styles.revenueChartLabel}>{dayLabel}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })()}
 
       <View style={{ height: 24 }} />
     </ScrollView>

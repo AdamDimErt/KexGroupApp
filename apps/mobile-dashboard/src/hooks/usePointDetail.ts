@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Dimensions } from 'react-native';
 import { useRestaurantDetail } from './useApi';
 import { colors } from '../theme';
-import type { PaymentTypeAmountDto } from '../types';
+import type { PaymentTypeAmountDto, ExpenseGroupDto, CashDiscrepancyDto, DailyRevenuePointDto } from '../types';
 
 const statusLabels: Record<'green' | 'yellow' | 'red', string> = {
   green: 'Норма',
@@ -24,9 +24,9 @@ export interface EnrichedRestaurant {
 }
 
 export function usePointDetail(restaurantId: string | null) {
-  const { data: restaurantDetail, isLoading, error } = useRestaurantDetail(restaurantId || '');
+  const { data: restaurantDetail, isLoading, error, refetch } = useRestaurantDetail(restaurantId || '');
 
-  return useMemo(() => {
+  const computed = useMemo(() => {
     if (!restaurantDetail) {
       return {
         restaurant: null,
@@ -41,6 +41,12 @@ export function usePointDetail(restaurantId: string | null) {
         chartW: Dimensions.get('window').width - 80,
         barW: 0,
         expenseItems: [],
+        expenseGroups: [] as ExpenseGroupDto[],
+        directExpensesTotal: 0,
+        distributedExpensesTotal: 0,
+        financialResult: 0,
+        cashDiscrepancies: [] as CashDiscrepancyDto[],
+        revenueChart: [] as DailyRevenuePointDto[],
         isLoading: true,
         error: null,
       };
@@ -110,8 +116,16 @@ export function usePointDetail(restaurantId: string | null) {
       chartW,
       barW,
       expenseItems,
+      expenseGroups: restaurantDetail.expenseGroups,
+      directExpensesTotal: restaurantDetail.directExpensesTotal,
+      distributedExpensesTotal: restaurantDetail.distributedExpensesTotal,
+      financialResult: restaurantDetail.financialResult,
+      cashDiscrepancies: restaurantDetail.cashDiscrepancies ?? [],
+      revenueChart: restaurantDetail.revenueChart ?? [],
       isLoading,
       error,
     };
   }, [restaurantId, restaurantDetail, isLoading, error]);
+
+  return { ...computed, refetch };
 }
