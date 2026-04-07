@@ -448,7 +448,7 @@ Plans:
 ## Phase 7: Mobile App — Экраны (4 уровня drill-down)
 **Статус: 🔄 ~35% готово**
 **Срок по ТЗ: Этап 1 + Этап 2 (6-8 недель)**
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 07-01-PLAN.md — Infrastructure: types, API methods, navigation wiring

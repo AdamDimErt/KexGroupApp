@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-07T12:25:05.660Z"
+last_updated: "2026-04-07T12:34:11.096Z"
 progress:
   total_phases: 9
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 19
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
 
 ## Current Phase
 
-**Phase 7: Mobile Screens** — IN PROGRESS. Plans 07-01, 07-02, and 07-04 complete: infrastructure layer + Level 3/4 drill-down screens (ArticleDetailScreen, OperationsScreen) with role-gating and haptic feedback, plus ReportsScreen rewritten with 4 real report endpoints, AsyncStorage offline cache, and role-gated section visibility. Next: remaining Phase 7 plans.
+**Phase 7: Mobile Screens** — IN PROGRESS. Plans 07-01, 07-02, 07-03, and 07-04 complete: infrastructure layer + Level 3/4 drill-down screens, DashboardScreen/PointDetailScreen enhanced with KPI cards, skeleton loader, lastSyncAt, haptics, expense drilldown, financial result, cash discrepancies, revenue bar chart, plus ReportsScreen rewritten with 4 real report endpoints and offline cache. Next: remaining Phase 7 plans.
 
 ## What's Working
 
@@ -55,6 +55,7 @@ progress:
 - **06-01** (2026-04-07): Mobile Foundation completion — ios.minimumOsVersion=15.1, android.minSdkVersion=26, @sentry/react-native installed+plugin+init+wrap, useInactivityLogout hook (10-min AppState threshold), OTP resend timer (60s countdown) in useLogin+LoginScreen. tsc --noEmit passes. Commits: c689a36, dc110e8, da72fee
 - **07-01** (2026-04-07): Mobile infrastructure layer — Screen type extended to 9 values (article-detail, operations added), 7 new DTOs (OperationDto, OperationsListDto, 4 Report* types), 5 new dashboardApi methods (getOperations + 4 reports), useOperations hook, getPeriodDates exported, App.tsx wired for Level 3/4 navigation with placeholder screens, 8 role-gate tests (OWNER-only Level 4, OWNER+FIN_DIR Level 3). expo-haptics + async-storage installed. tsc passes. Commits: 1539565, 2784305, f979ee1
 - **07-02** (2026-04-07): Level 3/4 drill-down screens — ArticleDetailScreen shows DDS articles with source badge, change%, allocation badge; role-gated (OWNER drills to Level 4, FIN_DIRECTOR read-only, OPS_DIRECTOR stops at Level 2); OperationsScreen shows paginated operations with date, amount, comment, source, coefficient; load-more pagination; both screens use Haptics.impactAsync on pull-to-refresh; App.tsx placeholder components replaced with real imports. tsc passes. Commits: 864c87c, 7d592b5
+- **07-03** (2026-04-07): SkeletonLoader reusable component (animated pulse 0.3→0.7). DashboardScreen: 3 KPI cards (БАЛАНС hidden for OPS_DIRECTOR), lastSyncAt indicator (red when stale >1h), skeleton loader on initial load, pull-to-refresh with haptic feedback. PointDetailScreen: tappable expense groups (OWNER+FIN_DIR Level 3 drilldown), financial result breakdown (direct + distributed), cash discrepancies section, View-based daily revenue bar chart (last 14 days), pull-to-refresh with haptics. tsc passes. Commits: c49a064, a29c615
 - **07-04** (2026-04-07): ReportsScreen rewritten with 4 real report endpoints (DDS/company/kitchen/trends). useCachedQuery hook provides AsyncStorage-based offline cache with stale detection (>1hr). OfflineBanner shows offline/stale state with timestamp. OPS_DIRECTOR sees only Kitchen and Trends sections. Trends section has inline bar chart. tsc passes. Commits: de6d9cb, 3d61f51
 
 ## Key Decisions
@@ -98,6 +99,10 @@ progress:
 - **[07-02]** OperationsScreen manages page state locally — load-more increments page; pull-to-refresh invokes refetch() resetting via refreshKey in useApiQuery
 - **[07-04]** useCachedQuery wraps fetcher with AsyncStorage persistence; stale threshold = 1 hour (3600000ms)
 - **[07-04]** OPS_DIRECTOR sees only Kitchen and Trends sections; DDS and Company hidden via canSeeDds/canSeeCompany role checks
+- **[07-03]** SkeletonLoader uses Animated.loop with opacity 0.3→0.7 sequence — useNativeDriver:true ensures 60fps on low-end devices
+- **[07-03]** showBalance = OWNER || FINANCE_DIRECTOR — OPERATIONS_DIRECTOR sees only ВЫРУЧКА and РАСХОДЫ KPI cards; no Balance leak
+- **[07-03]** Revenue bar chart is View-based (no victory-native) — last 14 days, proportional heights, day-of-month labels
+- **[07-03]** usePointDetail refetch returned outside useMemo — computed state memoized separately; refetch callback is stable from useApiQuery
 - **[07-04]** Each report section fetches independently — network failures in one section do not block others
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
