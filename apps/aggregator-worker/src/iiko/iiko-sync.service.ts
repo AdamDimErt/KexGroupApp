@@ -1481,6 +1481,11 @@ export class IikoSyncService {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
       this.logger.error(`Failed to sync nomenclature: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncNomenclature');
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
