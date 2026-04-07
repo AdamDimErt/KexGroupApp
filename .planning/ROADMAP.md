@@ -448,6 +448,13 @@ Plans:
 ## Phase 7: Mobile App — Экраны (4 уровня drill-down)
 **Статус: 🔄 ~35% готово**
 **Срок по ТЗ: Этап 1 + Этап 2 (6-8 недель)**
+**Plans:** 4 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Infrastructure: types, API methods, navigation wiring
+- [ ] 07-02-PLAN.md — New screens: ArticleDetailScreen (L3) + OperationsScreen (L4)
+- [ ] 07-03-PLAN.md — Enhance existing: DashboardScreen + PointDetailScreen
+- [ ] 07-04-PLAN.md — Reports rewrite + offline cache
 
 ### Уровень 1 — Главный экран (Компания)
 - [x] DashboardScreen — основной экран с данными
