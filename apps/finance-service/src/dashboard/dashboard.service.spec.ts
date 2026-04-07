@@ -27,6 +27,7 @@ describe('DashboardService', () => {
       findMany: jest.fn(),
       aggregate: jest.fn(),
       groupBy: jest.fn(),
+      count: jest.fn(),
     },
     costAllocation: {
       aggregate: jest.fn(),
@@ -40,6 +41,9 @@ describe('DashboardService', () => {
     },
     cashDiscrepancy: {
       findMany: jest.fn(),
+    },
+    syncLog: {
+      aggregate: jest.fn(),
     },
   };
 
@@ -302,6 +306,123 @@ describe('DashboardService', () => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const result = (service as any).toNumber(undefined);
       expect(result).toBe(0);
+    });
+  });
+
+  describe('getDashboardSummary - lastSyncAt', () => {
+    it('should populate lastSyncAt from SyncLog', async () => {
+      const tenantId = 'tenant-1';
+      const syncDate = new Date('2026-04-07T10:00:00Z');
+
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.brand.findMany.mockResolvedValue([{ id: 'brand-1', name: 'BNA', slug: 'bna', _count: { restaurants: 0 } }]);
+      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([]);
+      mockPrismaService.syncLog.aggregate.mockResolvedValue({
+        _max: { createdAt: syncDate },
+      });
+
+      const result = await service.getDashboardSummary(tenantId, 'today', '2026-04-07', '2026-04-07');
+
+      expect(result.lastSyncAt).toBe(syncDate.toISOString());
+      expect(result.lastSyncStatus).toBe('success');
+      expect(mockPrismaService.syncLog.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { tenantId, status: 'SUCCESS' },
+          _max: { createdAt: true },
+        }),
+      );
+    });
+
+    it('should return null lastSyncAt when no successful syncs exist', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.brand.findMany.mockResolvedValue([]);
+      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([]);
+      mockPrismaService.syncLog.aggregate.mockResolvedValue({
+        _max: { createdAt: null },
+      });
+
+      const result = await service.getDashboardSummary(tenantId, 'today', '2026-04-07', '2026-04-07');
+
+      expect(result.lastSyncAt).toBeNull();
+      expect(result.lastSyncStatus).toBeNull();
+    });
+  });
+
+  describe('getArticleOperations', () => {
+    it('should return paginated operations with allocationCoefficient', async () => {
+      const mockExpenses = [
+        {
+          id: 'exp-1',
+          date: new Date('2026-04-01'),
+          amount: { toString: () => '1500.50' },
+          comment: 'Test expense',
+          source: 'IIKO',
+          restaurant: { name: 'BNA Besagash' },
+          costAllocations: [{ coefficient: { toString: () => '0.350000' } }],
+        },
+      ];
+
+      mockPrismaService.expense.count.mockResolvedValue(1);
+      mockPrismaService.expense.findMany.mockResolvedValue(mockExpenses);
+
+      const result = await service.getArticleOperations(
+        'article-1', 'restaurant-1', '2026-04-01', '2026-04-30', 50, 0,
+      );
+
+      expect(result.total).toBe(1);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toMatchObject({
+        id: 'exp-1',
+        amount: 1500.5,
+        comment: 'Test expense',
+        source: 'IIKO',
+        allocationCoefficient: 0.35,
+        restaurantName: 'BNA Besagash',
+      });
+      expect(result.period).toEqual({ from: '2026-04-01', to: '2026-04-30' });
+    });
+
+    it('should return null allocationCoefficient when no costAllocations exist', async () => {
+      const mockExpenses = [
+        {
+          id: 'exp-2',
+          date: new Date('2026-04-01'),
+          amount: { toString: () => '500.00' },
+          comment: null,
+          source: 'ONE_C',
+          restaurant: { name: 'DNA Aksay' },
+          costAllocations: [],
+        },
+      ];
+
+      mockPrismaService.expense.count.mockResolvedValue(1);
+      mockPrismaService.expense.findMany.mockResolvedValue(mockExpenses);
+
+      const result = await service.getArticleOperations(
+        'article-2', 'restaurant-2', '2026-04-01', '2026-04-30', 50, 0,
+      );
+
+      expect(result.items[0].allocationCoefficient).toBeNull();
+      expect(result.items[0].comment).toBeNull();
+    });
+
+    it('should pass correct skip/take for pagination', async () => {
+      mockPrismaService.expense.count.mockResolvedValue(0);
+      mockPrismaService.expense.findMany.mockResolvedValue([]);
+
+      await service.getArticleOperations(
+        'article-1', 'restaurant-1', '2026-04-01', '2026-04-30', 25, 50,
+      );
+
+      expect(mockPrismaService.expense.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 25,
+          skip: 50,
+          orderBy: { date: 'desc' },
+        }),
+      );
     });
   });
 });

@@ -14,6 +14,7 @@ import {
   RestaurantDetailDto,
   ArticleGroupDetailDto,
 } from './dto/summary.dto';
+import { OperationsQueryDto, ArticleOperationsDto } from './dto/operations.dto';
 
 @Controller('dashboard')
 export class DashboardController {
@@ -38,9 +39,13 @@ export class DashboardController {
     }
 
     // OPS_DIRECTOR: filter to assigned restaurants only
-    const restaurantFilter = userRole === 'OPERATIONS_DIRECTOR' && userRestaurantIds
-      ? userRestaurantIds.split(',').map(id => id.trim()).filter(Boolean)
-      : undefined;
+    const restaurantFilter =
+      userRole === 'OPERATIONS_DIRECTOR' && userRestaurantIds
+        ? userRestaurantIds
+            .split(',')
+            .map((id) => id.trim())
+            .filter(Boolean)
+        : undefined;
 
     return this.dashboardService.getDashboardSummary(
       tenantId,
@@ -84,6 +89,30 @@ export class DashboardController {
       query.periodType || 'today',
       query.dateFrom,
       query.dateTo,
+    );
+  }
+
+  /**
+   * GET /dashboard/article/:articleId/operations?restaurantId=&dateFrom=&dateTo=&periodType=&limit=&offset=
+   * Level 4: Individual expense operations for an article (OWNER only via DataAccessInterceptor)
+   *
+   * CRITICAL: This route MUST be registered BEFORE article/:groupId to avoid NestJS route collision.
+   */
+  @Get('article/:articleId/operations')
+  async getArticleOperations(
+    @Param('articleId') articleId: string,
+    @Query() query: OperationsQueryDto,
+  ): Promise<ArticleOperationsDto> {
+    if (!query.restaurantId) {
+      throw new BadRequestException('Missing restaurantId query parameter');
+    }
+    return this.dashboardService.getArticleOperations(
+      articleId,
+      query.restaurantId,
+      query.dateFrom,
+      query.dateTo,
+      query.limit ?? 50,
+      query.offset ?? 0,
     );
   }
 
