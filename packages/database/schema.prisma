@@ -372,8 +372,9 @@ model SyncLog {
   attemptCount Int        @default(1)
   durationMs   Int?                // Длительность синхронизации в мс
   recordsCount Int?                // Количество обработанных записей
-  businessDate DateTime   @db.Date // Целевой день синхронизации
-  createdAt    DateTime   @default(now())
+  businessDate      DateTime   @db.Date // Целевой день синхронизации
+  createdAt         DateTime   @default(now())
+  needsManualReview Boolean    @default(false)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
