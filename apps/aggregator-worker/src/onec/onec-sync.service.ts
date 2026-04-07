@@ -36,6 +36,15 @@ interface OneCIncomeRecord {
   Description?: string;
 }
 
+interface OneCShipmentRecord {
+  Ref_Key: string;
+  Date: string;
+  DocumentAmount?: string;
+  Description?: string;
+  Counterparty?: string;
+  Counterparty_Key?: string;
+}
+
 @Injectable()
 export class OneCyncService {
   private readonly logger = new Logger(OneCyncService.name);
@@ -340,6 +349,133 @@ export class OneCyncService {
         });
         Sentry.captureException(error);
       });
+      throw error;
+    }
+  }
+
+  async syncKitchenShipmentsByRestaurant(dateFrom: Date, dateTo: Date): Promise<void> {
+    const startTime = Date.now();
+    const tenantId = process.env.TENANT_ID || 'default';
+
+    try {
+      const baseUrl = process.env.ONEC_BASE_URL;
+      if (!baseUrl) {
+        throw new Error('ONEC_BASE_URL is not set');
+      }
+
+      const username = process.env.ONEC_USER;
+      const password = process.env.ONEC_PASSWORD;
+      if (!username || !password) {
+        throw new Error('ONEC_USER or ONEC_PASSWORD is not set');
+      }
+
+      const auth = Buffer.from(`${username}:${password}`).toString('base64');
+
+      const dateFromStr = dateFrom.toISOString().split('T')[0];
+      const dateToStr = dateTo.toISOString().split('T')[0];
+
+      const filter = `Date ge datetime'${dateFromStr}' and Date le datetime'${dateToStr}'`;
+      const url = `${baseUrl}/odata/standard.odata/Document_RealizationOfGoodsAndServices?$filter=${encodeURIComponent(filter)}&$select=Ref_Key,Date,DocumentAmount,Description,Counterparty`;
+
+      const rawResponse = await this.makeRequest('GET', url, auth);
+      const response = rawResponse as OneCODataResponse<OneCShipmentRecord>;
+
+      const shipmentRecords: OneCShipmentRecord[] = response.value ?? [];
+
+      // Load all restaurants for matching
+      const restaurants = await this.prisma.restaurant.findMany({
+        select: { id: true, name: true, oneCId: true },
+      });
+
+      // Get or create dedicated article for kitchen shipments
+      let article = await this.prisma.ddsArticle.findFirst({
+        where: { code: 'kitchen_shipment' },
+      });
+
+      if (!article) {
+        const group = await this.prisma.ddsArticleGroup.upsert({
+          where: { tenantId_code: { tenantId, code: 'kitchen' } },
+          update: {},
+          create: { tenantId, code: 'kitchen', name: 'Kitchen' },
+        });
+
+        article = await this.prisma.ddsArticle.create({
+          data: {
+            groupId: group.id,
+            code: 'kitchen_shipment',
+            name: 'Kitchen Shipment to Restaurant',
+            source: 'ONE_C',
+            allocationType: 'DIRECT',
+          },
+        });
+      }
+
+      let processedCount = 0;
+      let skippedCount = 0;
+
+      for (const record of shipmentRecords) {
+        const counterpartyName = record.Counterparty ?? '';
+        const counterpartyKey = record.Counterparty_Key ?? '';
+
+        // Match restaurant by oneCId first, then by name
+        const restaurant = restaurants.find(
+          (r) =>
+            (r.oneCId && r.oneCId === counterpartyKey) ||
+            r.name.toLowerCase() === counterpartyName.toLowerCase(),
+        );
+
+        if (!restaurant) {
+          this.logger.warn(
+            `Kitchen shipment: restaurant not found for counterparty "${counterpartyName}" (key: ${counterpartyKey}), skipping`,
+          );
+          skippedCount++;
+          continue;
+        }
+
+        const amount = parseFloat(record.DocumentAmount ?? '0') || 0;
+        const shipmentDate = new Date(record.Date);
+        const description = record.Description ?? 'Kitchen shipment';
+        const syncId = `onec:kitchenshipment:${record.Ref_Key}`;
+
+        await this.prisma.expense.upsert({
+          where: { syncId },
+          update: { amount },
+          create: {
+            syncId,
+            articleId: article.id,
+            restaurantId: restaurant.id,
+            date: shipmentDate,
+            amount,
+            comment: description,
+            source: 'ONE_C',
+          },
+        });
+
+        processedCount++;
+      }
+
+      const durationMs = Date.now() - startTime;
+      await this.logSync(tenantId, 'ONE_C', 'SUCCESS', processedCount, durationMs);
+      this.logger.log(
+        `Synced ${processedCount} kitchen shipments by restaurant (${skippedCount} skipped — no restaurant match)`,
+      );
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.logSync(tenantId, 'ONE_C', 'ERROR', undefined, durationMs, errorMessage);
+      this.logger.error(`Failed to sync kitchen shipments by restaurant: ${errorMessage}`);
+
+      // Sentry capture — uses top-level static import added by Plan 03-02
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'ONE_C');
+        scope.setTag('method', 'syncKitchenShipmentsByRestaurant');
+        scope.setContext('sync', {
+          dateFrom: dateFrom.toISOString(),
+          dateTo: dateTo.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
+
       throw error;
     }
   }

@@ -180,6 +180,26 @@ export class SchedulerService {
     }
   }
 
+  // Every hour at :25 — sync kitchen shipments from 1C by restaurant
+  @Cron('25 * * * *')
+  async syncKitchenShipmentsByRestaurant() {
+    try {
+      const now = new Date();
+      const dateFrom = new Date(now);
+      dateFrom.setDate(dateFrom.getDate() - 1);
+      const dateTo = now;
+
+      this.logger.log(
+        `Syncing 1C kitchen shipments by restaurant from ${dateFrom.toISOString()} to ${dateTo.toISOString()}...`,
+      );
+      await this.oneCync.syncKitchenShipmentsByRestaurant(dateFrom, dateTo);
+    } catch (error) {
+      this.logger.error(
+        `1C kitchen shipments by restaurant sync failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   // Every hour — run cost allocation (after syncs)
   @Cron('45 * * * *')
   async runCostAllocation() {
