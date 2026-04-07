@@ -50,6 +50,7 @@ progress:
 - **03-03** (2026-04-07): Dead letter pattern implemented — needsManualReview Boolean @default(false) added to SyncLog schema + manual migration SQL; logSync() in IikoSyncService and OneCyncService marks 3 consecutive ERRORs needsManualReview=true via inner-try/catch-protected dead letter check; 3 unit tests pass (trigger on 3 errors, no trigger on mixed, resilient to dead letter failure). All 23 tests pass. Commits: bcd0a15, c19fed1
 - **03-04** (2026-04-07): syncKitchenShipmentsByRestaurant() added to OneCyncService — fetches Document_RealizationOfGoodsAndServices from 1C OData, matches counterparty to restaurant by oneCId then name, upserts Expense with direct restaurantId (bypasses cost allocation), skips unmatched with warn. Cron at :25 added to SchedulerService. 5 unit tests in new onec-sync.service.spec.ts. All 28 tests pass. Commits: e120593, a158589
 - **04-01** (2026-04-07): DataAccessInterceptor implemented — ACCESS_MATRIX with 6 route patterns, regex :param matching, ForbiddenException for unauthorized roles, passthrough for unprotected routes. Registered globally via app.useGlobalInterceptors(). 16 unit tests + 9 existing = 25 total passing. TypeScript compiles cleanly. Commits: b78ad19, 85d5ef4
+- **04-02** (2026-04-07): lastSyncAt fixed in getDashboardSummary (queries SyncLog MAX(createdAt) WHERE status=SUCCESS), getArticleOperations added (paginated expense records with allocationCoefficient join, offset/limit), GET /dashboard/article/:articleId/operations registered before article/:groupId. All 30 tests pass. Commits: 73e7914, 7eaca77
 
 ## Key Decisions
 
@@ -74,6 +75,8 @@ progress:
 - **[04-01]** Use request.path (not request.route.path) in interceptor — route.path is undefined during interceptor phase before route matching completes
 - **[04-01]** ACCESS_MATRIX key order matters — operations pattern before article/:groupId prevents broader pattern shadowing OWNER-only restriction
 - **[04-01]** Regex conversion: :paramName segments become [^/]+ anchored with ^...$; passthrough when path not in matrix
+- **[04-02]** Use `declare restaurantId` in OperationsQueryDto to override optional base field as required — avoids TS2612 without restructuring DTO hierarchy
+- **[04-02]** Controller route order critical: article/:articleId/operations MUST appear before article/:groupId in controller class to prevent NestJS treating 'operations' as a groupId param
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
