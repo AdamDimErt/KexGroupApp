@@ -28,6 +28,8 @@
 - **02-01** (2026-04-07): AuditLog writes on LOGIN/LOGOUT (fire-and-forget writeAuditLog method), JWT TTL reduced from 7d to 15m, trust proxy added for real client IP. Commits: 4c3a2c9, 29f41f7
 - **02-03** (2026-04-07): Biometric enable/verify endpoints added — POST /auth/biometric/enable (JWT-protected, sets DB flag + BIOMETRIC_ENABLE audit) and POST /auth/biometric/verify (refresh-token-based login with rotation + BIOMETRIC_LOGIN audit). BiometricVerifyDto added. Commit: c1cfd4f
 - **02-04** (2026-04-07): 32-test suite for AuthService — added enableBiometric (2 tests) and verifyBiometric (6 tests) describe blocks covering success, rejection, inactive user, audit log events (BIOMETRIC_ENABLE/BIOMETRIC_LOGIN), and token rotation. All 32 tests pass. Commit: 5a06969
+- **03-01** (2026-04-07): syncNomenclature() added to IikoSyncService — fetches iiko nomenclature groups via GET /v2/entities/products/group/list, upserts DdsArticleGroup by tenantId_code, writes SyncLog. Daily 03:00 Asia/Almaty cron added to SchedulerService. 4 unit tests all pass (upsert, SUCCESS log, ERROR log+throw, scheduler wiring). Commits: 281b4eb, d0947a4
+- **03-02** (2026-04-07): @sentry/node integrated — Sentry.init() before NestFactory.create() in main.ts, Sentry.withScope+captureException in 5 IikoSyncService and 3 OneCyncService catch blocks, jest.mock for test isolation, 2 success-path tests. All 20 tests pass. Commits: 5a41601, f5c6b9a
 
 ## Key Decisions
 - **[02-00]** When DB unavailable, create Prisma migration SQL files manually in migrations/ directory with timestamp naming convention; apply later with `npx prisma migrate dev`
@@ -37,6 +39,9 @@
 - **[02-03]** biometric/enable requires valid JWT (user must be already authenticated to opt in); biometric/verify uses refresh token from body (no JWT) — mobile passes it after device biometric scan
 - **[02-03]** Refresh token rotation on biometric verify prevents replay attacks; same pattern as regular /refresh endpoint
 - **[02-04]** Use `setImmediate` tick flush (`await new Promise(resolve => setImmediate(resolve))`) to assert on fire-and-forget `void this.writeAuditLog()` calls in Jest unit tests
+- **[03-01]** iiko nomenclature endpoint GET /v2/entities/products/group/list with flexible XML root key handling (MEDIUM confidence — logger.debug logs actual keys for first-run observability)
+- **[03-01]** DdsArticle upsert NOT in syncNomenclature — handled by existing syncExpenses() flow to avoid duplication
+- **[03-01]** In Jest tests, spy on xmlParser.parse directly to control parsed structure rather than returning raw XML from makeRequest mock
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)

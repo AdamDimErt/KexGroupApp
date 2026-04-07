@@ -219,7 +219,7 @@ Plans:
 ## Phase 3: Aggregator Worker (iiko + 1С)
 **Статус: 🔄 ~70% готово**
 **Срок по ТЗ: Этап 1 (iiko) + Этап 2 (1С) = 6-8 недель**
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 > 📚 **NotebookLM обязателен** — см. `.planning/NOTEBOOKLM.md`
 
@@ -567,7 +567,7 @@ Plans:
 |------|---------|--------|------------|
 | 1 | Инфраструктура + DB | 🔄 В процессе | ~90% |
 | 2 | 3/5 | In Progress|  |
-| 3 | Aggregator (iiko + 1С + распределение) | 🔄 В процессе | ~70% |
+| 3 | 2/4 | In Progress|  |
 | 4 | Finance Service (4 уровня + отчёты) | 🔄 В процессе | ~75% |
 | 5 | API Gateway | 🔄 В процессе | ~70% |
 | 6 | Mobile — Основа (auth, навигация) | 🔄 В процессе | ~60% |
