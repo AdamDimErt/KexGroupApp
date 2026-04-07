@@ -26,11 +26,18 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (res.status === 401 && token) {
       // Try refresh
@@ -60,12 +67,19 @@ class ApiClient {
         const { refreshToken } = await getStoredTokens();
         if (!refreshToken) return null;
 
-        const res = await fetch(`${API_URL}/api/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-        });
+        const refreshController = new AbortController();
+        const refreshTimeoutId = setTimeout(() => refreshController.abort(), REQUEST_TIMEOUT);
+        let res: Response;
+        try {
+          res = await fetch(`${API_URL}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+            signal: refreshController.signal,
+          });
+        } finally {
+          clearTimeout(refreshTimeoutId);
+        }
 
         if (!res.ok) return null;
 
@@ -114,6 +128,11 @@ import type {
   RestaurantDetailDto,
   ArticleGroupDetailDto,
   NotificationListDto,
+  OperationsListDto,
+  ReportDdsDto,
+  ReportCompanyExpensesDto,
+  ReportKitchenDto,
+  ReportTrendsDto,
 } from '../types';
 
 export const dashboardApi = {
@@ -151,6 +170,54 @@ export const dashboardApi = {
     if (dateFrom) params.append('dateFrom', dateFrom);
     if (dateTo) params.append('dateTo', dateTo);
     return api.request<ArticleGroupDetailDto>(`/api/finance/article/${articleId}?${params.toString()}`);
+  },
+
+  // Level 4 — Operations list
+  // GET /api/finance/article/:articleId/operations?restaurantId=&periodType=&page=&limit=
+  getOperations: (
+    articleId: string,
+    restaurantId: string,
+    page: number,
+    periodType: string,
+    dateFrom?: string,
+    dateTo?: string,
+  ) => {
+    const params = new URLSearchParams({ restaurantId, periodType, page: String(page), limit: '20' });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<OperationsListDto>(`/api/finance/article/${articleId}/operations?${params.toString()}`);
+  },
+
+  // Reports — DDS summary across all restaurants
+  getReportDds: (periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<ReportDdsDto>(`/api/finance/reports/dds?${params.toString()}`);
+  },
+
+  // Reports — Company expenses (HQ + Kitchen)
+  getReportCompanyExpenses: (periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<ReportCompanyExpensesDto>(`/api/finance/reports/company-expenses?${params.toString()}`);
+  },
+
+  // Reports — Kitchen purchases and shipments
+  getReportKitchen: (periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<ReportKitchenDto>(`/api/finance/reports/kitchen?${params.toString()}`);
+  },
+
+  // Reports — Trends (revenue + expenses over time)
+  getReportTrends: (periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<ReportTrendsDto>(`/api/finance/reports/trends?${params.toString()}`);
   },
 };
 

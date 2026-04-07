@@ -1,5 +1,5 @@
 // ─── Навигация ────────────────────────────────────────────────────────────────
-export type Screen = 'login' | 'dashboard' | 'brand-details' | 'points' | 'point-details' | 'notifications' | 'reports';
+export type Screen = 'login' | 'dashboard' | 'brand-details' | 'points' | 'point-details' | 'notifications' | 'reports' | 'article-detail' | 'operations';
 
 // ─── Пользователь ────────────────────────────────────────────────────────────
 export type UserRole = 'ADMIN' | 'OWNER' | 'FINANCE_DIRECTOR' | 'OPERATIONS_DIRECTOR';
@@ -172,6 +172,77 @@ export interface NotificationListDto {
   notifications: NotificationDto[];
   unreadCount: number;
   total: number;
+}
+
+// ─── Level 4: Operations ─────────────────────────────────────────────────────
+export interface OperationDto {
+  id: string;
+  date: string;          // ISO datetime
+  amount: number;
+  comment: string | null;
+  source: 'IIKO' | 'ONE_C';
+  allocationCoefficient: number | null;  // null for direct expenses
+}
+
+export interface OperationsListDto {
+  operations: OperationDto[];
+  total: number;
+  page: number;
+}
+
+// ─── Reports DTOs ────────────────────────────────────────────────────────────
+export interface ReportDdsItemDto {
+  groupName: string;
+  groupId: string;
+  totalAmount: number;
+  restaurants: { restaurantId: string; restaurantName: string; amount: number }[];
+}
+
+export interface ReportDdsDto {
+  period: PeriodDto;
+  groups: ReportDdsItemDto[];
+  grandTotal: number;
+}
+
+export interface ReportCompanyExpenseItemDto {
+  articleName: string;
+  articleId: string;
+  amount: number;
+  source: 'IIKO' | 'ONE_C';
+}
+
+export interface ReportCompanyExpensesDto {
+  period: PeriodDto;
+  items: ReportCompanyExpenseItemDto[];
+  grandTotal: number;
+}
+
+export interface ReportKitchenItemDto {
+  type: 'purchase' | 'shipment' | 'income';
+  description: string;
+  amount: number;
+  date: string;
+}
+
+export interface ReportKitchenDto {
+  period: PeriodDto;
+  items: ReportKitchenItemDto[];
+  totalPurchases: number;
+  totalShipments: number;
+  totalIncome: number;
+}
+
+export interface ReportTrendsPointDto {
+  date: string;
+  revenue: number;
+  expenses: number;
+}
+
+export interface ReportTrendsDto {
+  period: PeriodDto;
+  points: ReportTrendsPointDto[];
+  avgRevenue: number;
+  avgExpenses: number;
 }
 
 // Legacy format for UI components
