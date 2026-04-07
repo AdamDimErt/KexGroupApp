@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-04-07T12:00:00.000Z"
+status: unknown
+last_updated: "2026-04-07T12:11:44.018Z"
 progress:
   total_phases: 9
-  completed_phases: 5
-  total_plans: 15
+  completed_phases: 4
+  total_plans: 19
   completed_plans: 15
 ---
 
@@ -15,7 +15,7 @@ progress:
 
 ## Current Phase
 
-**Phase 6: Mobile Foundation** — COMPLETE. Min OS enforcement (iOS 15.1 / Android API 26), OTP resend timer (60s), inactivity auto-logout (10 min AppState), Sentry crash monitoring all shipped. Next: Phase 7 — Mobile Screens (drill-down).
+**Phase 7: Mobile Screens** — IN PROGRESS. Plan 07-01 complete: infrastructure layer established (types, API methods, navigation, role-gate tests). Next: 07-02 — PointDetailScreen (Level 2 drill-down).
 
 ## What's Working
 
@@ -53,6 +53,7 @@ progress:
 - **05-01** (2026-04-07): 5 proxy routes added to FinanceProxyController — getArticleOperations (OWNER), getReportDds (OWNER/FIN_DIR), getReportCompanyExpenses (OWNER/FIN_DIR), getReportKitchen (all 3 roles), getReportTrends (all 3 roles). All routes forward 4 headers. jest-e2e.json moduleNameMapper fixed. 9 unit tests via TDD, full suite 21/21 pass. Commits: afe91ab, c1865ce
 - **05-02** (2026-04-07): E2E test suite for finance proxy — finance-proxy.e2e-spec.ts with 6 passing tests proving role enforcement. OWNER gets 200 on article operations and reports/dds; FINANCE_DIRECTOR gets 403 on OWNER-only route; OPERATIONS_DIRECTOR gets 403 on OWNER+FD dds route; OPERATIONS_DIRECTOR gets 200 on all-roles kitchen route; 404 on non-existent route. Real RolesGuard tested via overrideGuard(JwtAuthGuard). All 21 unit tests still pass. Commit: 0056f3c
 - **06-01** (2026-04-07): Mobile Foundation completion — ios.minimumOsVersion=15.1, android.minSdkVersion=26, @sentry/react-native installed+plugin+init+wrap, useInactivityLogout hook (10-min AppState threshold), OTP resend timer (60s countdown) in useLogin+LoginScreen. tsc --noEmit passes. Commits: c689a36, dc110e8, da72fee
+- **07-01** (2026-04-07): Mobile infrastructure layer — Screen type extended to 9 values (article-detail, operations added), 7 new DTOs (OperationDto, OperationsListDto, 4 Report* types), 5 new dashboardApi methods (getOperations + 4 reports), useOperations hook, getPeriodDates exported, App.tsx wired for Level 3/4 navigation with placeholder screens, 8 role-gate tests (OWNER-only Level 4, OWNER+FIN_DIR Level 3). expo-haptics + async-storage installed. tsc passes. Commits: 1539565, 2784305, f979ee1
 
 ## Key Decisions
 
@@ -88,6 +89,9 @@ progress:
 - **[06-01]** iOS minimum floor is 15.1 not 14.0 — React Native 0.81 hard constraint regardless of TZ specification
 - **[06-01]** Sentry enabled only when EXPO_PUBLIC_APP_ENV === 'production' — prevents noise in dev/staging with no DSN
 - **[06-01]** INACTIVITY_TIMEOUT_MS = 10 min; inactive AppState treated same as background to handle iOS notification center brief inactive state (never triggers logout in practice)
+- **[07-01]** Inline placeholder ArticleDetailScreen and OperationsScreen in App.tsx so Wave 2 can replace them with real imports without breaking compilation
+- **[07-01]** ts-jest inline tsconfig ({ strict: true }) used in jest config instead of file path reference (rootDir=src makes relative paths resolve to wrong directory)
+- **[07-01]** onNavigateArticle added as optional prop to PointDetailScreen to allow navigation wiring without breaking existing call sites that don't pass it
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
