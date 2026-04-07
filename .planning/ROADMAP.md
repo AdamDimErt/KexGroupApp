@@ -354,7 +354,7 @@ Plans:
 ## Phase 5: API Gateway
 **Статус: 🔄 ~70% готово**
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 05-01-PLAN.md — Add 5 proxy routes to FinanceProxyController + unit tests
@@ -586,7 +586,7 @@ Plans:
 | 2 | 3/5 | In Progress|  |
 | 3 | 4/4 | Complete   | 2026-04-07 |
 | 4 | 3/3 | Complete   | 2026-04-07 |
-| 5 | API Gateway | 🔄 В процессе | ~70% |
+| 5 | 1/2 | In Progress|  |
 | 6 | Mobile — Основа (auth, навигация) | 🔄 В процессе | ~60% |
 | 7 | Mobile — Экраны (drill-down + отчёты) | 🔄 В процессе | ~45% |
 | 8 | Push-уведомления | 🔄 В процессе | ~25% |

@@ -15,7 +15,7 @@ progress:
 
 ## Current Phase
 
-**Phase 5: API Gateway** — proxy routes for new finance-service endpoints + JWT/role enforcement
+**Phase 5: API Gateway** — Plan 01 complete. All 9 finance proxy routes active.
 
 ## What's Working
 
@@ -52,6 +52,7 @@ progress:
 - **04-01** (2026-04-07): DataAccessInterceptor implemented — ACCESS_MATRIX with 6 route patterns, regex :param matching, ForbiddenException for unauthorized roles, passthrough for unprotected routes. Registered globally via app.useGlobalInterceptors(). 16 unit tests + 9 existing = 25 total passing. TypeScript compiles cleanly. Commits: b78ad19, 85d5ef4
 - **04-02** (2026-04-07): lastSyncAt fixed in getDashboardSummary (queries SyncLog MAX(createdAt) WHERE status=SUCCESS), getArticleOperations added (paginated expense records with allocationCoefficient join, offset/limit), GET /dashboard/article/:articleId/operations registered before article/:groupId. All 30 tests pass. Commits: 73e7914, 7eaca77
 - **04-03** (2026-04-07): Four cross-restaurant report endpoints added — GET /dashboard/reports/dds, /company-expenses, /kitchen, /trends. reports.dto.ts created with 4 DTO class trees. Company expenses filtered by article.group.tenantId (Expense has no direct tenantId). Trends merges revenue+expense date rows via Map. All 35 tests pass. Commits: b0c0e45, 349a4b8
+- **05-01** (2026-04-07): 5 proxy routes added to FinanceProxyController — getArticleOperations (OWNER), getReportDds (OWNER/FIN_DIR), getReportCompanyExpenses (OWNER/FIN_DIR), getReportKitchen (all 3 roles), getReportTrends (all 3 roles). All routes forward 4 headers. jest-e2e.json moduleNameMapper fixed. 9 unit tests via TDD, full suite 21/21 pass. Commits: afe91ab, c1865ce
 
 ## Key Decisions
 
@@ -80,6 +81,8 @@ progress:
 - **[04-02]** Controller route order critical: article/:articleId/operations MUST appear before article/:groupId in controller class to prevent NestJS treating 'operations' as a groupId param
 - **[04-03]** Company expenses (restaurantId=null) must filter tenant via article.group.tenantId — Expense model has no direct tenantId field
 - **[04-03]** Trends report uses Map<dateStr, {revenue, expenses}> merge pattern — handles sparse dates where only revenue or only expenses exist for a day
+- **[05-01]** Use .overrideGuard() in NestJS test module to isolate controller from guard dependencies (JwtService) — prevents test pollution without mocking entire module tree
+- **[05-01]** Route declaration order is critical: specific routes (article/:id/operations) must appear before generic (:id) in controller class body
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
