@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-07T06:48:43.877Z"
+last_updated: "2026-04-07T10:00:00.000Z"
 progress:
   total_phases: 9
-  completed_phases: 1
-  total_plans: 9
-  completed_plans: 9
+  completed_phases: 2
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State
 
 ## Current Phase
 
-**Этап 1-2: Инфраструктура + Auth** — нужно обновить Prisma схему, добавить 3 роли, движок распределения
+**Phase 5: API Gateway** — proxy routes for new finance-service endpoints + JWT/role enforcement
 
 ## What's Working
 

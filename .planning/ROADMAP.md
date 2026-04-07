@@ -224,10 +224,10 @@ Plans:
 > 📚 **NotebookLM обязателен** — см. `.planning/NOTEBOOKLM.md`
 
 Plans:
-- [ ] 03-01-PLAN.md — iiko nomenclature groups sync (syncNomenclature + cron + tests)
-- [ ] 03-02-PLAN.md — Sentry integration (@sentry/node init + captureException in all catch blocks)
-- [ ] 03-03-PLAN.md — Dead letter pattern (needsManualReview field + logSync logic + tests)
-- [ ] 03-04-PLAN.md — 1C kitchen shipments by restaurant (syncKitchenShipmentsByRestaurant + cron + tests)
+- [x] 03-01-PLAN.md — iiko nomenclature groups sync (syncNomenclature + cron + tests)
+- [x] 03-02-PLAN.md — Sentry integration (@sentry/node init + captureException in all catch blocks)
+- [x] 03-03-PLAN.md — Dead letter pattern (needsManualReview field + logSync logic + tests)
+- [x] 03-04-PLAN.md — 1C kitchen shipments by restaurant (syncKitchenShipmentsByRestaurant + cron + tests)
 
 ### 3.1 iiko интеграция
 - [x] 📖 Исследование iiko Cloud API (21 эндпоинт, приоритеты CRITICAL/HIGH/MEDIUM/LOW)
@@ -281,15 +281,15 @@ Plans:
 ---
 
 ## Phase 4: Finance Service
-**Статус: 🔄 ~75% готово**
+**Статус: ✅ 100% готово**
 **Срок по ТЗ: входит в Этапы 1-2**
 
 **Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 04-01-PLAN.md -- DataAccessInterceptor (role-based route protection)
-- [ ] 04-02-PLAN.md -- lastSyncAt fix + Level 4 operations endpoint
-- [ ] 04-03-PLAN.md -- Four report endpoints (DDS, company-expenses, kitchen, trends)
+- [x] 04-01-PLAN.md -- DataAccessInterceptor (role-based route protection)
+- [x] 04-02-PLAN.md -- lastSyncAt fix + Level 4 operations endpoint
+- [x] 04-03-PLAN.md -- Four report endpoints (DDS, company-expenses, kitchen, trends)
 
 - [x] Подключить Prisma (database package) — PrismaModule + PrismaService
 - [x] `class-validator` для валидации входящих DTO — DashboardQueryDto + 12 response DTO
@@ -301,7 +301,7 @@ Plans:
   - [x] Расходы по компании (прямые + распределённые)
   - [x] Баланс = Выручка − Расходы
   - [x] Список брендов с суммарной выручкой и динамикой (+/-%)
-  - [ ] Время последней синхронизации
+  - [x] Время последней синхронизации
 
 ### Уровень 2 — Точка
 - [x] `GET /dashboard/brand/:brandId` — точки бренда (BrandDetailDto с restaurants[])
@@ -321,18 +321,18 @@ Plans:
   - [x] Пометка: прямая (iiko) или распределённая (1С)
 
 ### Уровень 4 — Операции (только 👑)
-- [ ] `GET /finance/article/:id/operations?period=...&restaurantId=...` — операции:
-  - [ ] Дата и время операции
-  - [ ] Сумма операции
-  - [ ] Комментарий/описание (из iiko или 1С)
-  - [ ] Источник: iiko (прямая) или 1С (расчётная)
-  - [ ] Коэффициент распределения (для распределённых)
+- [x] `GET /dashboard/article/:id/operations?period=...&restaurantId=...` — операции:
+  - [x] Дата и время операции
+  - [x] Сумма операции
+  - [x] Комментарий/описание (из iiko или 1С)
+  - [x] Источник: iiko (прямая) или 1С (расчётная)
+  - [x] Коэффициент распределения (для распределённых)
 
 ### Отчёты
-- [ ] `GET /finance/reports/dds?period=...` — ДДС сводный по всем точкам
-- [ ] `GET /finance/reports/company-expenses?period=...` — затраты ГО + Цех
-- [ ] `GET /finance/reports/kitchen?period=...` — закупки и отгрузки Цеха
-- [ ] `GET /finance/reports/trends?period=...` — аналитика и тренды
+- [x] `GET /dashboard/reports/dds?period=...` — ДДС сводный по всем точкам
+- [x] `GET /dashboard/reports/company-expenses?period=...` — затраты ГО + Цех
+- [x] `GET /dashboard/reports/kitchen?period=...` — закупки и отгрузки Цеха
+- [x] `GET /dashboard/reports/trends?period=...` — аналитика и тренды
 
 ### Переключатель периодов
 - [x] Сегодня / Эта неделя / Этот месяц / Прошлый месяц / Свой диапазон — periodType в DTO
@@ -341,10 +341,10 @@ Plans:
 
 ### Фильтрация по роли
 - [x] Фильтрация OPS_DIRECTOR по restaurantIds в контроллере (через x-user-role, x-user-restaurant-ids)
-- [ ] `DataAccessInterceptor` — полноценный guard по матрице доступа
-- [ ] OWNER: все данные, все уровни — частично (нет ограничений на Level 4)
-- [ ] FIN_DIRECTOR: всё кроме уровня 4 (операции) — не реализовано на бэкенде
-- [ ] OPS_DIRECTOR: выручка + Цех, без финансовых деталей ГО, без уровней 3-4 — частично
+- [x] `DataAccessInterceptor` — полноценный guard по матрице доступа (6 маршрутов, regex matching)
+- [x] OWNER: все данные, все уровни
+- [x] FINANCE_DIRECTOR: всё кроме уровня 4 (403 на operations)
+- [x] OPERATIONS_DIRECTOR: выручка + Цех + kitchen/trends, без ДДС и ГО
 
 - [x] Unit-тесты для dashboard.service.spec.ts (6 тест-кейсов, mock Prisma + ConfigService)
 - [x] Health check: `GET /health`
