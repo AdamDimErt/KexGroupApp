@@ -1355,4 +1355,61 @@ export class IikoSyncService {
       );
     }
   }
+
+  async syncNomenclature(): Promise<void> {
+    const startTime = Date.now();
+    const tenantId = await this.getTenantId();
+
+    try {
+      const token = await this.iikoAuth.getAccessToken();
+
+      // iiko Server API endpoint for nomenclature groups
+      const xmlData = await this.makeRequest(
+        'GET',
+        '/v2/entities/products/group/list?includeDeleted=false',
+        token,
+      );
+
+      const parsed = this.xmlParser.parse(xmlData as string) as Record<string, unknown>;
+
+      // Log raw parsed structure on first run for observability (exact field names are MEDIUM confidence)
+      // DdsArticle upsert for individual articles is handled by existing syncExpenses() flow
+      this.logger.debug(`syncNomenclature parsed XML keys: ${JSON.stringify(Object.keys(parsed))}`);
+
+      // The XML root may be "groupDtoList", "groups", or "corporateItemDtoList"
+      // normalizeArray handles single-vs-array
+      const rawGroups = parsed['groupDtoList'] || parsed['groups'] || parsed['corporateItemDtoList'] || [];
+      const groups = this.normalizeArray(rawGroups);
+
+      let processedCount = 0;
+
+      for (const group of groups) {
+        const groupId = String(group['id'] || group['groupId'] || '');
+        const groupName = String(group['name'] || 'Unknown Group');
+
+        if (!groupId) {
+          this.logger.warn('Skipping nomenclature group without id');
+          continue;
+        }
+
+        await this.prisma.ddsArticleGroup.upsert({
+          where: { tenantId_code: { tenantId, code: groupId } },
+          update: { name: groupName },
+          create: { tenantId, code: groupId, name: groupName },
+        });
+
+        processedCount++;
+      }
+
+      const durationMs = Date.now() - startTime;
+      await this.logSync(tenantId, 'IIKO', 'SUCCESS', processedCount, durationMs);
+      this.logger.log(`Synced ${processedCount} nomenclature groups`);
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      this.logger.error(`Failed to sync nomenclature: ${errorMessage}`);
+      throw error;
+    }
+  }
 }
