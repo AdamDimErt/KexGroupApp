@@ -284,6 +284,13 @@ Plans:
 **Статус: 🔄 ~75% готово**
 **Срок по ТЗ: входит в Этапы 1-2**
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md -- DataAccessInterceptor (role-based route protection)
+- [ ] 04-02-PLAN.md -- lastSyncAt fix + Level 4 operations endpoint
+- [ ] 04-03-PLAN.md -- Four report endpoints (DDS, company-expenses, kitchen, trends)
+
 - [x] Подключить Prisma (database package) — PrismaModule + PrismaService
 - [x] `class-validator` для валидации входящих DTO — DashboardQueryDto + 12 response DTO
 - [x] **Эндпоинты (внутренние, для api-gateway):**
