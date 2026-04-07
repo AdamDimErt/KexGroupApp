@@ -1,3 +1,9 @@
+jest.mock('@sentry/node', () => ({
+  init: jest.fn(),
+  withScope: jest.fn((cb) => cb({ setTag: jest.fn(), setContext: jest.fn() })),
+  captureException: jest.fn(),
+}));
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpModule } from '@nestjs/axios';
 import { IikoSyncService } from './iiko-sync.service';
@@ -212,6 +218,43 @@ describe('IikoSyncService', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('Sentry integration', () => {
+    it('should NOT call Sentry.captureException on successful sync (empty restaurants)', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Sentry = require('@sentry/node') as {
+        captureException: jest.Mock;
+      };
+      (Sentry.captureException as jest.Mock).mockClear();
+
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.syncRevenue(new Date(), new Date());
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it('should NOT call Sentry.captureException on successful sync (with real data)', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Sentry = require('@sentry/node') as {
+        captureException: jest.Mock;
+      };
+      (Sentry.captureException as jest.Mock).mockClear();
+
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue([
+        { id: 'rest-1', iikoId: 'iiko-1', name: 'BNA Samal' },
+      ]);
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+      jest.spyOn(service as any, 'fetchBulkOlapData').mockResolvedValue(new Map());
+      jest.spyOn(service as any, 'syncPaymentTypesFromOlapData').mockResolvedValue(undefined);
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+
+      await service.syncRevenue(new Date(), new Date());
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
     });
   });
 

@@ -2,6 +2,39 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { firstValueFrom } from 'rxjs';
+import * as Sentry from '@sentry/node';
+
+interface OneCODataResponse<T> {
+  value?: T[];
+}
+
+interface OneCExpenseRecord {
+  Ref_Key: string;
+  Amount: string;
+  Date: string;
+  Description?: string;
+}
+
+interface OneCPurchaseItem {
+  Product?: string;
+  Quantity?: string;
+  Amount?: string;
+  Ref_Key?: string;
+}
+
+interface OneCPurchaseRecord {
+  Ref_Key: string;
+  Date: string;
+  Counterparty?: string;
+  Items?: OneCPurchaseItem[];
+}
+
+interface OneCIncomeRecord {
+  Ref_Key: string;
+  Date: string;
+  DocumentAmount?: string;
+  Description?: string;
+}
 
 @Injectable()
 export class OneCyncService {
@@ -38,15 +71,16 @@ export class OneCyncService {
       const filter = `Date ge datetime'${dateFromStr}' and Date le datetime'${dateToStr}'`;
       const url = `${baseUrl}/odata/standard.odata/Document_CashExpense?$filter=${encodeURIComponent(filter)}&$select=Ref_Key,Number,Date,Amount,Description,Author`;
 
-      const response = await this.makeRequest('GET', url, auth);
+      const rawResponse = await this.makeRequest('GET', url, auth);
+      const response = rawResponse as OneCODataResponse<OneCExpenseRecord>;
 
-      const expenseRecords = response.value || [];
+      const expenseRecords: OneCExpenseRecord[] = response.value ?? [];
       let processedCount = 0;
 
       for (const record of expenseRecords) {
         const amount = parseFloat(record.Amount) || 0;
         const expenseDate = new Date(record.Date);
-        const description = record.Description || 'Unknown';
+        const description = record.Description ?? 'Unknown';
         const syncId = `onec:expense:${record.Ref_Key}`;
 
         // Get or create article for HQ expenses
@@ -91,13 +125,36 @@ export class OneCyncService {
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logSync(tenantId, 'ONE_C', 'SUCCESS', processedCount, durationMs);
+      await this.logSync(
+        tenantId,
+        'ONE_C',
+        'SUCCESS',
+        processedCount,
+        durationMs,
+      );
       this.logger.log(`✓ Synced ${processedCount} 1C expense records`);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'ONE_C', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'ONE_C',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync 1C expenses: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'ONE_C');
+        scope.setTag('method', 'syncExpenses');
+        scope.setContext('sync', {
+          dateFrom: dateFrom.toISOString(),
+          dateTo: dateTo.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
@@ -126,23 +183,24 @@ export class OneCyncService {
       const filter = `Date ge datetime'${dateFromStr}' and Date le datetime'${dateToStr}'`;
       const url = `${baseUrl}/odata/standard.odata/Document_PurchaseOrder?$filter=${encodeURIComponent(filter)}&$select=Ref_Key,Date,Items/Product,Items/Quantity,Items/Amount,Counterparty`;
 
-      const response = await this.makeRequest('GET', url, auth);
+      const rawResponse2 = await this.makeRequest('GET', url, auth);
+      const response = rawResponse2 as OneCODataResponse<OneCPurchaseRecord>;
 
-      const purchaseRecords = response.value || [];
+      const purchaseRecords: OneCPurchaseRecord[] = response.value ?? [];
       let processedCount = 0;
 
       for (const record of purchaseRecords) {
         const purchaseDate = new Date(record.Date);
-        const supplier = record.Counterparty || 'Unknown';
+        const supplier = record.Counterparty ?? 'Unknown';
 
         // Expand items if available
-        const items = record.Items || [];
+        const items: OneCPurchaseItem[] = record.Items ?? [];
 
         for (const item of items) {
-          const productName = item.Product || 'Unknown';
-          const quantity = parseFloat(item.Quantity) || 0;
-          const amount = parseFloat(item.Amount) || 0;
-          const syncId = `onec:purchase:${record.Ref_Key}:${item.Ref_Key || productName}`;
+          const productName = item.Product ?? 'Unknown';
+          const quantity = parseFloat(item.Quantity ?? '0') || 0;
+          const amount = parseFloat(item.Amount ?? '0') || 0;
+          const syncId = `onec:purchase:${record.Ref_Key}:${item.Ref_Key ?? productName}`;
 
           await this.prisma.kitchenPurchase.upsert({
             where: { syncId },
@@ -166,13 +224,36 @@ export class OneCyncService {
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logSync(tenantId, 'ONE_C', 'SUCCESS', processedCount, durationMs);
+      await this.logSync(
+        tenantId,
+        'ONE_C',
+        'SUCCESS',
+        processedCount,
+        durationMs,
+      );
       this.logger.log(`✓ Synced ${processedCount} kitchen purchase records`);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'ONE_C', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'ONE_C',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync kitchen purchases: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'ONE_C');
+        scope.setTag('method', 'syncKitchenPurchases');
+        scope.setContext('sync', {
+          dateFrom: dateFrom.toISOString(),
+          dateTo: dateTo.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
@@ -201,15 +282,16 @@ export class OneCyncService {
       const filter = `Date ge datetime'${dateFromStr}' and Date le datetime'${dateToStr}'`;
       const url = `${baseUrl}/odata/standard.odata/Document_SalesInvoice?$filter=${encodeURIComponent(filter)}&$select=Ref_Key,Date,DocumentAmount,Description`;
 
-      const response = await this.makeRequest('GET', url, auth);
+      const rawResponse3 = await this.makeRequest('GET', url, auth);
+      const response = rawResponse3 as OneCODataResponse<OneCIncomeRecord>;
 
-      const incomeRecords = response.value || [];
+      const incomeRecords: OneCIncomeRecord[] = response.value ?? [];
       let processedCount = 0;
 
       for (const record of incomeRecords) {
         const incomeDate = new Date(record.Date);
-        const amount = parseFloat(record.DocumentAmount) || 0;
-        const description = record.Description || 'Kitchen income';
+        const amount = parseFloat(record.DocumentAmount ?? '0') || 0;
+        const description = record.Description ?? 'Kitchen income';
         const syncId = `onec:income:${record.Ref_Key}`;
 
         await this.prisma.kitchenIncome.upsert({
@@ -228,18 +310,45 @@ export class OneCyncService {
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logSync(tenantId, 'ONE_C', 'SUCCESS', processedCount, durationMs);
+      await this.logSync(
+        tenantId,
+        'ONE_C',
+        'SUCCESS',
+        processedCount,
+        durationMs,
+      );
       this.logger.log(`✓ Synced ${processedCount} kitchen income records`);
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logSync(tenantId, 'ONE_C', 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logSync(
+        tenantId,
+        'ONE_C',
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Failed to sync kitchen income: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'ONE_C');
+        scope.setTag('method', 'syncKitchenIncome');
+        scope.setContext('sync', {
+          dateFrom: dateFrom.toISOString(),
+          dateTo: dateTo.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
 
-  private async makeRequest(method: string, url: string, auth: string): Promise<any> {
+  private async makeRequest(
+    method: string,
+    url: string,
+    auth: string,
+  ): Promise<unknown> {
     const maxRetries = 3;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -251,18 +360,18 @@ export class OneCyncService {
               'Content-Type': 'application/json',
             },
             timeout: this.httpTimeout,
-          })
+          }),
         );
 
-        return response.data;
+        return response.data as unknown;
       } catch (error) {
         const backoffMs = Math.pow(2, attempt) * 1000;
         this.logger.warn(
-          `${method} request failed (attempt ${attempt + 1}): ${error instanceof Error ? error.message : String(error)}`
+          `${method} request failed (attempt ${attempt + 1}): ${error instanceof Error ? error.message : String(error)}`,
         );
 
         if (attempt < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
         } else {
           throw error;
         }
@@ -291,7 +400,9 @@ export class OneCyncService {
         },
       });
     } catch (error) {
-      this.logger.error(`Failed to log sync: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Failed to log sync: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

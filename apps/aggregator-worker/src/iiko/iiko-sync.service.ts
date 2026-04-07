@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IikoAuthService } from './iiko-auth.service';
 import { firstValueFrom } from 'rxjs';
 import { XMLParser } from 'fast-xml-parser';
+import * as Sentry from '@sentry/node';
 // Decimal type is handled by Prisma internally, use type coercion
 
 interface CircuitBreakerState {
@@ -241,6 +242,15 @@ export class IikoSyncService {
         errorMessage,
       );
       this.logger.error(`✗ Failed to sync organizations: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncOrganizations');
+        scope.setContext('sync', {
+          dateFrom: undefined,
+          dateTo: undefined,
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
@@ -420,6 +430,15 @@ export class IikoSyncService {
         errorMessage,
       );
       this.logger.error(`✗ Failed to sync revenue: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncRevenue');
+        scope.setContext('sync', {
+          dateFrom: dateFrom?.toISOString(),
+          dateTo: dateTo?.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
@@ -906,6 +925,15 @@ export class IikoSyncService {
         errorMessage,
       );
       this.logger.error(`✗ Failed to sync expenses: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncExpenses');
+        scope.setContext('sync', {
+          dateFrom: dateFrom?.toISOString(),
+          dateTo: dateTo?.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
@@ -1019,6 +1047,15 @@ export class IikoSyncService {
         errorMessage,
       );
       this.logger.error(`✗ Failed to sync cash discrepancies: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncCashDiscrepancies');
+        scope.setContext('sync', {
+          dateFrom: dateFrom?.toISOString(),
+          dateTo: dateTo?.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
@@ -1155,6 +1192,15 @@ export class IikoSyncService {
         errorMessage,
       );
       this.logger.error(`✗ Failed to sync kitchen shipments: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncKitchenShipments');
+        scope.setContext('sync', {
+          dateFrom: dateFrom?.toISOString(),
+          dateTo: dateTo?.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
       throw error;
     }
   }
