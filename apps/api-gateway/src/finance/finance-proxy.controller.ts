@@ -8,12 +8,12 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import type { Request } from 'express';
 import { FinanceProxyService } from './finance-proxy.service';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
 import { UserRole } from '@dashboard/shared-types';
+import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -28,16 +28,16 @@ export class FinanceProxyController {
       'Получить главный экран финансов (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
   })
   getDashboard(
-    @Req() req: Request,
+    @Req() req: { user: JwtPayload },
     @Headers('authorization') authHeader: string,
     @Query('periodType') periodType?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const user = (req as any).user;
+    const user = req.user;
     const tenantId = user?.tenantId ?? '';
     const userRole = user?.role ?? '';
-    const restaurantIds = (user?.restaurantIds || []).join(',');
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
     const path = this.buildQueryString('/dashboard', {
       periodType,
       dateFrom,
@@ -57,14 +57,14 @@ export class FinanceProxyController {
       'Получить детали бренда (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
   })
   getBrandDetail(
-    @Req() req: Request,
+    @Req() req: { user: JwtPayload },
     @Param('id') brandId: string,
     @Headers('authorization') authHeader: string,
     @Query('periodType') periodType?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const tenantId = (req as any).user?.tenantId ?? '';
+    const tenantId = req.user?.tenantId ?? '';
     const path = this.buildQueryString(`/dashboard/brand/${brandId}`, {
       periodType,
       dateFrom,
@@ -82,15 +82,75 @@ export class FinanceProxyController {
       'Получить детали ресторана (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
   })
   getRestaurantDetail(
-    @Req() req: Request,
+    @Req() req: { user: JwtPayload },
     @Param('id') restaurantId: string,
     @Headers('authorization') authHeader: string,
     @Query('periodType') periodType?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const tenantId = (req as any).user?.tenantId ?? '';
-    const path = this.buildQueryString(`/dashboard/restaurant/${restaurantId}`, {
+    const tenantId = req.user?.tenantId ?? '';
+    const path = this.buildQueryString(
+      `/dashboard/restaurant/${restaurantId}`,
+      {
+        periodType,
+        dateFrom,
+        dateTo,
+      },
+    );
+    return this.proxy.forward('GET', path, undefined, {
+      authorization: authHeader,
+      'x-tenant-id': tenantId,
+    });
+  }
+
+  @Get('article/:id/operations')
+  @Roles([UserRole.OWNER])
+  @ApiOperation({ summary: 'Получить операции по статье (только OWNER)' })
+  getArticleOperations(
+    @Req() req: { user: JwtPayload },
+    @Param('id') articleId: string,
+    @Headers('authorization') authHeader: string,
+    @Query('restaurantId') restaurantId: string,
+    @Query('periodType') periodType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
+    const path = this.buildQueryString(
+      `/dashboard/article/${articleId}/operations`,
+      { restaurantId, periodType, dateFrom, dateTo, limit, offset },
+    );
+    return this.proxy.forward('GET', path, undefined, {
+      authorization: authHeader,
+      'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
+    });
+  }
+
+  @Get('article/:id')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR])
+  @ApiOperation({
+    summary: 'Получить детали статьи (OWNER, FINANCE_DIRECTOR только)',
+  })
+  getArticleDetail(
+    @Req() req: { user: JwtPayload },
+    @Param('id') articleId: string,
+    @Headers('authorization') authHeader: string,
+    @Query('restaurantId') restaurantId?: string,
+    @Query('periodType') periodType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const tenantId = req.user?.tenantId ?? '';
+    const path = this.buildQueryString(`/dashboard/article/${articleId}`, {
+      restaurantId,
       periodType,
       dateFrom,
       dateTo,
@@ -101,23 +161,21 @@ export class FinanceProxyController {
     });
   }
 
-  @Get('article/:id')
+  @Get('reports/dds')
   @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR])
-  @ApiOperation({
-    summary: 'Получить детали статьи (OWNER, FINANCE_DIRECTOR только)',
-  })
-  getArticleDetail(
-    @Req() req: Request,
-    @Param('id') articleId: string,
+  @ApiOperation({ summary: 'ДДС отчёт по всем точкам (OWNER, FINANCE_DIRECTOR)' })
+  getReportDds(
+    @Req() req: { user: JwtPayload },
     @Headers('authorization') authHeader: string,
-    @Query('restaurantId') restaurantId?: string,
     @Query('periodType') periodType?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const tenantId = (req as any).user?.tenantId ?? '';
-    const path = this.buildQueryString(`/dashboard/article/${articleId}`, {
-      restaurantId,
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
+    const path = this.buildQueryString('/dashboard/reports/dds', {
       periodType,
       dateFrom,
       dateTo,
@@ -125,6 +183,89 @@ export class FinanceProxyController {
     return this.proxy.forward('GET', path, undefined, {
       authorization: authHeader,
       'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
+    });
+  }
+
+  @Get('reports/company-expenses')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR])
+  @ApiOperation({ summary: 'Затраты компании (ГО + Цех) (OWNER, FINANCE_DIRECTOR)' })
+  getReportCompanyExpenses(
+    @Req() req: { user: JwtPayload },
+    @Headers('authorization') authHeader: string,
+    @Query('periodType') periodType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
+    const path = this.buildQueryString('/dashboard/reports/company-expenses', {
+      periodType,
+      dateFrom,
+      dateTo,
+    });
+    return this.proxy.forward('GET', path, undefined, {
+      authorization: authHeader,
+      'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
+    });
+  }
+
+  @Get('reports/kitchen')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR])
+  @ApiOperation({ summary: 'Закупки и отгрузки Цеха (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)' })
+  getReportKitchen(
+    @Req() req: { user: JwtPayload },
+    @Headers('authorization') authHeader: string,
+    @Query('periodType') periodType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
+    const path = this.buildQueryString('/dashboard/reports/kitchen', {
+      periodType,
+      dateFrom,
+      dateTo,
+    });
+    return this.proxy.forward('GET', path, undefined, {
+      authorization: authHeader,
+      'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
+    });
+  }
+
+  @Get('reports/trends')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR])
+  @ApiOperation({ summary: 'Аналитика и тренды (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)' })
+  getReportTrends(
+    @Req() req: { user: JwtPayload },
+    @Headers('authorization') authHeader: string,
+    @Query('periodType') periodType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
+    const path = this.buildQueryString('/dashboard/reports/trends', {
+      periodType,
+      dateFrom,
+      dateTo,
+    });
+    return this.proxy.forward('GET', path, undefined, {
+      authorization: authHeader,
+      'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
     });
   }
 
