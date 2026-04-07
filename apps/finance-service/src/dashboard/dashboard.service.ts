@@ -239,6 +239,14 @@ export class DashboardService {
       };
     });
 
+    const lastSyncResult = await this.prisma.syncLog.aggregate({
+      where: { tenantId, status: 'SUCCESS' },
+      _max: { createdAt: true },
+    });
+    const lastSyncAt = lastSyncResult._max.createdAt
+      ? lastSyncResult._max.createdAt.toISOString()
+      : null;
+
     return {
       tenantId,
       period: { type: periodType, from: dateFrom, to: dateTo },
@@ -246,8 +254,8 @@ export class DashboardService {
       totalExpenses,
       financialResult: totalRevenue - totalExpenses,
       brands: brandIndicators,
-      lastSyncAt: null, // TODO: track last sync timestamp
-      lastSyncStatus: null,
+      lastSyncAt,
+      lastSyncStatus: lastSyncAt ? 'success' : null,
     };
   }
 
@@ -1057,5 +1065,72 @@ export class DashboardService {
       totalAmount,
       articles,
     };
+  }
+
+  /**
+   * Get individual expense operations for a specific article and restaurant.
+   * Level 4: paginated list of raw Expense records with allocationCoefficient.
+   * Access: OWNER only (enforced via DataAccessInterceptor in Phase 4-03).
+   */
+  async getArticleOperations(
+    articleId: string,
+    restaurantId: string,
+    dateFrom: string,
+    dateTo: string,
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<{
+    items: Array<{
+      id: string;
+      date: string;
+      amount: number;
+      comment: string | null;
+      source: 'IIKO' | 'ONE_C';
+      allocationCoefficient: number | null;
+      restaurantName: string;
+    }>;
+    total: number;
+    period: { from: string; to: string };
+  }> {
+    const startDate = this.parseStartDate(dateFrom);
+    const endDate = this.parseEndDate(dateTo);
+
+    const where = {
+      articleId,
+      restaurantId,
+      date: { gte: startDate, lte: endDate },
+    };
+
+    const total = await this.prisma.expense.count({ where });
+
+    const expenses = await this.prisma.expense.findMany({
+      where,
+      include: {
+        restaurant: { select: { name: true } },
+        costAllocations: {
+          select: { coefficient: true },
+          orderBy: { createdAt: 'desc' as const },
+          take: 1,
+        },
+      },
+      orderBy: { date: 'desc' },
+      take: limit,
+      skip: offset,
+    });
+
+    const items = expenses.map((exp) => ({
+      id: exp.id,
+      date: exp.date.toISOString(),
+      amount: this.toNumber(exp.amount),
+      comment: exp.comment ?? null,
+      source: exp.source as 'IIKO' | 'ONE_C',
+      allocationCoefficient:
+        exp.costAllocations.length > 0
+          ? this.toNumber(exp.costAllocations[0].coefficient)
+          : null,
+      restaurantName: exp.restaurant?.name ?? '',
+    }));
+
+    return { items, total, period: { from: dateFrom, to: dateTo } };
   }
 }
