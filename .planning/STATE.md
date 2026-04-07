@@ -1,9 +1,24 @@
+---
+gsd_state_version: 1.0
+milestone: v1.5
+milestone_name: milestone
+status: unknown
+last_updated: "2026-04-07T06:48:43.877Z"
+progress:
+  total_phases: 9
+  completed_phases: 1
+  total_plans: 9
+  completed_plans: 8
+---
+
 # Project State
 
 ## Current Phase
+
 **Этап 1-2: Инфраструктура + Auth** — нужно обновить Prisma схему, добавить 3 роли, движок распределения
 
 ## What's Working
+
 - Monorepo: Turborepo + npm workspaces настроены
 - Docker: PostgreSQL 15 + Redis 7 через docker-compose.yml
 - Prisma схема: базовая (нужно обновить под ТЗ — добавить Brand, DdsArticle, CostAllocation, Kitchen*)
@@ -11,6 +26,7 @@
 - Mobile: базовая структура Expo + навигация
 
 ## Known Blockers
+
 - Prisma схема не соответствует ТЗ — нет Brand, DdsArticle, CostAllocation, Kitchen*
 - Prisma миграции не запускались — нужно `npx prisma migrate dev`
 - Auth service: 2 роли вместо 3 (нет OWNER/FIN_DIRECTOR/OPS_DIRECTOR)
@@ -24,6 +40,7 @@
 - Нет локализации (русский + казахский)
 
 ## Completed Plans
+
 - **02-00** (2026-04-07): Added biometricEnabled Boolean @default(false) to User model, migration SQL created, Prisma client regenerated. Commit: b7f1ba6
 - **02-01** (2026-04-07): AuditLog writes on LOGIN/LOGOUT (fire-and-forget writeAuditLog method), JWT TTL reduced from 7d to 15m, trust proxy added for real client IP. Commits: 4c3a2c9, 29f41f7
 - **02-03** (2026-04-07): Biometric enable/verify endpoints added — POST /auth/biometric/enable (JWT-protected, sets DB flag + BIOMETRIC_ENABLE audit) and POST /auth/biometric/verify (refresh-token-based login with rotation + BIOMETRIC_LOGIN audit). BiometricVerifyDto added. Commit: c1cfd4f
@@ -34,6 +51,7 @@
 - **03-04** (2026-04-07): syncKitchenShipmentsByRestaurant() added to OneCyncService — fetches Document_RealizationOfGoodsAndServices from 1C OData, matches counterparty to restaurant by oneCId then name, upserts Expense with direct restaurantId (bypasses cost allocation), skips unmatched with warn. Cron at :25 added to SchedulerService. 5 unit tests in new onec-sync.service.spec.ts. All 28 tests pass. Commits: e120593, a158589
 
 ## Key Decisions
+
 - **[02-00]** When DB unavailable, create Prisma migration SQL files manually in migrations/ directory with timestamp naming convention; apply later with `npx prisma migrate dev`
 - **[02-01]** Fire-and-forget audit logging via `void this.writeAuditLog()` — audit failures never block auth response
 - **[02-01]** JWT access token TTL = 15m (backend side of inactivity requirement; mobile handles AppState-based auto-logout separately)
@@ -70,6 +88,7 @@
 - Экспорт: нет
 
 ## Architecture Notes
+
 - api-gateway: порт 3000
 - auth-service: порт 3001
 - finance-service: порт 3002
@@ -79,12 +98,14 @@
 - Nginx: порт 80/443 (SSL termination)
 
 ## NotebookLM Resources
+
 - iiko API: `notebooklm chat -n ccf3cb0b-7297-4823-b318-076d2b98ce68 "..."`
 - 1С OData: `notebooklm chat -n ea3c975a-5c18-4b52-93d0-cb446ecca184 "..."`
 - 1С:ЗУП: `notebooklm chat -n 7ae5179b-11e9-47eb-b74c-d21fb22b108b "..."`
 - Подробные инструкции: `.planning/NOTEBOOKLM.md`
 
 ## Next Steps (Recommended Order)
+
 1. Обновить Prisma-схему под ТЗ (Brand, DdsArticle, CostAllocation, Kitchen*)
 2. Запустить Prisma миграции
 3. Seed: создать бренды + точки как на скриншоте iiko
