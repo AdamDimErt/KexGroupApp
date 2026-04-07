@@ -45,6 +45,12 @@ describe('DashboardService', () => {
     syncLog: {
       aggregate: jest.fn(),
     },
+    kitchenPurchase: {
+      findMany: jest.fn(),
+    },
+    kitchenShipment: {
+      groupBy: jest.fn(),
+    },
   };
 
   const mockConfigService = {
@@ -423,6 +429,140 @@ describe('DashboardService', () => {
           orderBy: { date: 'desc' },
         }),
       );
+    });
+  });
+
+  describe('getReportDds', () => {
+    it('should return expenses grouped by restaurant with article groups', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', name: 'BNA Besagash' },
+      ]);
+
+      mockPrismaService.expense.groupBy.mockResolvedValue([
+        { restaurantId: 'r-1', articleId: 'a-1', _sum: { amount: { toString: () => '1000.00' } } },
+        { restaurantId: 'r-1', articleId: 'a-2', _sum: { amount: { toString: () => '500.00' } } },
+      ]);
+
+      mockPrismaService.ddsArticle.findMany.mockResolvedValue([
+        { id: 'a-1', group: { name: 'Продукты' } },
+        { id: 'a-2', group: { name: 'Транспорт' } },
+      ]);
+
+      const result = await service.getReportDds(tenantId, '2026-04-01', '2026-04-30');
+
+      expect(result.restaurants).toHaveLength(1);
+      expect(result.restaurants[0].restaurantName).toBe('BNA Besagash');
+      expect(result.restaurants[0].totalExpense).toBe(1500);
+      expect(result.restaurants[0].groups).toHaveLength(2);
+      expect(result.totals.totalExpense).toBe(1500);
+      expect(result.period).toEqual({ from: '2026-04-01', to: '2026-04-30' });
+    });
+  });
+
+  describe('getReportCompanyExpenses', () => {
+    it('should return HQ expenses with source and share percentage', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.expense.groupBy.mockResolvedValue([
+        { articleId: 'a-1', source: 'ONE_C', _sum: { amount: { toString: () => '3000.00' } } },
+        { articleId: 'a-2', source: 'IIKO', _sum: { amount: { toString: () => '1000.00' } } },
+      ]);
+
+      mockPrismaService.ddsArticle.findMany.mockResolvedValue([
+        { id: 'a-1', name: 'Аренда ГО' },
+        { id: 'a-2', name: 'Канцелярия' },
+      ]);
+
+      const result = await service.getReportCompanyExpenses(tenantId, '2026-04-01', '2026-04-30');
+
+      expect(result.categories).toHaveLength(2);
+      expect(result.categories[0].source).toBe('ONE_C');
+      expect(result.categories[0].totalAmount).toBe(3000);
+      expect(result.categories[0].share).toBe(75); // 3000/4000 * 100
+      expect(result.totals.totalAmount).toBe(4000);
+    });
+  });
+
+  describe('getReportKitchen', () => {
+    it('should return purchases and shipments grouped by restaurant', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.kitchenPurchase.findMany.mockResolvedValue([
+        { date: new Date('2026-04-01'), productName: 'Бакалея', amount: { toString: () => '5000.00' } },
+      ]);
+
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', name: 'BNA Besagash' },
+      ]);
+
+      mockPrismaService.kitchenShipment.groupBy.mockResolvedValue([
+        { restaurantId: 'r-1', _sum: { amount: { toString: () => '3000.00' } }, _count: { id: 2 } },
+      ]);
+
+      const result = await service.getReportKitchen(tenantId, '2026-04-01', '2026-04-30');
+
+      expect(result.purchases).toHaveLength(1);
+      expect(result.purchases[0].description).toBe('Бакалея');
+      expect(result.purchases[0].amount).toBe(5000);
+      expect(result.shipments).toHaveLength(1);
+      expect(result.shipments[0].restaurantName).toBe('BNA Besagash');
+      expect(result.shipments[0].totalAmount).toBe(3000);
+      expect(result.shipments[0].items).toBe(2);
+      expect(result.totals).toEqual({ totalPurchases: 5000, totalShipments: 3000 });
+    });
+  });
+
+  describe('getReportTrends', () => {
+    it('should return daily points with revenue, expenses, and netProfit', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', name: 'BNA Besagash' },
+      ]);
+
+      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([
+        { date: new Date('2026-04-01'), _sum: { revenue: { toString: () => '10000.00' } } },
+        { date: new Date('2026-04-02'), _sum: { revenue: { toString: () => '12000.00' } } },
+      ]);
+
+      mockPrismaService.expense.groupBy.mockResolvedValue([
+        { date: new Date('2026-04-01'), _sum: { amount: { toString: () => '4000.00' } } },
+        { date: new Date('2026-04-02'), _sum: { amount: { toString: () => '5000.00' } } },
+      ]);
+
+      const result = await service.getReportTrends(tenantId, '2026-04-01', '2026-04-02');
+
+      expect(result.points).toHaveLength(2);
+      expect(result.points[0]).toMatchObject({
+        revenue: 10000,
+        expenses: 4000,
+        netProfit: 6000,
+      });
+      expect(result.points[1]).toMatchObject({
+        revenue: 12000,
+        expenses: 5000,
+        netProfit: 7000,
+      });
+      expect(result.summary.avgDailyRevenue).toBe(11000); // (10000+12000)/2
+      expect(result.summary.avgDailyExpenses).toBe(4500);  // (4000+5000)/2
+      expect(result.summary.totalNetProfit).toBe(13000);   // 22000-9000
+    });
+
+    it('should handle empty data gracefully', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([]);
+      mockPrismaService.expense.groupBy.mockResolvedValue([]);
+
+      const result = await service.getReportTrends(tenantId, '2026-04-01', '2026-04-02');
+
+      expect(result.points).toHaveLength(0);
+      expect(result.summary.avgDailyRevenue).toBe(0);
+      expect(result.summary.avgDailyExpenses).toBe(0);
+      expect(result.summary.totalNetProfit).toBe(0);
     });
   });
 });

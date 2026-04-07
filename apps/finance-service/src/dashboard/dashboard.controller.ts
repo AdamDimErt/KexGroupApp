@@ -15,6 +15,12 @@ import {
   ArticleGroupDetailDto,
 } from './dto/summary.dto';
 import { OperationsQueryDto, ArticleOperationsDto } from './dto/operations.dto';
+import {
+  DdsReportDto,
+  CompanyExpensesReportDto,
+  KitchenReportDto,
+  TrendsReportDto,
+} from './dto/reports.dto';
 
 @Controller('dashboard')
 export class DashboardController {
@@ -137,5 +143,69 @@ export class DashboardController {
       query.dateFrom,
       query.dateTo,
     );
+  }
+
+  /**
+   * GET /dashboard/reports/dds?periodType=&dateFrom=&dateTo=
+   * DDS report: expenses grouped by restaurant with article groups
+   * Access: OWNER, FINANCE_DIRECTOR (via DataAccessInterceptor)
+   */
+  @Get('reports/dds')
+  async getReportDds(
+    @Query() query: DashboardQueryDto,
+    @Headers('x-tenant-id') tenantId?: string,
+  ): Promise<DdsReportDto> {
+    if (!tenantId) {
+      throw new BadRequestException('Missing x-tenant-id header');
+    }
+    return this.dashboardService.getReportDds(tenantId, query.dateFrom, query.dateTo);
+  }
+
+  /**
+   * GET /dashboard/reports/company-expenses?periodType=&dateFrom=&dateTo=
+   * Company expenses report: HQ overhead + workshop by article
+   * Access: OWNER, FINANCE_DIRECTOR (via DataAccessInterceptor)
+   */
+  @Get('reports/company-expenses')
+  async getReportCompanyExpenses(
+    @Query() query: DashboardQueryDto,
+    @Headers('x-tenant-id') tenantId?: string,
+  ): Promise<CompanyExpensesReportDto> {
+    if (!tenantId) {
+      throw new BadRequestException('Missing x-tenant-id header');
+    }
+    return this.dashboardService.getReportCompanyExpenses(tenantId, query.dateFrom, query.dateTo);
+  }
+
+  /**
+   * GET /dashboard/reports/kitchen?periodType=&dateFrom=&dateTo=
+   * Kitchen report: purchases and shipments
+   * Access: OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR (via DataAccessInterceptor)
+   */
+  @Get('reports/kitchen')
+  async getReportKitchen(
+    @Query() query: DashboardQueryDto,
+    @Headers('x-tenant-id') tenantId?: string,
+  ): Promise<KitchenReportDto> {
+    if (!tenantId) {
+      throw new BadRequestException('Missing x-tenant-id header');
+    }
+    return this.dashboardService.getReportKitchen(tenantId, query.dateFrom, query.dateTo);
+  }
+
+  /**
+   * GET /dashboard/reports/trends?periodType=&dateFrom=&dateTo=
+   * Trends report: daily revenue vs expenses vs net profit
+   * Access: OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR (via DataAccessInterceptor)
+   */
+  @Get('reports/trends')
+  async getReportTrends(
+    @Query() query: DashboardQueryDto,
+    @Headers('x-tenant-id') tenantId?: string,
+  ): Promise<TrendsReportDto> {
+    if (!tenantId) {
+      throw new BadRequestException('Missing x-tenant-id header');
+    }
+    return this.dashboardService.getReportTrends(tenantId, query.dateFrom, query.dateTo);
   }
 }
