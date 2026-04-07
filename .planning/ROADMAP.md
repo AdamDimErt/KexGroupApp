@@ -398,24 +398,24 @@ Plans:
 ---
 
 ## Phase 6: Mobile App — Основа
-**Статус: 🔄 ~60% готово**
+**Статус: ✅ 100% (завершено 2026-04-07)**
 **Срок по ТЗ: входит в Этап 1 (3-4 недели)**
 
 **Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 06-01-PLAN.md — Sentry init + OTP resend timer + inactivity auto-logout + min OS config
+- [x] 06-01-PLAN.md — Sentry init + OTP resend timer + inactivity auto-logout + min OS config
 
 - [x] React Native 0.81 + Expo 54 в монорепо
 - [x] Навигация (state-based routing + BottomNav компонент)
 - [x] **Зависимости установлены:** `@tanstack/react-query` v5, `zustand` v5, `i18next`, `expo-secure-store`, `expo-notifications`
-- [ ] **Sentry** — НЕ подключён
+- [x] **Sentry** — `@sentry/react-native ~7.2.0`, Sentry.init() в App.tsx, Sentry.wrap(App), enabled только в production
 - [x] **Локализация:** русский + казахский (i18next + react-i18next, файлы ru.ts/kk.ts)
-- [ ] **Min OS:** iOS 15.1+ / Android 8.0+ (API 26) — не настроено
+- [x] **Min OS:** iOS 15.1+ / Android 8.0+ (API 26) — настроено в app.json
 - [x] **Авторизация:**
   - [x] Экран ввода номера телефона (react-native-international-phone-number, Казахстан по умолчанию)
   - [x] Экран ввода OTP-кода (6 цифр, автоотправка при заполнении, авто-переход между полями)
-  - [ ] Таймер 60 сек для повторной отправки
+  - [x] Таймер 60 сек для повторной отправки — countdown + кнопка "Отправить снова"
   - [x] Сохранение JWT в `expo-secure-store` (с fallback на localStorage для web)
   - [x] Автологин при наличии валидного токена — bootstrap() в auth store
   - [x] **Биометрия (Face ID / Touch ID / отпечаток пальца):**
@@ -425,7 +425,7 @@ Plans:
     - [x] При повторном входе: `authenticateAsync()` → если OK → использовать сохранённый refresh token для получения JWT
     - [x] Настройка в профиле: вкл/выкл биометрический вход
     - [x] Fallback на OTP если биометрия не прошла или отключена
-  - [ ] Автовыход при неактивности (настраиваемый таймаут)
+  - [x] Автовыход при неактивности — useInactivityLogout hook, 10 мин фон → logout
 - [x] API client с Bearer auth + автоматический refresh токена при 401 + дедупликация refresh
 - [x] React Query установлен (v5), но используются кастомные useApiQuery хуки (useState+useEffect)
 - [x] Zustand stores: useAuthStore (auth state) + useDashboardStore (period, refresh)

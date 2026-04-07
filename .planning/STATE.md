@@ -2,42 +2,40 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: unknown
-last_updated: "2026-04-07T10:14:39.030Z"
+status: in_progress
+last_updated: "2026-04-07T12:00:00.000Z"
 progress:
   total_phases: 9
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
 
 ## Current Phase
 
-**Phase 6: Mobile Foundation** — Plan 01 complete. Min OS enforcement, OTP resend timer, inactivity auto-logout, and Sentry crash monitoring shipped. Phase 6 fully complete.
+**Phase 6: Mobile Foundation** — COMPLETE. Min OS enforcement (iOS 15.1 / Android API 26), OTP resend timer (60s), inactivity auto-logout (10 min AppState), Sentry crash monitoring all shipped. Next: Phase 7 — Mobile Screens (drill-down).
 
 ## What's Working
 
 - Monorepo: Turborepo + npm workspaces настроены
 - Docker: PostgreSQL 15 + Redis 7 через docker-compose.yml
-- Prisma схема: базовая (нужно обновить под ТЗ — добавить Brand, DdsArticle, CostAllocation, Kitchen*)
-- Auth service: OTP генерация, Mobizon SMS, Redis rate-limiting, JWT выдача
-- Mobile: базовая структура Expo + навигация
+- Prisma схема: 18 моделей (Brand, Restaurant, DdsArticle, CostAllocation, Kitchen*, etc.)
+- Auth service: OTP, Mobizon SMS, Redis rate-limiting, JWT, biometric endpoints (enable/verify), AuditLog
+- API Gateway: JWT guard, 3 roles (OWNER/FINANCE_DIRECTOR/OPERATIONS_DIRECTOR), 9 finance proxy routes, E2E tests
+- Finance service: DataAccessInterceptor, 4-level drill-down queries, 4 cross-restaurant reports
+- Aggregator worker: iiko sync (nomenclature, expenses, kitchen shipments), Sentry, dead letter queue
+- Mobile: Expo 54, biometrics, OTP flow, JWT store, resend timer, inactivity logout, Sentry
 
 ## Known Blockers
 
-- Prisma схема не соответствует ТЗ — нет Brand, DdsArticle, CostAllocation, Kitchen*
-- Prisma миграции не запускались — нужно `npx prisma migrate dev`
-- Auth service: 2 роли вместо 3 (нет OWNER/FIN_DIRECTOR/OPS_DIRECTOR)
-- Auth service: mock-пользователь вместо реальной БД
-- Нет Telegram-бота для OTP
-- Нет движка распределения затрат по удельному весу
-- Нет 4-уровневого drill-down
-- Finance/Aggregator/Gateway — пустые заглушки
-- Мобилка не подключена к API
-- Sentry: backend (aggregator-worker) подключён; mobile — ещё нет
-- Нет локализации (русский + казахский)
+- Prisma миграции не запускались — нужно `npx prisma migrate dev` (нет Docker в CI)
+- Auth service: 02-02 Telegram Gateway OTP — ещё не выполнен
+- Mobile не подключена к реальному API (Phase 7)
+- Нет drill-down экранов с реальными данными (Phase 7)
+- Нет переключателя периода (Phase 7)
+- Нет движка распределения затрат (Phase 7/8)
 
 ## Completed Plans
 
