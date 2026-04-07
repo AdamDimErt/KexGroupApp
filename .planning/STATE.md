@@ -27,6 +27,7 @@
 - **02-00** (2026-04-07): Added biometricEnabled Boolean @default(false) to User model, migration SQL created, Prisma client regenerated. Commit: b7f1ba6
 - **02-01** (2026-04-07): AuditLog writes on LOGIN/LOGOUT (fire-and-forget writeAuditLog method), JWT TTL reduced from 7d to 15m, trust proxy added for real client IP. Commits: 4c3a2c9, 29f41f7
 - **02-03** (2026-04-07): Biometric enable/verify endpoints added — POST /auth/biometric/enable (JWT-protected, sets DB flag + BIOMETRIC_ENABLE audit) and POST /auth/biometric/verify (refresh-token-based login with rotation + BIOMETRIC_LOGIN audit). BiometricVerifyDto added. Commit: c1cfd4f
+- **02-04** (2026-04-07): 32-test suite for AuthService — added enableBiometric (2 tests) and verifyBiometric (6 tests) describe blocks covering success, rejection, inactive user, audit log events (BIOMETRIC_ENABLE/BIOMETRIC_LOGIN), and token rotation. All 32 tests pass. Commit: 5a06969
 
 ## Key Decisions
 - **[02-00]** When DB unavailable, create Prisma migration SQL files manually in migrations/ directory with timestamp naming convention; apply later with `npx prisma migrate dev`
@@ -35,6 +36,7 @@
 - **[02-01]** Use `import type` for express Request in decorated NestJS controller methods (required by isolatedModules + emitDecoratorMetadata)
 - **[02-03]** biometric/enable requires valid JWT (user must be already authenticated to opt in); biometric/verify uses refresh token from body (no JWT) — mobile passes it after device biometric scan
 - **[02-03]** Refresh token rotation on biometric verify prevents replay attacks; same pattern as regular /refresh endpoint
+- **[02-04]** Use `setImmediate` tick flush (`await new Promise(resolve => setImmediate(resolve))`) to assert on fire-and-forget `void this.writeAuditLog()` calls in Jest unit tests
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)

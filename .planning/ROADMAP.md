@@ -184,14 +184,14 @@ Kexbrands ЦО (Корпорация)
 **Статус: 🔄 ~60% готово**
 **Срок по ТЗ: входит в Этап 1 (3-4 недели)**
 
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] 02-00-PLAN.md -- Leader schema migration (biometricEnabled field)
-- [ ] 02-01-PLAN.md -- AuditLog integration + JWT TTL reduction
+- [x] 02-01-PLAN.md -- AuditLog integration + JWT TTL reduction
 - [ ] 02-02-PLAN.md -- Telegram Gateway OTP (primary channel + SMS fallback)
-- [ ] 02-03-PLAN.md -- Biometric endpoints (service + controller)
-- [ ] 02-04-PLAN.md -- Unit tests for biometric + AuditLog
+- [x] 02-03-PLAN.md -- Biometric endpoints (service + controller)
+- [x] 02-04-PLAN.md -- Unit tests for biometric + AuditLog
 
 - [x] Инициализировать NestJS сервис `auth-service`
 - [x] OTP генерация и хранение в Redis с TTL 5 минут
