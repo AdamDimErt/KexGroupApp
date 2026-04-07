@@ -401,7 +401,7 @@ Plans:
 **Статус: 🔄 ~60% готово**
 **Срок по ТЗ: входит в Этап 1 (3-4 недели)**
 
-**Plans:** 0/1 plans executed
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 06-01-PLAN.md — Sentry init + OTP resend timer + inactivity auto-logout + min OS config

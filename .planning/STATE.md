@@ -3,19 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-07T10:00:00.000Z"
+last_updated: "2026-04-07T10:14:39.030Z"
 progress:
   total_phases: 9
-  completed_phases: 2
-  total_plans: 12
-  completed_plans: 12
+  completed_phases: 4
+  total_plans: 15
+  completed_plans: 14
 ---
 
 # Project State
 
 ## Current Phase
 
-**Phase 5: API Gateway** — Plan 02 complete. All 9 finance proxy routes active, E2E test suite passing.
+**Phase 6: Mobile Foundation** — Plan 01 complete. Min OS enforcement, OTP resend timer, inactivity auto-logout, and Sentry crash monitoring shipped. Phase 6 fully complete.
 
 ## What's Working
 
@@ -54,6 +54,7 @@ progress:
 - **04-03** (2026-04-07): Four cross-restaurant report endpoints added — GET /dashboard/reports/dds, /company-expenses, /kitchen, /trends. reports.dto.ts created with 4 DTO class trees. Company expenses filtered by article.group.tenantId (Expense has no direct tenantId). Trends merges revenue+expense date rows via Map. All 35 tests pass. Commits: b0c0e45, 349a4b8
 - **05-01** (2026-04-07): 5 proxy routes added to FinanceProxyController — getArticleOperations (OWNER), getReportDds (OWNER/FIN_DIR), getReportCompanyExpenses (OWNER/FIN_DIR), getReportKitchen (all 3 roles), getReportTrends (all 3 roles). All routes forward 4 headers. jest-e2e.json moduleNameMapper fixed. 9 unit tests via TDD, full suite 21/21 pass. Commits: afe91ab, c1865ce
 - **05-02** (2026-04-07): E2E test suite for finance proxy — finance-proxy.e2e-spec.ts with 6 passing tests proving role enforcement. OWNER gets 200 on article operations and reports/dds; FINANCE_DIRECTOR gets 403 on OWNER-only route; OPERATIONS_DIRECTOR gets 403 on OWNER+FD dds route; OPERATIONS_DIRECTOR gets 200 on all-roles kitchen route; 404 on non-existent route. Real RolesGuard tested via overrideGuard(JwtAuthGuard). All 21 unit tests still pass. Commit: 0056f3c
+- **06-01** (2026-04-07): Mobile Foundation completion — ios.minimumOsVersion=15.1, android.minSdkVersion=26, @sentry/react-native installed+plugin+init+wrap, useInactivityLogout hook (10-min AppState threshold), OTP resend timer (60s countdown) in useLogin+LoginScreen. tsc --noEmit passes. Commits: c689a36, dc110e8, da72fee
 
 ## Key Decisions
 
@@ -86,6 +87,9 @@ progress:
 - **[05-01]** Route declaration order is critical: specific routes (article/:id/operations) must appear before generic (:id) in controller class body
 - **[05-02]** setGlobalPrefix('api') must be called explicitly in E2E test buildApp() — app.init() does NOT inherit it from main.ts bootstrap
 - **[05-02]** overrideGuard(JwtAuthGuard) + real RolesGuard is the correct pattern for E2E role enforcement testing — never mock RolesGuard itself
+- **[06-01]** iOS minimum floor is 15.1 not 14.0 — React Native 0.81 hard constraint regardless of TZ specification
+- **[06-01]** Sentry enabled only when EXPO_PUBLIC_APP_ENV === 'production' — prevents noise in dev/staging with no DSN
+- **[06-01]** INACTIVITY_TIMEOUT_MS = 10 min; inactive AppState treated same as background to handle iOS notification center brief inactive state (never triggers logout in practice)
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
