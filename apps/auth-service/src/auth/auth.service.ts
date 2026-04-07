@@ -166,6 +166,43 @@ export class AuthService {
     return this.toUserDto(user);
   }
 
+  // ─── Biometric ────────────────────────────────────────────────────────────
+
+  async enableBiometric(userId: string, ip?: string): Promise<{ success: boolean }> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { biometricEnabled: true },
+    });
+    void this.writeAuditLog(userId, 'BIOMETRIC_ENABLE', ip);
+    return { success: true };
+  }
+
+  async verifyBiometric(refreshToken: string, ip?: string, userAgent?: string): Promise<AuthSuccessDto> {
+    const userId = await this.redis.get(`refresh:${refreshToken}`);
+    if (!userId) {
+      throw new UnauthorizedException('Refresh token недействителен');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { tenant: true, restaurants: true },
+    });
+
+    if (!user || !user.isActive) {
+      await this.redis.del(`refresh:${refreshToken}`);
+      throw new UnauthorizedException('Пользователь не найден или деактивирован');
+    }
+
+    if (!user.biometricEnabled) {
+      throw new UnauthorizedException('Биометрия не включена для этого пользователя');
+    }
+
+    // Rotate refresh token
+    await this.redis.del(`refresh:${refreshToken}`);
+    void this.writeAuditLog(userId, 'BIOMETRIC_LOGIN', ip, userAgent);
+    return this.issueTokens(user);
+  }
+
   // ─── Private helpers ──────────────────────────────────────────────────────
 
   private async issueTokens(

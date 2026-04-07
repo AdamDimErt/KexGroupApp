@@ -17,6 +17,7 @@ import {
   VerifyOtpDto,
   RefreshTokenDto,
   LogoutDto,
+  BiometricVerifyDto,
 } from './dto/auth.dto';
 
 @Controller('auth')
@@ -66,6 +67,31 @@ export class AuthController {
     }
     const ip = req.ip ?? req.headers['x-forwarded-for']?.toString();
     return this.authService.logout(body.refreshToken, userId, ip);
+  }
+
+  @Post('biometric/enable')
+  @HttpCode(HttpStatus.OK)
+  enableBiometric(@Headers('authorization') authHeader: string, @Req() req: Request) {
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Токен не передан');
+    }
+    const token = authHeader.slice(7);
+    let payload: { sub: string };
+    try {
+      payload = this.jwtService.verify(token);
+    } catch {
+      throw new UnauthorizedException('Токен недействителен или истёк');
+    }
+    const ip = req.ip ?? req.headers['x-forwarded-for']?.toString();
+    return this.authService.enableBiometric(payload.sub, ip);
+  }
+
+  @Post('biometric/verify')
+  @HttpCode(HttpStatus.OK)
+  verifyBiometric(@Body() body: BiometricVerifyDto, @Req() req: Request) {
+    const ip = req.ip ?? req.headers['x-forwarded-for']?.toString();
+    const userAgent = req.headers['user-agent'];
+    return this.authService.verifyBiometric(body.refreshToken, ip, userAgent);
   }
 
   @Get('me')

@@ -30,3 +30,9 @@ export class LogoutDto {
   @IsNotEmpty({ message: 'Refresh token обязателен' })
   refreshToken: string;
 }
+
+export class BiometricVerifyDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Refresh token обязателен' })
+  refreshToken: string;
+}
