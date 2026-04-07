@@ -28,23 +28,8 @@ import { BottomNav } from './src/components/BottomNav';
 import { colors } from './src/theme';
 import type { Screen, User } from './src/types';
 
-// Placeholder components — will be replaced by real screens in Wave 2
-const ArticleDetailScreen = ({ groupId, restaurantId, onBack, onNavigateOperation }: {
-  groupId: string | null; restaurantId: string | null; onBack: () => void;
-  onNavigateOperation: (articleId: string) => void;
-}) => (
-  <View style={{ flex: 1, backgroundColor: '#0A0A1A', justifyContent: 'center', alignItems: 'center' }}>
-    <Text style={{ color: '#fff' }}>ArticleDetailScreen — Wave 2</Text>
-  </View>
-);
-
-const OperationsScreen = ({ articleId, restaurantId, onBack }: {
-  articleId: string | null; restaurantId: string | null; onBack: () => void;
-}) => (
-  <View style={{ flex: 1, backgroundColor: '#0A0A1A', justifyContent: 'center', alignItems: 'center' }}>
-    <Text style={{ color: '#fff' }}>OperationsScreen — Wave 2</Text>
-  </View>
-);
+import { ArticleDetailScreen } from './src/screens/ArticleDetailScreen';
+import { OperationsScreen } from './src/screens/OperationsScreen';
 import { useInactivityLogout } from './src/hooks/useInactivityLogout';
 
 type AppState = 'bootstrapping' | 'biometric-prompt' | 'login' | 'biometric-setup' | 'app';
