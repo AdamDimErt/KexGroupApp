@@ -284,7 +284,7 @@ Plans:
 **Статус: 🔄 ~75% готово**
 **Срок по ТЗ: входит в Этапы 1-2**
 
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 04-01-PLAN.md -- DataAccessInterceptor (role-based route protection)
@@ -575,7 +575,7 @@ Plans:
 | 1 | Инфраструктура + DB | 🔄 В процессе | ~90% |
 | 2 | 3/5 | In Progress|  |
 | 3 | 4/4 | Complete   | 2026-04-07 |
-| 4 | 1/3 | In Progress|  |
+| 4 | 3/3 | Complete   | 2026-04-07 |
 | 5 | API Gateway | 🔄 В процессе | ~70% |
 | 6 | Mobile — Основа (auth, навигация) | 🔄 В процессе | ~60% |
 | 7 | Mobile — Экраны (drill-down + отчёты) | 🔄 В процессе | ~45% |

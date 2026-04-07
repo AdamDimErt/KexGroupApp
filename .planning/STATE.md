@@ -8,7 +8,7 @@ progress:
   total_phases: 9
   completed_phases: 1
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -51,6 +51,7 @@ progress:
 - **03-04** (2026-04-07): syncKitchenShipmentsByRestaurant() added to OneCyncService — fetches Document_RealizationOfGoodsAndServices from 1C OData, matches counterparty to restaurant by oneCId then name, upserts Expense with direct restaurantId (bypasses cost allocation), skips unmatched with warn. Cron at :25 added to SchedulerService. 5 unit tests in new onec-sync.service.spec.ts. All 28 tests pass. Commits: e120593, a158589
 - **04-01** (2026-04-07): DataAccessInterceptor implemented — ACCESS_MATRIX with 6 route patterns, regex :param matching, ForbiddenException for unauthorized roles, passthrough for unprotected routes. Registered globally via app.useGlobalInterceptors(). 16 unit tests + 9 existing = 25 total passing. TypeScript compiles cleanly. Commits: b78ad19, 85d5ef4
 - **04-02** (2026-04-07): lastSyncAt fixed in getDashboardSummary (queries SyncLog MAX(createdAt) WHERE status=SUCCESS), getArticleOperations added (paginated expense records with allocationCoefficient join, offset/limit), GET /dashboard/article/:articleId/operations registered before article/:groupId. All 30 tests pass. Commits: 73e7914, 7eaca77
+- **04-03** (2026-04-07): Four cross-restaurant report endpoints added — GET /dashboard/reports/dds, /company-expenses, /kitchen, /trends. reports.dto.ts created with 4 DTO class trees. Company expenses filtered by article.group.tenantId (Expense has no direct tenantId). Trends merges revenue+expense date rows via Map. All 35 tests pass. Commits: b0c0e45, 349a4b8
 
 ## Key Decisions
 
@@ -77,6 +78,8 @@ progress:
 - **[04-01]** Regex conversion: :paramName segments become [^/]+ anchored with ^...$; passthrough when path not in matrix
 - **[04-02]** Use `declare restaurantId` in OperationsQueryDto to override optional base field as required — avoids TS2612 without restructuring DTO hierarchy
 - **[04-02]** Controller route order critical: article/:articleId/operations MUST appear before article/:groupId in controller class to prevent NestJS treating 'operations' as a groupId param
+- **[04-03]** Company expenses (restaurantId=null) must filter tenant via article.group.tenantId — Expense model has no direct tenantId field
+- **[04-03]** Trends report uses Map<dateStr, {revenue, expenses}> merge pattern — handles sparse dates where only revenue or only expenses exist for a day
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
