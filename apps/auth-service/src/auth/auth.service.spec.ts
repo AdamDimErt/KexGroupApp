@@ -59,6 +59,7 @@ describe('AuthService', () => {
       user: {
         findUnique: jest.fn(),
         create: jest.fn(),
+        update: jest.fn().mockResolvedValue({ id: 'user-123', biometricEnabled: true }),
       },
       auditLog: {
         create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
@@ -440,6 +441,146 @@ describe('AuthService', () => {
 
       await expect(service.getMe(userId)).rejects.toThrow(
         new UnauthorizedException('Пользователь не найден'),
+      );
+    });
+  });
+
+  describe('enableBiometric', () => {
+    const userId = 'user-123';
+
+    it('should set biometricEnabled to true and return success', async () => {
+      mockPrisma.user.update.mockResolvedValue({ id: userId, biometricEnabled: true });
+
+      const result = await service.enableBiometric(userId, '127.0.0.1');
+
+      expect(result).toEqual({ success: true });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: userId },
+        data: { biometricEnabled: true },
+      });
+    });
+
+    it('should write BIOMETRIC_ENABLE to AuditLog', async () => {
+      mockPrisma.user.update.mockResolvedValue({ id: userId, biometricEnabled: true });
+
+      await service.enableBiometric(userId, '192.168.1.1');
+
+      // fire-and-forget — give it a tick
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId,
+          action: 'BIOMETRIC_ENABLE',
+          ip: '192.168.1.1',
+        }),
+      });
+    });
+  });
+
+  describe('verifyBiometric', () => {
+    const refreshToken = 'bio-refresh-token';
+    const userId = 'user-123';
+    const mockUserBioEnabled = {
+      id: userId,
+      phone: '+77771234567',
+      name: 'Test User',
+      role: 'OPERATIONS_DIRECTOR',
+      isActive: true,
+      biometricEnabled: true,
+      tenantId: null,
+      tenant: null,
+      restaurants: [],
+    };
+
+    it('should return new tokens when refresh token is valid and biometric is enabled', async () => {
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `refresh:${refreshToken}`) return userId;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUserBioEnabled as any);
+
+      const result = await service.verifyBiometric(refreshToken, '127.0.0.1');
+
+      expect(result.accessToken).toBe('mock.jwt.token.signed');
+      expect(result.refreshToken).toBeDefined();
+      expect(result.user.id).toBe(userId);
+      // Old refresh token should be deleted (rotation)
+      expect(mockRedis.del).toHaveBeenCalledWith(`refresh:${refreshToken}`);
+    });
+
+    it('should throw UnauthorizedException when refresh token is invalid', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      await expect(service.verifyBiometric(refreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should throw UnauthorizedException when biometricEnabled is false', async () => {
+      const userBioDisabled = { ...mockUserBioEnabled, biometricEnabled: false };
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `refresh:${refreshToken}`) return userId;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(userBioDisabled as any);
+
+      await expect(service.verifyBiometric(refreshToken)).rejects.toThrow(
+        new UnauthorizedException('Биометрия не включена для этого пользователя'),
+      );
+    });
+
+    it('should throw UnauthorizedException when user is inactive', async () => {
+      const inactiveUser = { ...mockUserBioEnabled, isActive: false };
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `refresh:${refreshToken}`) return userId;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(inactiveUser as any);
+
+      await expect(service.verifyBiometric(refreshToken)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should write BIOMETRIC_LOGIN to AuditLog on success', async () => {
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `refresh:${refreshToken}`) return userId;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUserBioEnabled as any);
+
+      await service.verifyBiometric(refreshToken, '10.0.0.1', 'MobileApp/1.0');
+
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId,
+          action: 'BIOMETRIC_LOGIN',
+          ip: '10.0.0.1',
+          userAgent: 'MobileApp/1.0',
+        }),
+      });
+    });
+
+    it('should rotate refresh token on success', async () => {
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `refresh:${refreshToken}`) return userId;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUserBioEnabled as any);
+
+      await service.verifyBiometric(refreshToken);
+
+      // Old token deleted
+      expect(mockRedis.del).toHaveBeenCalledWith(`refresh:${refreshToken}`);
+      // New token stored
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^refresh:/),
+        userId,
+        'EX',
+        2592000,
       );
     });
   });
