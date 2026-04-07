@@ -29,6 +29,7 @@
     "@nestjs/terminus": "^11.1.1",
     "@prisma/adapter-pg": "^7.6.0",
     "@prisma/client": "^7.6.0",
+    "@sentry/node": "^10.47.0",
     "axios": "^1.13.6",
     "fast-xml-parser": "^5.5.9",
     "ioredis": "^5.10.1",
