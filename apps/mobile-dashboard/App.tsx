@@ -27,6 +27,24 @@ import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { colors } from './src/theme';
 import type { Screen, User } from './src/types';
+
+// Placeholder components — will be replaced by real screens in Wave 2
+const ArticleDetailScreen = ({ groupId, restaurantId, onBack, onNavigateOperation }: {
+  groupId: string | null; restaurantId: string | null; onBack: () => void;
+  onNavigateOperation: (articleId: string) => void;
+}) => (
+  <View style={{ flex: 1, backgroundColor: '#0A0A1A', justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ color: '#fff' }}>ArticleDetailScreen — Wave 2</Text>
+  </View>
+);
+
+const OperationsScreen = ({ articleId, restaurantId, onBack }: {
+  articleId: string | null; restaurantId: string | null; onBack: () => void;
+}) => (
+  <View style={{ flex: 1, backgroundColor: '#0A0A1A', justifyContent: 'center', alignItems: 'center' }}>
+    <Text style={{ color: '#fff' }}>OperationsScreen — Wave 2</Text>
+  </View>
+);
 import { useInactivityLogout } from './src/hooks/useInactivityLogout';
 
 type AppState = 'bootstrapping' | 'biometric-prompt' | 'login' | 'biometric-setup' | 'app';
@@ -38,6 +56,9 @@ function App() {
   const [brandId, setBrandId]   = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string>('');
   const [pointId, setPointId]   = useState<string | null>(null);
+  const [articleGroupId, setArticleGroupId] = useState<string | null>(null);
+  const [articleId, setArticleId] = useState<string | null>(null);
+  const [currentRestaurantId, setCurrentRestaurantId] = useState<string | null>(null);
   const [user, setUser]         = useState<User | null>(null);
   const [biometricType, setBiometricType] = useState<BiometricType>(null);
 
@@ -141,7 +162,20 @@ function App() {
 
   const handlePointSelect = (id: string) => {
     setPointId(id);
+    setCurrentRestaurantId(id);
     setScreen('point-details');
+  };
+
+  const handleArticleGroupSelect = (groupId: string, restaurantId: string) => {
+    setArticleGroupId(groupId);
+    setCurrentRestaurantId(restaurantId);
+    setScreen('article-detail');
+  };
+
+  const handleOperationSelect = (artId: string, restaurantId: string) => {
+    setArticleId(artId);
+    setCurrentRestaurantId(restaurantId);
+    setScreen('operations');
   };
 
   // ─── Рендер ───────────────────────────────────────────────────────────────
@@ -213,7 +247,36 @@ function App() {
       case 'points':
         return <PointsScreen onPointSelect={handlePointSelect} />;
       case 'point-details':
-        return <PointDetailScreen pointId={pointId} onBack={() => setScreen('points')} />;
+        return (
+          <PointDetailScreen
+            pointId={pointId}
+            onBack={() => {
+              setScreen(brandId ? 'brand-details' : 'dashboard');
+            }}
+            onNavigateArticle={(groupId: string) => {
+              if (pointId) handleArticleGroupSelect(groupId, pointId);
+            }}
+          />
+        );
+      case 'article-detail':
+        return (
+          <ArticleDetailScreen
+            groupId={articleGroupId}
+            restaurantId={currentRestaurantId}
+            onBack={() => setScreen('point-details')}
+            onNavigateOperation={(artId: string) => {
+              if (currentRestaurantId) handleOperationSelect(artId, currentRestaurantId);
+            }}
+          />
+        );
+      case 'operations':
+        return (
+          <OperationsScreen
+            articleId={articleId}
+            restaurantId={currentRestaurantId}
+            onBack={() => setScreen('article-detail')}
+          />
+        );
       case 'reports':
         return <ReportsScreen />;
       case 'notifications':

@@ -8,6 +8,7 @@ import { styles } from './PointDetailScreen.styles';
 interface Props {
   pointId: string | null;
   onBack: () => void;
+  onNavigateArticle?: (groupId: string) => void;
 }
 
 // ─── Форматирование (отделено от JSX) ─────────────────────────────────────

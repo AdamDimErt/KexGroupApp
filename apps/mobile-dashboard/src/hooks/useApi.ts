@@ -63,7 +63,7 @@ export function useApiQuery<T>(
 function pad2(n: number) { return String(n).padStart(2, '0'); }
 function isoDate(y: number, m: number, d: number) { return `${y}-${pad2(m)}-${pad2(d)}`; }
 
-function getPeriodDates(
+export function getPeriodDates(
   periodType: string,
   customFrom?: string | null,
   customTo?: string | null,
@@ -146,5 +146,16 @@ export function useArticleDetail(articleId: string, restaurantId: string) {
   return useApiQuery(
     () => dashboardApi.getArticle(articleId, restaurantId, period, dateFrom, dateTo),
     [articleId, restaurantId, period, customFrom, customTo],
+  );
+}
+
+export function useOperations(articleId: string, restaurantId: string, page: number = 1) {
+  const period = useDashboardStore(s => s.period);
+  const customFrom = useDashboardStore(s => s.customFrom);
+  const customTo = useDashboardStore(s => s.customTo);
+  const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
+  return useApiQuery(
+    () => dashboardApi.getOperations(articleId, restaurantId, page, period, dateFrom, dateTo),
+    [articleId, restaurantId, page, period, customFrom, customTo],
   );
 }
