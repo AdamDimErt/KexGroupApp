@@ -19,6 +19,18 @@ import {
   ArticleIndicatorDto,
   PaymentTypeAmountDto,
 } from './dto/summary.dto';
+import {
+  DdsReportDto,
+  DdsRestaurantRowDto,
+  DdsRestaurantGroupDto,
+  CompanyExpensesReportDto,
+  CompanyExpenseCategoryDto,
+  KitchenReportDto,
+  KitchenPurchaseItemDto,
+  KitchenShipmentRowDto,
+  TrendsReportDto,
+  TrendPointDto,
+} from './dto/reports.dto';
 
 /**
  * Asia/Almaty = UTC+5 (no DST)
@@ -1132,5 +1144,313 @@ export class DashboardService {
     }));
 
     return { items, total, period: { from: dateFrom, to: dateTo } };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CROSS-RESTAURANT REPORT METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * DDS report: expenses grouped by restaurant with article group breakdown.
+   * GET /dashboard/reports/dds
+   */
+  async getReportDds(
+    tenantId: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<DdsReportDto> {
+    const startDate = this.parseStartDate(dateFrom);
+    const endDate = this.parseEndDate(dateTo);
+
+    // Get all active restaurants for this tenant
+    const restaurants = await this.prisma.restaurant.findMany({
+      where: { brand: { company: { tenantId } }, isActive: true },
+      select: { id: true, name: true },
+    });
+    const restaurantIds = restaurants.map((r) => r.id);
+    const restaurantNameMap = new Map(restaurants.map((r) => [r.id, r.name]));
+
+    // Group expenses by restaurantId + articleId
+    const expenseRows = await this.prisma.expense.groupBy({
+      by: ['restaurantId', 'articleId'],
+      where: {
+        restaurantId: { in: restaurantIds },
+        date: { gte: startDate, lte: endDate },
+      },
+      _sum: { amount: true },
+    });
+
+    // Fetch article details with group name
+    const articleIds = [...new Set(expenseRows.map((e) => e.articleId))];
+    const articles = await this.prisma.ddsArticle.findMany({
+      where: { id: { in: articleIds } },
+      include: { group: { select: { name: true } } },
+    });
+    const articleGroupMap = new Map(
+      articles.map((a) => [a.id, a.group?.name ?? 'Unknown']),
+    );
+
+    // Build Map<restaurantId, Map<groupName, amount>>
+    const restaurantGroupMap = new Map<string, Map<string, number>>();
+    for (const row of expenseRows) {
+      if (!row.restaurantId) continue;
+      const groupName = articleGroupMap.get(row.articleId) ?? 'Unknown';
+      const amount = this.toNumber(row._sum.amount);
+      if (!restaurantGroupMap.has(row.restaurantId)) {
+        restaurantGroupMap.set(row.restaurantId, new Map());
+      }
+      const groupAmounts = restaurantGroupMap.get(row.restaurantId)!;
+      groupAmounts.set(groupName, (groupAmounts.get(groupName) ?? 0) + amount);
+    }
+
+    // Build restaurant rows
+    let grandTotal = 0;
+    const restaurantRows: DdsRestaurantRowDto[] = [];
+
+    for (const restaurantId of restaurantIds) {
+      const groupAmounts = restaurantGroupMap.get(restaurantId);
+      if (!groupAmounts || groupAmounts.size === 0) continue;
+
+      const totalExpense = Array.from(groupAmounts.values()).reduce(
+        (sum, v) => sum + v,
+        0,
+      );
+      grandTotal += totalExpense;
+
+      const groups: DdsRestaurantGroupDto[] = Array.from(
+        groupAmounts.entries(),
+      ).map(([groupName, amount]) => ({
+        groupName,
+        amount,
+        share: totalExpense > 0 ? Math.round((amount / totalExpense) * 10000) / 100 : 0,
+      }));
+
+      restaurantRows.push({
+        restaurantId,
+        restaurantName: restaurantNameMap.get(restaurantId) ?? '',
+        totalExpense,
+        groups,
+      });
+    }
+
+    return {
+      restaurants: restaurantRows,
+      totals: { totalExpense: grandTotal },
+      period: { from: dateFrom, to: dateTo },
+    };
+  }
+
+  /**
+   * Company expenses report: HQ overhead (restaurantId=null) grouped by article.
+   * GET /dashboard/reports/company-expenses
+   */
+  async getReportCompanyExpenses(
+    tenantId: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<CompanyExpensesReportDto> {
+    const startDate = this.parseStartDate(dateFrom);
+    const endDate = this.parseEndDate(dateTo);
+
+    // Query unallocated (HQ) expenses — restaurantId is null
+    // Filter by tenant via article.group.tenantId
+    const expenseRows = await this.prisma.expense.groupBy({
+      by: ['articleId', 'source'],
+      where: {
+        restaurantId: null,
+        date: { gte: startDate, lte: endDate },
+        article: { group: { tenantId } },
+      },
+      _sum: { amount: true },
+    });
+
+    // Fetch article names
+    const articleIds = [...new Set(expenseRows.map((e) => e.articleId))];
+    const articles = await this.prisma.ddsArticle.findMany({
+      where: { id: { in: articleIds } },
+      select: { id: true, name: true },
+    });
+    const articleNameMap = new Map(articles.map((a) => [a.id, a.name]));
+
+    // Compute totals
+    const totalAmount = expenseRows.reduce(
+      (sum, row) => sum + this.toNumber(row._sum.amount),
+      0,
+    );
+
+    const categories: CompanyExpenseCategoryDto[] = expenseRows.map((row) => {
+      const amount = this.toNumber(row._sum.amount);
+      return {
+        source: row.source as 'ONE_C' | 'IIKO',
+        articleName: articleNameMap.get(row.articleId) ?? '',
+        totalAmount: amount,
+        share:
+          totalAmount > 0
+            ? Math.round((amount / totalAmount) * 10000) / 100
+            : 0,
+      };
+    });
+
+    return {
+      categories,
+      totals: { totalAmount },
+      period: { from: dateFrom, to: dateTo },
+    };
+  }
+
+  /**
+   * Kitchen report: purchases from KitchenPurchase + shipments from KitchenShipment.
+   * GET /dashboard/reports/kitchen
+   */
+  async getReportKitchen(
+    tenantId: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<KitchenReportDto> {
+    const startDate = this.parseStartDate(dateFrom);
+    const endDate = this.parseEndDate(dateTo);
+
+    // Purchases — directly filtered by tenantId
+    const rawPurchases = await this.prisma.kitchenPurchase.findMany({
+      where: { tenantId, date: { gte: startDate, lte: endDate } },
+      orderBy: { date: 'asc' },
+    });
+
+    const purchases: KitchenPurchaseItemDto[] = rawPurchases.map((p) => ({
+      date: p.date.toISOString(),
+      description: p.productName,
+      amount: this.toNumber(p.amount),
+    }));
+
+    // Get restaurants for tenant to filter shipments
+    const restaurants = await this.prisma.restaurant.findMany({
+      where: { brand: { company: { tenantId } }, isActive: true },
+      select: { id: true, name: true },
+    });
+    const restaurantIds = restaurants.map((r) => r.id);
+    const restaurantNameMap = new Map(restaurants.map((r) => [r.id, r.name]));
+
+    // Shipments grouped by restaurant
+    const shipmentRows = await this.prisma.kitchenShipment.groupBy({
+      by: ['restaurantId'],
+      where: {
+        restaurantId: { in: restaurantIds },
+        date: { gte: startDate, lte: endDate },
+      },
+      _sum: { amount: true },
+      _count: { id: true },
+    });
+
+    const shipments: KitchenShipmentRowDto[] = shipmentRows.map((row) => ({
+      restaurantName: restaurantNameMap.get(row.restaurantId) ?? '',
+      totalAmount: this.toNumber(row._sum.amount),
+      items: row._count.id,
+    }));
+
+    const totalPurchases = purchases.reduce((sum, p) => sum + p.amount, 0);
+    const totalShipments = shipments.reduce((sum, s) => sum + s.totalAmount, 0);
+
+    return {
+      purchases,
+      shipments,
+      totals: { totalPurchases, totalShipments },
+      period: { from: dateFrom, to: dateTo },
+    };
+  }
+
+  /**
+   * Trends report: daily revenue vs expenses vs net profit.
+   * GET /dashboard/reports/trends
+   */
+  async getReportTrends(
+    tenantId: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<TrendsReportDto> {
+    const startDate = this.parseStartDate(dateFrom);
+    const endDate = this.parseEndDate(dateTo);
+
+    // Get restaurant IDs for tenant
+    const restaurants = await this.prisma.restaurant.findMany({
+      where: { brand: { company: { tenantId } }, isActive: true },
+      select: { id: true },
+    });
+    const restaurantIds = restaurants.map((r) => r.id);
+
+    // Daily revenue grouped by date
+    const revenueRows = await this.prisma.financialSnapshot.groupBy({
+      by: ['date'],
+      where: {
+        restaurantId: { in: restaurantIds },
+        date: { gte: startDate, lte: endDate },
+      },
+      _sum: { revenue: true },
+      orderBy: { date: 'asc' },
+    });
+
+    // Daily expenses grouped by date
+    const expenseRows = await this.prisma.expense.groupBy({
+      by: ['date'],
+      where: {
+        restaurantId: { in: restaurantIds },
+        date: { gte: startDate, lte: endDate },
+      },
+      _sum: { amount: true },
+      orderBy: { date: 'asc' },
+    });
+
+    // Merge by date string (YYYY-MM-DD)
+    const dateMap = new Map<string, { revenue: number; expenses: number }>();
+
+    for (const row of revenueRows) {
+      const key = row.date.toISOString().slice(0, 10);
+      const entry = dateMap.get(key) ?? { revenue: 0, expenses: 0 };
+      entry.revenue += this.toNumber(row._sum.revenue);
+      dateMap.set(key, entry);
+    }
+
+    for (const row of expenseRows) {
+      const key = row.date.toISOString().slice(0, 10);
+      const entry = dateMap.get(key) ?? { revenue: 0, expenses: 0 };
+      entry.expenses += this.toNumber(row._sum.amount);
+      dateMap.set(key, entry);
+    }
+
+    // Build points sorted by date
+    const points: TrendPointDto[] = Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({
+        date,
+        revenue: data.revenue,
+        expenses: data.expenses,
+        netProfit: data.revenue - data.expenses,
+      }));
+
+    // Compute summary
+    const n = points.length;
+    if (n === 0) {
+      return {
+        points: [],
+        summary: {
+          avgDailyRevenue: 0,
+          avgDailyExpenses: 0,
+          totalNetProfit: 0,
+        },
+        period: { from: dateFrom, to: dateTo },
+      };
+    }
+
+    const totalRevenue = points.reduce((sum, p) => sum + p.revenue, 0);
+    const totalExpenses = points.reduce((sum, p) => sum + p.expenses, 0);
+
+    return {
+      points,
+      summary: {
+        avgDailyRevenue: totalRevenue / n,
+        avgDailyExpenses: totalExpenses / n,
+        totalNetProfit: totalRevenue - totalExpenses,
+      },
+      period: { from: dateFrom, to: dateTo },
+    };
   }
 }
