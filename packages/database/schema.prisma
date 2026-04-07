@@ -68,12 +68,13 @@ model Tenant {
 
 /// Пользователь системы (3 роли + админ)
 model User {
-  id        String   @id @default(uuid())
-  phone     String   @unique
-  name      String?             // ФИО
-  role      Role     @default(OPERATIONS_DIRECTOR)
-  isActive  Boolean  @default(true)
-  tenantId  String?             // null только для ADMIN
+  id               String   @id @default(uuid())
+  phone            String   @unique
+  name             String?             // ФИО
+  role             Role     @default(OPERATIONS_DIRECTOR)
+  isActive         Boolean  @default(true)
+  biometricEnabled Boolean  @default(false)
+  tenantId         String?             // null только для ADMIN
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
