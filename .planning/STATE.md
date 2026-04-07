@@ -31,6 +31,7 @@
 - **03-01** (2026-04-07): syncNomenclature() added to IikoSyncService — fetches iiko nomenclature groups via GET /v2/entities/products/group/list, upserts DdsArticleGroup by tenantId_code, writes SyncLog. Daily 03:00 Asia/Almaty cron added to SchedulerService. 4 unit tests all pass (upsert, SUCCESS log, ERROR log+throw, scheduler wiring). Commits: 281b4eb, d0947a4
 - **03-02** (2026-04-07): @sentry/node integrated — Sentry.init() before NestFactory.create() in main.ts, Sentry.withScope+captureException in 5 IikoSyncService and 3 OneCyncService catch blocks, jest.mock for test isolation, 2 success-path tests. All 20 tests pass. Commits: 5a41601, f5c6b9a
 - **03-03** (2026-04-07): Dead letter pattern implemented — needsManualReview Boolean @default(false) added to SyncLog schema + manual migration SQL; logSync() in IikoSyncService and OneCyncService marks 3 consecutive ERRORs needsManualReview=true via inner-try/catch-protected dead letter check; 3 unit tests pass (trigger on 3 errors, no trigger on mixed, resilient to dead letter failure). All 23 tests pass. Commits: bcd0a15, c19fed1
+- **03-04** (2026-04-07): syncKitchenShipmentsByRestaurant() added to OneCyncService — fetches Document_RealizationOfGoodsAndServices from 1C OData, matches counterparty to restaurant by oneCId then name, upserts Expense with direct restaurantId (bypasses cost allocation), skips unmatched with warn. Cron at :25 added to SchedulerService. 5 unit tests in new onec-sync.service.spec.ts. All 28 tests pass. Commits: e120593, a158589
 
 ## Key Decisions
 - **[02-00]** When DB unavailable, create Prisma migration SQL files manually in migrations/ directory with timestamp naming convention; apply later with `npx prisma migrate dev`
@@ -49,6 +50,8 @@
 - **[03-03]** Dead letter check wrapped in inner try/catch so DB failures never break logSync() caller — dead letter is best-effort
 - **[03-03]** Trigger condition: exactly 3 recent logs, all ERROR — strict 3-window check prevents false positives on 2 errors
 - **[03-03]** Manual migration SQL only (no prisma migrate dev) — consistent with 02-00 decision (no live DB available)
+- **[03-04]** Skip unmatched 1C counterparty with logger.warn+skippedCount — partial sync preferred over total failure
+- **[03-04]** DdsArticle code=kitchen_shipment with allocationType=DIRECT — kitchen shipments are direct costs, bypass cost allocation
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
