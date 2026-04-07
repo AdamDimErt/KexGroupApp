@@ -399,6 +399,32 @@ export class OneCyncService {
           businessDate: new Date(),
         },
       });
+
+      // Dead letter check: 3 consecutive ERRORs → needsManualReview
+      if (status === 'ERROR') {
+        try {
+          const recent = await this.prisma.syncLog.findMany({
+            where: { tenantId, system },
+            orderBy: { createdAt: 'desc' },
+            take: 3,
+            select: { id: true, status: true },
+          });
+
+          if (recent.length === 3 && recent.every((log) => log.status === 'ERROR')) {
+            await this.prisma.syncLog.updateMany({
+              where: { id: { in: recent.map((l) => l.id) } },
+              data: { needsManualReview: true },
+            });
+            this.logger.warn(
+              `Dead letter: 3 consecutive ERRORs for system=${system} — marked needsManualReview=true`,
+            );
+          }
+        } catch (dlError) {
+          this.logger.error(
+            `Dead letter check failed: ${dlError instanceof Error ? dlError.message : String(dlError)}`,
+          );
+        }
+      }
     } catch (error) {
       this.logger.error(
         `Failed to log sync: ${error instanceof Error ? error.message : String(error)}`,

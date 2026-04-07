@@ -62,6 +62,8 @@ describe('IikoSyncService', () => {
             },
             syncLog: {
               create: jest.fn(),
+              findMany: jest.fn().mockResolvedValue([]),
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
             },
             tenant: {
               findFirst: jest.fn().mockResolvedValue(null),
@@ -292,6 +294,71 @@ describe('IikoSyncService', () => {
       await scheduler.syncNomenclature();
 
       expect(mockIikoSync.syncNomenclature).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('dead letter pattern', () => {
+    beforeEach(() => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+    });
+
+    it('should set needsManualReview after 3 consecutive errors', async () => {
+      const recentErrors = [
+        { id: '1', status: 'ERROR' },
+        { id: '2', status: 'ERROR' },
+        { id: '3', status: 'ERROR' },
+      ];
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.findMany as jest.Mock).mockResolvedValue(recentErrors);
+      (prisma.syncLog.updateMany as jest.Mock).mockResolvedValue({ count: 3 });
+
+      // Trigger an error path — mock getAccessToken to fail
+      (iikoAuth.getAccessToken as jest.Mock).mockRejectedValue(new Error('Auth failed'));
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue([{ id: 'r1', iikoId: 'i1', name: 'Test' }]);
+
+      await service.syncRevenue(new Date(), new Date()).catch(() => {});
+
+      expect(prisma.syncLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ system: 'IIKO' }),
+          orderBy: { createdAt: 'desc' },
+          take: 3,
+        }),
+      );
+      expect(prisma.syncLog.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { needsManualReview: true },
+        }),
+      );
+    });
+
+    it('should NOT set needsManualReview when only 2 consecutive errors', async () => {
+      const recentMixed = [
+        { id: '1', status: 'ERROR' },
+        { id: '2', status: 'ERROR' },
+        { id: '3', status: 'SUCCESS' },
+      ];
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.findMany as jest.Mock).mockResolvedValue(recentMixed);
+
+      (iikoAuth.getAccessToken as jest.Mock).mockRejectedValue(new Error('Auth failed'));
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue([{ id: 'r1', iikoId: 'i1', name: 'Test' }]);
+
+      await service.syncRevenue(new Date(), new Date()).catch(() => {});
+
+      expect(prisma.syncLog.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('should not break logSync if dead letter check itself fails', async () => {
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.findMany as jest.Mock).mockRejectedValue(new Error('DB unavailable'));
+
+      (iikoAuth.getAccessToken as jest.Mock).mockRejectedValue(new Error('Auth failed'));
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue([{ id: 'r1', iikoId: 'i1', name: 'Test' }]);
+
+      // Should not throw from logSync — the outer error from syncRevenue is still thrown
+      await expect(service.syncRevenue(new Date(), new Date())).rejects.toThrow('Auth failed');
+      // logSync completed without propagating the dead letter error
     });
   });
 });
