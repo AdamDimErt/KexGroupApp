@@ -84,6 +84,16 @@ export const styles = StyleSheet.create({
     fontSize: 20, fontWeight: '600', textAlign: 'center',
   },
   backLink: { color: colors.textLabel, fontSize: 13, marginBottom: 14 },
+  resendTimer: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginBottom: 14,
+  },
+  resendLink: {
+    color: colors.accent,
+    fontSize: 13,
+    marginBottom: 14,
+  },
   footer: { color: colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 32 },
 });
 

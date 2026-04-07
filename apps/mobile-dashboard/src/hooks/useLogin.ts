@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { TextInput } from 'react-native';
 import { sendOtp, verifyOtp, saveTokens } from '../services/auth';
 import type { User } from '../types';
@@ -14,6 +14,8 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
   const [error, setError]                       = useState<string | null>(null);
   const [devHint, setDevHint]                   = useState<string | null>(null);
   const codeRefs                                = useRef<(TextInput | null)[]>([]);
+  const [resendTimer, setResendTimer]           = useState(0);
+  const timerRef                                = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Полный номер: код страны + введённые цифры
   // ICountry uses idd.root (e.g. "+7") not callingCode
@@ -22,6 +24,26 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
     : phoneValue.replace(/\D/g, '');
 
   const isPhoneReady = rawPhone.replace(/\D/g, '').length >= 7;
+
+  const startResendTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setResendTimer(60);
+    timerRef.current = setInterval(() => {
+      setResendTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   // Step 1: отправка OTP
   const handlePhoneSubmit = async () => {
@@ -32,6 +54,7 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
       const result = await sendOtp(rawPhone);
       if (result.message) setDevHint(result.message);
       setStep('code');
+      startResendTimer();
       setTimeout(() => codeRefs.current[0]?.focus(), 150);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Сервер недоступен');
@@ -79,11 +102,19 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
   };
 
   const goBackToPhone = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setResendTimer(0);
     setStep('phone');
     setCode(['', '', '', '', '', '']);
     setError(null);
     setPhoneValue('');
     setSelectedCountry(null);
+  };
+
+  const handleResend = async () => {
+    setCode(['', '', '', '', '', '']);
+    setError(null);
+    await handlePhoneSubmit();
   };
 
   return {
@@ -104,5 +135,7 @@ export function useLogin(onLogin: (accessToken: string, refreshToken: string, us
     handleCodeChange,
     handleKeyPress,
     goBackToPhone,
+    resendTimer,
+    handleResend,
   };
 }

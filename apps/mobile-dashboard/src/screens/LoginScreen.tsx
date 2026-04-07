@@ -18,6 +18,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
     step, phoneValue, setPhoneValue, selectedCountry, setSelectedCountry,
     code, loading, error, devHint, codeRefs, rawPhone, isPhoneReady,
     handlePhoneSubmit, submitCode, handleCodeChange, handleKeyPress, goBackToPhone,
+    resendTimer, handleResend,
   } = useLogin(onLogin);
 
   return (
@@ -103,6 +104,16 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             <TouchableOpacity onPress={goBackToPhone}>
               <Text style={styles.backLink}>← Изменить номер</Text>
             </TouchableOpacity>
+
+            {resendTimer > 0 ? (
+              <Text style={styles.resendTimer}>
+                Повторная отправка через {resendTimer} сек.
+              </Text>
+            ) : (
+              <TouchableOpacity onPress={handleResend} disabled={loading}>
+                <Text style={styles.resendLink}>Отправить снова</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={[styles.btn, (loading || code.some(d => !d)) && styles.btnDisabled]}
