@@ -354,6 +354,12 @@ Plans:
 ## Phase 5: API Gateway
 **Статус: 🔄 ~70% готово**
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Add 5 proxy routes to FinanceProxyController + unit tests
+- [ ] 05-02-PLAN.md — E2E test suite (supertest, role enforcement verification)
+
 - [x] JWT Guard (JwtAuthGuard — валидация Bearer токенов)
 - [x] Roles Guard (RolesGuard + @Roles() декоратор для ролевого доступа)
 - [x] **Публичные эндпоинты:**
@@ -365,7 +371,11 @@ Plans:
   - [x] `GET /api/finance/brand/:id` → proxy → finance-service
   - [x] `GET /api/finance/restaurant/:id` → proxy → finance-service
   - [x] `GET /api/finance/article/:id` → proxy → finance-service (OWNER + FIN_DIRECTOR)
-  - [ ] `GET /reports/*` → proxy → finance-service
+  - [ ] `GET /api/finance/article/:id/operations` → proxy → finance-service (OWNER only)
+  - [ ] `GET /api/finance/reports/dds` → proxy → finance-service (OWNER + FIN_DIRECTOR)
+  - [ ] `GET /api/finance/reports/company-expenses` → proxy → finance-service (OWNER + FIN_DIRECTOR)
+  - [ ] `GET /api/finance/reports/kitchen` → proxy → finance-service (all roles)
+  - [ ] `GET /api/finance/reports/trends` → proxy → finance-service (all roles)
 - [x] **Notifications эндпоинты (прямой сервис):**
   - [x] `POST /api/notifications/register-token` — регистрация FCM токена
   - [x] `POST /api/notifications/unregister-token` — удаление токена
@@ -382,7 +392,7 @@ Plans:
 - [x] `class-validator` + ValidationPipe (whitelist, forbidNonWhitelisted, transform)
 - [x] Health check: `GET /health` + `GET /api/health` (с uptime)
 - [x] CORS enabled (из env)
-- [ ] E2E тесты (supertest)
+- [ ] E2E тесты (supertest) — plan 05-02
 - [x] Unit-тесты для guards (jwt-auth.guard.spec.ts, roles.guard.spec.ts)
 
 ---
