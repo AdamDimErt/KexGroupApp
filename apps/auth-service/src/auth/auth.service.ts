@@ -60,12 +60,7 @@ export class AuthService {
 
     if (this.bypassPhones.includes(phone)) {
       const bypassCode = this.devOtpBypassCode;
-      await this.redis.set(
-        `otp:${phone}`,
-        bypassCode,
-        'EX',
-        this.OTP_TTL_SEC,
-      );
+      await this.redis.set(`otp:${phone}`, bypassCode, 'EX', this.OTP_TTL_SEC);
       this.logger.warn(`[DEV BYPASS] ${phone} — код: ${bypassCode}`);
       return {
         success: true,
@@ -87,7 +82,12 @@ export class AuthService {
 
   // ─── Verify OTP → issue tokens ────────────────────────────────────────────
 
-  async verifyOtp(phone: string, code: string): Promise<AuthSuccessDto> {
+  async verifyOtp(
+    phone: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AuthSuccessDto> {
     const attemptsKey = `otp_attempts:${phone}`;
     const attempts = parseInt((await this.redis.get(attemptsKey)) ?? '0', 10);
 
@@ -111,13 +111,21 @@ export class AuthService {
     await this.redis.del(attemptsKey);
 
     const user = await this.findOrCreateUser(phone);
+    void this.writeAuditLog(user.id, 'LOGIN', ip, userAgent);
     return this.issueTokens(user);
   }
 
   // ─── Logout ──────────────────────────────────────────────────────────────
 
-  async logout(refreshToken: string): Promise<void> {
+  async logout(
+    refreshToken: string,
+    userId?: string,
+    ip?: string,
+  ): Promise<void> {
     await this.redis.del(`refresh:${refreshToken}`);
+    if (userId) {
+      void this.writeAuditLog(userId, 'LOGOUT', ip);
+    }
   }
 
   // ─── Refresh token ────────────────────────────────────────────────────────
@@ -220,6 +228,23 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  private async writeAuditLog(
+    userId: string,
+    action: string,
+    ip?: string,
+    userAgent?: string,
+    entity?: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.auditLog.create({
+        data: { userId, action, ip, userAgent, entity },
+      });
+    } catch (e) {
+      // Never let audit log failure break auth flow
+      this.logger.error('AuditLog write failed', e);
+    }
   }
 
   private async sendSms(phone: string, text: string): Promise<void> {

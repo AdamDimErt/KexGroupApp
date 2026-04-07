@@ -4,6 +4,8 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Trust the first proxy (Nginx) so req.ip returns real client IP
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   // Enable CORS for mobile and other clients
   app.enableCors({

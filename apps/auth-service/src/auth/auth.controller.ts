@@ -7,10 +7,17 @@ import {
   HttpCode,
   HttpStatus,
   UnauthorizedException,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
-import { SendOtpDto, VerifyOtpDto, RefreshTokenDto, LogoutDto } from './dto/auth.dto';
+import {
+  SendOtpDto,
+  VerifyOtpDto,
+  RefreshTokenDto,
+  LogoutDto,
+} from './dto/auth.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -27,8 +34,10 @@ export class AuthController {
 
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
-  verifyOtp(@Body() body: VerifyOtpDto) {
-    return this.authService.verifyOtp(body.phone, body.code);
+  verifyOtp(@Body() body: VerifyOtpDto, @Req() req: Request) {
+    const ip = req.ip ?? req.headers['x-forwarded-for']?.toString();
+    const userAgent = req.headers['user-agent'];
+    return this.authService.verifyOtp(body.phone, body.code, ip, userAgent);
   }
 
   @Post('refresh')
@@ -39,8 +48,24 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  logout(@Body() body: LogoutDto) {
-    return this.authService.logout(body.refreshToken);
+  logout(
+    @Body() body: LogoutDto,
+    @Req() req: Request,
+    @Headers('authorization') authHeader?: string,
+  ) {
+    let userId: string | undefined;
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const payload = this.jwtService.verify<{ sub: string }>(
+          authHeader.slice(7),
+        );
+        userId = payload.sub;
+      } catch {
+        // Token expired or invalid — still allow logout
+      }
+    }
+    const ip = req.ip ?? req.headers['x-forwarded-for']?.toString();
+    return this.authService.logout(body.refreshToken, userId, ip);
   }
 
   @Get('me')
