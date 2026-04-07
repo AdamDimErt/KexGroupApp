@@ -1,11 +1,14 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { colors } from '../theme';
 import { RestaurantCard } from '../components/RestaurantCard';
 import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
+import { SkeletonLoader } from '../components/SkeletonLoader';
 import { useDashboard } from '../hooks/useDashboard';
 import { useDashboardStore } from '../store/dashboard';
+import { useAuthStore } from '../store/auth';
 import { styles } from './DashboardScreen.styles';
 
 interface DashboardProps {
@@ -16,15 +19,45 @@ interface DashboardProps {
 }
 
 export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onLogout }: DashboardProps) {
-  const { totalRevenue, totalExpenses, financialResult, totalRestaurantCount, restaurantItems, confirmLogout, isLoading, error } = useDashboard(onLogout);
+  const { totalRevenue, totalExpenses, financialResult, totalRestaurantCount, restaurantItems, confirmLogout, isLoading, error, lastSyncAt, refetch } = useDashboard(onLogout);
   const heroLabel = usePeriodHeroLabel('ВЫРУЧКА');
+  const role = useAuthStore(s => s.user?.role);
+  const showBalance = role === 'OWNER' || role === 'FINANCE_DIRECTOR';
+
+  const handleRefresh = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    refetch();
+  };
+
+  const formatAmount = (amount: number) => {
+    if (Math.abs(amount) >= 1000000) return `₸${(amount / 1000000).toFixed(1)}M`;
+    if (Math.abs(amount) >= 1000) return `₸${(amount / 1000).toFixed(0)}K`;
+    return `₸${amount.toFixed(0)}`;
+  };
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', flex: 1 }]}>
-        <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={[styles.heroGray, { marginTop: 12 }]}>Загрузка данных...</Text>
-      </View>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {/* Header stays the same */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Загрузка...</Text>
+            <Text style={styles.title}>Kex Group</Text>
+          </View>
+        </View>
+        <View style={styles.skeletonRow}>
+          <SkeletonLoader width={'33%'} height={70} borderRadius={12} />
+          <SkeletonLoader width={'33%'} height={70} borderRadius={12} />
+          <SkeletonLoader width={'33%'} height={70} borderRadius={12} />
+        </View>
+        <View style={{ marginHorizontal: 16, marginTop: 16 }}>
+          <SkeletonLoader width={'100%'} height={120} borderRadius={16} />
+        </View>
+        <View style={{ marginHorizontal: 16, marginTop: 16, gap: 12 }}>
+          <SkeletonLoader width={'100%'} height={80} borderRadius={12} />
+          <SkeletonLoader width={'100%'} height={80} borderRadius={12} />
+        </View>
+      </ScrollView>
     );
   }
 
@@ -37,14 +70,13 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
     );
   }
 
-  const formatAmount = (amount: number) => {
-    if (Math.abs(amount) >= 1000000) return `₸${(amount / 1000000).toFixed(1)}M`;
-    if (Math.abs(amount) >= 1000) return `₸${(amount / 1000).toFixed(0)}K`;
-    return `₸${amount.toFixed(0)}`;
-  };
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor={colors.accent} />}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -64,6 +96,39 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
 
       {/* Period Selector */}
       <PeriodSelector marginTop={16} />
+
+      {/* Three KPI cards */}
+      <View style={styles.kpiRow}>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>ВЫРУЧКА</Text>
+          <Text style={styles.kpiValue}>{formatAmount(totalRevenue)}</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiLabel}>РАСХОДЫ</Text>
+          <Text style={styles.kpiValue}>{formatAmount(totalExpenses)}</Text>
+        </View>
+        {showBalance && (
+          <View style={styles.kpiCard}>
+            <Text style={styles.kpiLabel}>БАЛАНС</Text>
+            <Text style={[styles.kpiValue, { color: financialResult >= 0 ? '#10B981' : '#EF4444' }]}>
+              {formatAmount(financialResult)}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Last sync indicator */}
+      {lastSyncAt && (() => {
+        const isStale = (Date.now() - new Date(lastSyncAt).getTime()) > 3600000;
+        const syncColor = isStale ? '#EF4444' : 'rgba(255,255,255,0.35)';
+        const timeStr = new Date(lastSyncAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        return (
+          <View style={styles.syncRow}>
+            <View style={[styles.syncDot, { backgroundColor: syncColor }]} />
+            <Text style={[styles.syncText, { color: syncColor }]}>Синхронизация: {timeStr}</Text>
+          </View>
+        );
+      })()}
 
       {/* Hero Card — общая выручка */}
       <View style={styles.heroCard}>

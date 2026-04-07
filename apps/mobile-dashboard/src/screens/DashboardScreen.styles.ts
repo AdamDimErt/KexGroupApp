@@ -19,6 +19,21 @@ export const styles = StyleSheet.create({
     width: 8, height: 8, borderRadius: 4,
     backgroundColor: colors.red, borderWidth: 1.5, borderColor: colors.bg,
   },
+  // Period selector
+  periodRow: { marginTop: 16 },
+  periodRowContent: { paddingHorizontal: 20, gap: 8 },
+  periodChip: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgCard,
+  },
+  periodChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+  },
+  periodChipText: { color: colors.textTertiary, fontSize: 13, fontWeight: '500' },
+  periodChipTextActive: { color: '#FFF' },
   // Hero Card
   heroCard: {
     marginHorizontal: 20, marginTop: 16,
@@ -53,4 +68,52 @@ export const styles = StyleSheet.create({
   balanceBank: { color: colors.textTertiary, fontSize: 11 },
   balanceAmount: { color: colors.textPrimary, fontSize: 15, fontWeight: '500', marginTop: 2 },
   balanceUpd: { color: colors.textTertiary, fontSize: 10, marginTop: 2 },
+  // KPI row (three cards)
+  kpiRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 16,
+    gap: 8,
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: '#12122A',
+    borderRadius: 12,
+    padding: 12,
+  },
+  kpiLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  kpiValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  // Sync indicator
+  syncRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
+  syncDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  syncText: {
+    fontSize: 11,
+  },
+  // Skeleton
+  skeletonRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 16,
+    gap: 8,
+  },
 });

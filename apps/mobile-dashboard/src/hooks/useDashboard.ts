@@ -15,7 +15,10 @@ export interface DashboardRestaurantItem {
 }
 
 export function useDashboard(onLogout: () => void) {
-  const { data: summary, isLoading, error } = useDashboardSummary();
+  const { data: summary, isLoading, error, refetch } = useDashboardSummary();
+
+  const lastSyncAt = summary?.lastSyncAt ?? null;
+  const lastSyncStatus = summary?.lastSyncStatus ?? null;
 
   const totalRevenue = summary?.totalRevenue ?? 0;
   const totalExpenses = summary?.totalExpenses ?? 0;
@@ -55,5 +58,8 @@ export function useDashboard(onLogout: () => void) {
     confirmLogout,
     isLoading,
     error,
+    lastSyncAt,
+    lastSyncStatus,
+    refetch,
   };
 }
