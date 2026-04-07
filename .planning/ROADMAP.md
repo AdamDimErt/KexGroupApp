@@ -219,8 +219,15 @@ Plans:
 ## Phase 3: Aggregator Worker (iiko + 1С)
 **Статус: 🔄 ~70% готово**
 **Срок по ТЗ: Этап 1 (iiko) + Этап 2 (1С) = 6-8 недель**
+**Plans:** 4 plans
 
 > 📚 **NotebookLM обязателен** — см. `.planning/NOTEBOOKLM.md`
+
+Plans:
+- [ ] 03-01-PLAN.md — iiko nomenclature groups sync (syncNomenclature + cron + tests)
+- [ ] 03-02-PLAN.md — Sentry integration (@sentry/node init + captureException in all catch blocks)
+- [ ] 03-03-PLAN.md — Dead letter pattern (needsManualReview field + logSync logic + tests)
+- [ ] 03-04-PLAN.md — 1C kitchen shipments by restaurant (syncKitchenShipmentsByRestaurant + cron + tests)
 
 ### 3.1 iiko интеграция
 - [x] 📖 Исследование iiko Cloud API (21 эндпоинт, приоритеты CRITICAL/HIGH/MEDIUM/LOW)
