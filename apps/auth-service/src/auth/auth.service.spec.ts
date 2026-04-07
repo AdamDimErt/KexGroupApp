@@ -60,6 +60,9 @@ describe('AuthService', () => {
         findUnique: jest.fn(),
         create: jest.fn(),
       },
+      auditLog: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+      },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -262,6 +265,44 @@ describe('AuthService', () => {
       await expect(service.verifyOtp(phone, validCode)).rejects.toThrow(
         new HttpException('Аккаунт деактивирован.', HttpStatus.FORBIDDEN),
       );
+    });
+
+    it('should write AuditLog on successful OTP verification', async () => {
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `otp:${phone}`) return validCode;
+        if (key === `otp_attempts:${phone}`) return null;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser as any);
+
+      await service.verifyOtp(phone, validCode, '127.0.0.1', 'TestAgent');
+
+      // Give fire-and-forget a tick to execute
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: 'user-123',
+          action: 'LOGIN',
+          ip: '127.0.0.1',
+          userAgent: 'TestAgent',
+          entity: undefined,
+        },
+      });
+    });
+
+    it('should not break auth flow if AuditLog write fails', async () => {
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `otp:${phone}`) return validCode;
+        if (key === `otp_attempts:${phone}`) return null;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(mockUser as any);
+      mockPrisma.auditLog.create.mockRejectedValue(new Error('DB down'));
+
+      const result = await service.verifyOtp(phone, validCode, '127.0.0.1');
+
+      expect(result.accessToken).toBe('mock.jwt.token.signed');
     });
   });
 
