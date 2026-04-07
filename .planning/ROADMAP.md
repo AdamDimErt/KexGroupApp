@@ -352,13 +352,13 @@ Plans:
 ---
 
 ## Phase 5: API Gateway
-**Статус: 🔄 ~70% готово**
+**Статус: ✅ 100% готово**
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 05-01-PLAN.md — Add 5 proxy routes to FinanceProxyController + unit tests
-- [ ] 05-02-PLAN.md — E2E test suite (supertest, role enforcement verification)
+- [x] 05-01-PLAN.md — Add 5 proxy routes to FinanceProxyController + unit tests
+- [x] 05-02-PLAN.md — E2E test suite (supertest, role enforcement verification)
 
 - [x] JWT Guard (JwtAuthGuard — валидация Bearer токенов)
 - [x] Roles Guard (RolesGuard + @Roles() декоратор для ролевого доступа)
@@ -371,11 +371,11 @@ Plans:
   - [x] `GET /api/finance/brand/:id` → proxy → finance-service
   - [x] `GET /api/finance/restaurant/:id` → proxy → finance-service
   - [x] `GET /api/finance/article/:id` → proxy → finance-service (OWNER + FIN_DIRECTOR)
-  - [ ] `GET /api/finance/article/:id/operations` → proxy → finance-service (OWNER only)
-  - [ ] `GET /api/finance/reports/dds` → proxy → finance-service (OWNER + FIN_DIRECTOR)
-  - [ ] `GET /api/finance/reports/company-expenses` → proxy → finance-service (OWNER + FIN_DIRECTOR)
-  - [ ] `GET /api/finance/reports/kitchen` → proxy → finance-service (all roles)
-  - [ ] `GET /api/finance/reports/trends` → proxy → finance-service (all roles)
+  - [x] `GET /api/finance/article/:id/operations` → proxy → finance-service (OWNER only)
+  - [x] `GET /api/finance/reports/dds` → proxy → finance-service (OWNER + FINANCE_DIRECTOR)
+  - [x] `GET /api/finance/reports/company-expenses` → proxy → finance-service (OWNER + FINANCE_DIRECTOR)
+  - [x] `GET /api/finance/reports/kitchen` → proxy → finance-service (all 3 roles)
+  - [x] `GET /api/finance/reports/trends` → proxy → finance-service (all 3 roles)
 - [x] **Notifications эндпоинты (прямой сервис):**
   - [x] `POST /api/notifications/register-token` — регистрация FCM токена
   - [x] `POST /api/notifications/unregister-token` — удаление токена
@@ -392,7 +392,7 @@ Plans:
 - [x] `class-validator` + ValidationPipe (whitelist, forbidNonWhitelisted, transform)
 - [x] Health check: `GET /health` + `GET /api/health` (с uptime)
 - [x] CORS enabled (из env)
-- [ ] E2E тесты (supertest) — plan 05-02
+- [x] E2E тесты (supertest) — 7 тестов: role enforcement, 403/200 для всех ролей
 - [x] Unit-тесты для guards (jwt-auth.guard.spec.ts, roles.guard.spec.ts)
 
 ---
@@ -586,7 +586,7 @@ Plans:
 | 2 | 3/5 | In Progress|  |
 | 3 | 4/4 | Complete   | 2026-04-07 |
 | 4 | 3/3 | Complete   | 2026-04-07 |
-| 5 | 1/2 | In Progress|  |
+| 5 | 2/2 | Complete   | 2026-04-07 |
 | 6 | Mobile — Основа (auth, навигация) | 🔄 В процессе | ~60% |
 | 7 | Mobile — Экраны (drill-down + отчёты) | 🔄 В процессе | ~45% |
 | 8 | Push-уведомления | 🔄 В процессе | ~25% |
