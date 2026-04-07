@@ -1,129 +1,173 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useReports, PERIODS } from '../hooks/useReports';
-import { planColor } from '../utils/calculations';
+import { View, Text, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { PeriodSelector } from '../components/PeriodSelector';
+import { OfflineBanner } from '../components/OfflineBanner';
+import { useAuthStore } from '../store/auth';
+import { useReportDds, useReportCompanyExpenses, useReportKitchen, useReportTrends } from '../hooks/useReports';
 import { colors } from '../theme';
 import { styles } from './ReportsScreen.styles';
-import type { Period } from '../types';
+
+function fmtAmount(value: number): string {
+  if (Math.abs(value) >= 1000000) return `₸${(value / 1000000).toFixed(1)}M`;
+  if (Math.abs(value) >= 1000) return `₸${Math.round(value / 1000)}K`;
+  return `₸${value.toFixed(0)}`;
+}
 
 export function ReportsScreen() {
-  const { period, setPeriod, periodLabels, kpi, barData, ranking, maxFact, isLoading, error } = useReports();
+  const role = useAuthStore(s => s.user?.role);
+  const canSeeDds = role === 'OWNER' || role === 'FINANCE_DIRECTOR';
+  const canSeeCompany = role === 'OWNER' || role === 'FINANCE_DIRECTOR';
+
+  // Each section fetches independently
+  const dds = useReportDds();
+  const company = useReportCompanyExpenses();
+  const kitchen = useReportKitchen();
+  const trends = useReportTrends();
+
+  // Aggregate offline state
+  const isAnyOffline = dds.isOffline || company.isOffline || kitchen.isOffline || trends.isOffline;
+  const isAnyStale = dds.isStale || company.isStale || kitchen.isStale || trends.isStale;
+  const cachedAtValues = [dds.cachedAt, company.cachedAt, kitchen.cachedAt, trends.cachedAt].filter(
+    (v): v is number => v !== null,
+  );
+  const earliestCache = cachedAtValues.length > 0 ? Math.min(...cachedAtValues) : null;
+
+  const refetchAll = () => {
+    dds.refetch();
+    company.refetch();
+    kitchen.refetch();
+    trends.refetch();
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Аналитика</Text>
-
-        {/* Period pills */}
-        <View style={styles.periodRow}>
-          {PERIODS.map(p => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.periodPill, period === p && styles.periodPillActive]}
-              onPress={() => setPeriod(p)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
-                {periodLabels[p]}
-              </Text>
-            </TouchableOpacity>
-          ))}
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <OfflineBanner isOffline={isAnyOffline} isStale={isAnyStale} cachedAt={earliestCache} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={refetchAll} tintColor={colors.accent} />}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Аналитика</Text>
         </View>
-      </View>
 
-      {isLoading && (
-        <View style={{ padding: 40, alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={colors.accent} />
-          <Text style={{ color: colors.textTertiary, marginTop: 8 }}>Загрузка данных...</Text>
-        </View>
-      )}
+        <PeriodSelector marginTop={12} />
 
-      {error && !isLoading && (
-        <View style={{ padding: 24, alignItems: 'center' }}>
-          <Text style={{ color: colors.red, fontSize: 14 }}>Ошибка: {error}</Text>
-        </View>
-      )}
-
-      <View style={styles.body}>
-        {/* KPI Cards — horizontal scroll */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.kpiRow}>
-          {/* Card 1 — gradient */}
-          <View style={[styles.kpiCard, styles.kpiCardGradient]}>
-            <Text style={styles.kpiLabelWhite}>ВЫРУЧКА</Text>
-            <Text style={styles.kpiValueWhite}>{kpi.revenue}</Text>
-            <Text style={styles.kpiChangeGreen}>↑ {kpi.revChg}</Text>
-            <Text style={styles.kpiSource}>iiko + 1С</Text>
+        {/* DDS Summary — OWNER + FIN_DIR only */}
+        {canSeeDds && (
+          <View style={styles.reportCard}>
+            <Text style={styles.reportTitle}>ДДС сводный</Text>
+            {dds.isLoading ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : dds.error ? (
+              <Text style={styles.reportError}>{dds.error}</Text>
+            ) : (
+              <>
+                <Text style={styles.reportTotal}>Итого: {fmtAmount(dds.data?.grandTotal ?? 0)}</Text>
+                {(dds.data?.groups ?? []).map(group => (
+                  <View key={group.groupId} style={styles.reportRow}>
+                    <Text style={styles.reportLabel}>{group.groupName}</Text>
+                    <Text style={styles.reportValue}>{fmtAmount(group.totalAmount)}</Text>
+                  </View>
+                ))}
+              </>
+            )}
           </View>
+        )}
 
-          {/* Card 2 */}
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>РАСХОДЫ</Text>
-            <Text style={styles.kpiValue}>{kpi.expenses}</Text>
-            <Text style={styles.kpiChange}>↑ {kpi.expChg}</Text>
-            <Text style={styles.kpiSourceDim}>iiko + 1С</Text>
+        {/* Company Expenses — OWNER + FIN_DIR only */}
+        {canSeeCompany && (
+          <View style={styles.reportCard}>
+            <Text style={styles.reportTitle}>Затраты компании</Text>
+            {company.isLoading ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : company.error ? (
+              <Text style={styles.reportError}>{company.error}</Text>
+            ) : (
+              <>
+                <Text style={styles.reportTotal}>Итого: {fmtAmount(company.data?.grandTotal ?? 0)}</Text>
+                {(company.data?.items ?? []).map(item => (
+                  <View key={item.articleId} style={styles.reportRow}>
+                    <Text style={styles.reportLabel}>{item.articleName}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.reportValue}>{fmtAmount(item.amount)}</Text>
+                      <Text style={styles.reportBadge}>{item.source === 'IIKO' ? 'iiko' : '1С'}</Text>
+                    </View>
+                  </View>
+                ))}
+              </>
+            )}
           </View>
+        )}
 
-          {/* Card 3 */}
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>ПРИБЫЛЬ</Text>
-            <Text style={styles.kpiValue}>{kpi.profit}</Text>
-            <Text style={styles.kpiChangeGreen}>↑ {kpi.profChg}</Text>
-            <Text style={styles.kpiSourceDim}>iiko + 1С</Text>
-          </View>
-        </ScrollView>
-
-        {/* Bar Chart: Факт vs План */}
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Факт vs План</Text>
-          {barData.map((d, i) => (
-            <View key={i} style={styles.chartRow}>
-              <Text style={styles.chartLabel}>{d.name}</Text>
-              <View style={styles.chartBarsWrap}>
-                <View style={[styles.chartBarFact, { width: `${(d.fact / maxFact) * 100}%` }]} />
-                <View style={[styles.chartBarPlan, { width: `${(d.plan / maxFact) * 100}%` }]} />
+        {/* Kitchen — all roles */}
+        <View style={styles.reportCard}>
+          <Text style={styles.reportTitle}>Цех</Text>
+          {kitchen.isLoading ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : kitchen.error ? (
+            <Text style={styles.reportError}>{kitchen.error}</Text>
+          ) : (
+            <>
+              <View style={styles.reportRow}>
+                <Text style={styles.reportLabel}>Закупки</Text>
+                <Text style={styles.reportValue}>{fmtAmount(kitchen.data?.totalPurchases ?? 0)}</Text>
               </View>
-            </View>
-          ))}
-          <View style={styles.legendRow}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
-              <Text style={styles.legendText}>Факт</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: 'rgba(59,130,246,0.4)' }]} />
-              <Text style={styles.legendText}>План</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Restaurant Ranking */}
-        <View style={styles.rankCard}>
-          <Text style={styles.rankTitle}>Рейтинг · Выручка</Text>
-          {ranking.map((r, idx) => (
-            <View key={r.name} style={[styles.rankRow, idx < ranking.length - 1 && styles.rankRowBorder]}>
-              <View style={styles.rankCircle}>
-                <Text style={styles.rankNum}>{idx + 1}</Text>
+              <View style={styles.reportRow}>
+                <Text style={styles.reportLabel}>Отгрузки</Text>
+                <Text style={styles.reportValue}>{fmtAmount(kitchen.data?.totalShipments ?? 0)}</Text>
               </View>
-              <Text style={styles.rankName}>{r.name}</Text>
-              <Text style={styles.rankRevenue}>{r.revenue}</Text>
-              <Text style={[styles.rankPct, { color: planColor(r.planPct) }]}>
-                {r.planPct}%
-              </Text>
-            </View>
-          ))}
+              <View style={styles.reportRow}>
+                <Text style={styles.reportLabel}>Доход</Text>
+                <Text style={[styles.reportValue, { color: '#10B981' }]}>
+                  {fmtAmount(kitchen.data?.totalIncome ?? 0)}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
 
-        {/* Export buttons */}
-        <View style={styles.exportRow}>
-          <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7}>
-            <Text style={styles.exportText}>📤 Отправить</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7}>
-            <Text style={styles.exportText}>📄 PDF</Text>
-          </TouchableOpacity>
+        {/* Trends — all roles */}
+        <View style={styles.reportCard}>
+          <Text style={styles.reportTitle}>Тренды</Text>
+          {trends.isLoading ? (
+            <ActivityIndicator size="small" color={colors.accent} />
+          ) : trends.error ? (
+            <Text style={styles.reportError}>{trends.error}</Text>
+          ) : (
+            <>
+              <View style={styles.reportRow}>
+                <Text style={styles.reportLabel}>Ср. выручка/день</Text>
+                <Text style={styles.reportValue}>{fmtAmount(trends.data?.avgRevenue ?? 0)}</Text>
+              </View>
+              <View style={styles.reportRow}>
+                <Text style={styles.reportLabel}>Ср. расходы/день</Text>
+                <Text style={styles.reportValue}>{fmtAmount(trends.data?.avgExpenses ?? 0)}</Text>
+              </View>
+              {/* Simple bar chart for trend points */}
+              {(trends.data?.points ?? []).length > 0 && (() => {
+                const pts = trends.data!.points;
+                const maxRev = Math.max(...pts.map(p => p.revenue), 1);
+                return (
+                  <View style={styles.trendChart}>
+                    {pts.slice(-14).map((pt, i) => (
+                      <View key={i} style={styles.trendBar}>
+                        <View style={[styles.trendBarFill, { height: Math.max((pt.revenue / maxRev) * 60, 2) }]} />
+                        <Text style={styles.trendBarLabel}>
+                          {new Date(pt.date).getDate()}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
+            </>
+          )}
         </View>
-      </View>
-    </ScrollView>
+
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    </View>
   );
 }
