@@ -7,6 +7,7 @@ import { IikoModule } from './iiko/iiko.module';
 import { OneCModule } from './onec/onec.module';
 import { AllocationModule } from './allocation/allocation.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { AlertModule } from './alert/alert.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     IikoModule,
     OneCModule,
     AllocationModule,
+    AlertModule,
     SchedulerModule,
   ],
   controllers: [AppController],
