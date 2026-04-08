@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iiko Cloud API — KEX GROUP Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232636;
+      --border: #2e3148;
+      --accent: #6c63ff;
+      --accent2: #00d4aa;
+      --red: #ff4d6d;
+      --orange: #ff9f43;
+      --yellow: #ffd32a;
+      --green: #0be881;
+      --text: #e8eaf0;
+      --text2: #8b90a7;
+      --text3: #5a5f7a;
+      --critical: #ff4d6d;
+      --high: #ff9f43;
+      --medium: #ffd32a;
+      --low: #0be881;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ─── Header ─── */
+    .header {
+      background: linear-gradient(135deg, #1a1d27 0%, #0f1117 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .header p { font-size: 13px; color: var(--text2); margin-top: 2px; }
+    .badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--text2);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+    /* ─── Stats bar ─── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-item {
+      background: var(--surface);
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .stat-value { font-size: 28px; font-weight: 800; }
+    .stat-label { font-size: 12px; color: var(--text2); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ─── Layout ─── */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: calc(100vh - 135px);
+    }
+
+    /* ─── Sidebar ─── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 0;
+      position: sticky;
+      top: 135px;
+      height: calc(100vh - 135px);
+      overflow-y: auto;
+    }
+    .sidebar-section { padding: 0 12px; margin-bottom: 8px; }
+    .sidebar-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text3);
+      padding: 0 12px;
+      margin-bottom: 6px;
+    }
+    .nav-btn {
+      width: 100%;
+      background: none;
+      border: none;
+      color: var(--text2);
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.15s;
+    }
+    .nav-btn:hover { background: var(--surface2); color: var(--text); }
+    .nav-btn.active { background: rgba(108, 99, 255, 0.15); color: var(--accent); }
+    .nav-btn .count {
+      margin-left: auto;
+      background: var(--surface2);
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: var(--text2);
+    }
+    .nav-btn.active .count { background: rgba(108, 99, 255, 0.2); color: var(--accent); }
+
+    /* ─── Main ─── */
+    .main { padding: 28px 32px; overflow-y: auto; }
+
+    /* ─── Section Tabs ─── */
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; flex-wrap: wrap; }
+    .tab {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+    .tab:hover { border-color: var(--accent); color: var(--text); }
+    .tab.active { background: rgba(108, 99, 255, 0.15); border-color: var(--accent); color: var(--accent); }
+
+    /* ─── Cards ─── */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .card-header:hover { background: rgba(255,255,255,0.02); }
+    .method-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 5px;
+      letter-spacing: 0.5px;
+      min-width: 46px;
+      text-align: center;
+    }
+    .method-POST { background: rgba(108,99,255,0.2); color: var(--accent); }
+    .method-GET { background: rgba(0,212,170,0.2); color: var(--accent2); }
+    .endpoint-path {
+      font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .endpoint-name { font-size: 13px; color: var(--text2); }
+    .priority-badge {
+      margin-left: auto;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .p-CRITICAL { background: rgba(255,77,109,0.15); color: var(--critical); border: 1px solid rgba(255,77,109,0.3); }
+    .p-HIGH { background: rgba(255,159,67,0.15); color: var(--high); border: 1px solid rgba(255,159,67,0.3); }
+    .p-MEDIUM { background: rgba(255,211,42,0.15); color: var(--medium); border: 1px solid rgba(255,211,42,0.3); }
+    .p-LOW { background: rgba(11,232,129,0.15); color: var(--low); border: 1px solid rgba(11,232,129,0.3); }
+    .chevron { color: var(--text3); transition: transform 0.2s; font-size: 12px; }
+    .chevron.open { transform: rotate(180deg); }
+
+    .card-body { display: none; padding: 0 20px 20px; border-top: 1px solid var(--border); }
+    .card-body.open { display: block; }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .field-block { }
+    .field-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text3);
+      margin-bottom: 8px;
+    }
+    .field-value {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .code-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--accent2);
+      line-height: 1.7;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .tag {
+      display: inline-block;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: var(--text2);
+      margin: 2px;
+    }
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,212,170,0.1);
+      border: 1px solid rgba(0,212,170,0.2);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--accent2);
+    }
+    .note-block {
+      background: rgba(255,211,42,0.05);
+      border: 1px solid rgba(255,211,42,0.15);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #ffd32a99;
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ─── Auth Card special ─── */
+    .auth-card {
+      background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(0,212,170,0.05));
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .auth-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .auth-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+    .auth-stat { text-align: center; }
+    .auth-stat-val { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .auth-stat-lbl { font-size: 11px; color: var(--text2); margin-top: 3px; }
+
+    /* ─── Sync plan ─── */
+    .sync-timeline { position: relative; padding-left: 28px; }
+    .sync-step {
+      position: relative;
+      padding: 16px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+    .sync-step::before {
+      content: '';
+      position: absolute;
+      left: -20px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg);
+    }
+    .sync-timeline::before {
+      content: '';
+      position: absolute;
+      left: 5px; top: 0; bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .sync-step-header { display: flex; align-items: center; gap: 10px; }
+    .step-num {
+      width: 24px; height: 24px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: white;
+      flex-shrink: 0;
+    }
+    .step-name { font-weight: 600; font-size: 14px; }
+    .step-schedule { margin-left: auto; }
+    .step-details { font-size: 13px; color: var(--text2); margin-top: 8px; padding-left: 34px; }
+    .step-target {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(0,212,170,0.08);
+      border: 1px solid rgba(0,212,170,0.15);
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: var(--accent2);
+      margin-top: 6px;
+    }
+
+    /* ─── Limitations ─── */
+    .limit-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 14px;
+    }
+    .limit-icon { font-size: 20px; flex-shrink: 0; }
+    .limit-title { font-weight: 600; font-size: 14px; }
+    .limit-desc { font-size: 13px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
+
+    /* ─── Recommendations ─── */
+    .rec-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+    }
+    .rec-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .phase-badge {
+      font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px;
+      background: rgba(108,99,255,0.15); color: var(--accent);
+    }
+    .rec-action { font-size: 14px; font-weight: 600; }
+    .rec-reason { font-size: 13px; color: var(--text2); margin-top: 6px; }
+    .rec-endpoints { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px; }
+
+    /* ─── Cost Allocation ─── */
+    .algo-step {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .algo-num {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .formula-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: 13px;
+      color: var(--accent2);
+      margin: 16px 0;
+      line-height: 2;
+    }
+
+    /* ─── Filter bar ─── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 8px 14px;
+      font-size: 13px;
+      outline: none;
+      width: 240px;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text2);
+      padding: 8px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+    .filter-btn.active { background: rgba(108,99,255,0.15); border-color: var(--accent); color: var(--accent); }
+
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .auth-grid { grid-template-columns: repeat(2, 1fr); }
+      .main { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Header ─── -->
+<div class="header">
+  <div class="header-left">
+    <div class="logo">🍔</div>
+    <div>
+      <h1>iiko Cloud API</h1>
+      <p>KEX GROUP Dashboard · Исследование API · 27 марта 2026</p>
+    </div>
+  </div>
+  <div class="badge">
+    <div class="dot"></div>
+    api-ru.iiko.services/api/1/
+  </div>
+</div>
+
+<!-- ─── Stats bar ─── -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-value" style="color:var(--critical)">6</div>
+    <div class="stat-label">CRITICAL</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" style="color:var(--high)">4</div>
+    <div class="stat-label">HIGH</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" style="color:var(--medium)">4</div>
+    <div class="stat-label">MEDIUM</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" style="color:var(--low)">7</div>
+    <div class="stat-label">LOW</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" style="color:var(--accent)">21</div>
+    <div class="stat-label">Всего endpoint</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" style="color:var(--accent2)">7</div>
+    <div class="stat-label">Шагов синхронизации</div>
+  </div>
+</div>
+
+<!-- ─── Layout ─── -->
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-label">Навигация</div>
+    <div class="sidebar-section">
+      <button class="nav-btn active" onclick="switchTab('all')">
+        <span>📋</span> Все эндпоинты <span class="count">21</span>
+      </button>
+      <button class="nav-btn" onclick="switchTab('auth')">
+        <span>🔑</span> Аутентификация
+      </button>
+      <button class="nav-btn" onclick="switchTab('sync')">
+        <span>🔄</span> План синхронизации
+      </button>
+      <button class="nav-btn" onclick="switchTab('cost')">
+        <span>💰</span> Cost Allocation
+      </button>
+      <button class="nav-btn" onclick="switchTab('limits')">
+        <span>⚠️</span> Ограничения
+      </button>
+      <button class="nav-btn" onclick="switchTab('recs')">
+        <span>💡</span> Рекомендации
+      </button>
+    </div>
+    <div style="height:1px;background:var(--border);margin:12px 0"></div>
+    <div class="sidebar-label">Группы</div>
+    <div class="sidebar-section">
+      <button class="nav-btn" onclick="filterGroup('Organizations')">
+        <span>🏢</span> Organizations <span class="count">1</span>
+      </button>
+      <button class="nav-btn" onclick="filterGroup('Revenue')">
+        <span>💵</span> Revenue <span class="count">2</span>
+      </button>
+      <button class="nav-btn" onclick="filterGroup('DDS')">
+        <span>📊</span> DDS <span class="count">3</span>
+      </button>
+      <button class="nav-btn" onclick="filterGroup('Kitchen')">
+        <span>🍳</span> Kitchen <span class="count">1</span>
+      </button>
+      <button class="nav-btn" onclick="filterGroup('Cash')">
+        <span>💸</span> Cash <span class="count">2</span>
+      </button>
+      <button class="nav-btn" onclick="filterGroup('Reference')">
+        <span>📚</span> Reference <span class="count">7</span>
+      </button>
+      <button class="nav-btn" onclick="filterGroup('Infrastructure')">
+        <span>🔧</span> Infrastructure <span class="count">1</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+
+    <!-- ─── ALL ENDPOINTS ─── -->
+    <div id="section-all" class="section active">
+      <div class="filter-bar">
+        <input class="search-input" type="text" placeholder="🔍 Поиск по endpoint..." id="searchInput" oninput="filterCards()">
+        <button class="filter-btn active" data-prio="all" onclick="setPrioFilter(this,'all')">Все</button>
+        <button class="filter-btn" data-prio="CRITICAL" onclick="setPrioFilter(this,'CRITICAL')" style="color:var(--critical)">🔴 CRITICAL</button>
+        <button class="filter-btn" data-prio="HIGH" onclick="setPrioFilter(this,'HIGH')" style="color:var(--high)">🟠 HIGH</button>
+        <button class="filter-btn" data-prio="MEDIUM" onclick="setPrioFilter(this,'MEDIUM')" style="color:var(--medium)">🟡 MEDIUM</button>
+        <button class="filter-btn" data-prio="LOW" onclick="setPrioFilter(this,'LOW')" style="color:var(--low)">🟢 LOW</button>
+      </div>
+
+      <div id="endpoints-container">
+
+        <!-- AUTH -->
+        <div class="card" data-group="Auth" data-priority="CRITICAL">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/access_token</div>
+              <div class="endpoint-name">Получение JWT токена</div>
+            </div>
+            <span class="priority-badge p-CRITICAL">CRITICAL</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Получение JWT bearer token для всех последующих API запросов. Токен живёт 1 час, обновлять каждые 45 минут.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">⚡ Перед каждым запросом (авто-рефреш)</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request Body</div>
+                <div class="code-block">POST /api/1/access_token
+{
+  "ApiLogin": "your_api_login"  // string, required
+}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "Token": "eyJhbGciOi...",    // JWT Bearer
+  "CorrelationId": "uuid"
+}</div>
+              </div>
+            </div>
+            <div class="field-block" style="margin-top:12px">
+              <div class="field-label">Authorization Header</div>
+              <div class="code-block">Authorization: Bearer {Token}</div>
+            </div>
+            <div class="note-block">⏰ Токен живёт 1 час. SDK (TypeScript/Python/Go) автоматически обновляют токен каждые 45 минут. Хранить в Redis с TTL 55 минут.</div>
+          </div>
+        </div>
+
+        <!-- ORGANIZATIONS -->
+        <div class="card" data-group="Organizations" data-priority="CRITICAL">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/organizations</div>
+              <div class="endpoint-name">Список организаций (бренды и точки)</div>
+            </div>
+            <span class="priority-badge p-CRITICAL">CRITICAL</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Возвращает все организации доступные API-пользователю. Содержит иерархию: головная компания → бренды → рестораны. Основа drill-down структуры.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request</div>
+                <div class="code-block">GET /api/1/organizations?ReturnAdditionalInfo=true</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response (ключевые поля)</div>
+                <div class="code-block">{
+  "organizations": [{
+    "id": "uuid",
+    "name": "Burger na Abaya",
+    "country": "Kazakhstan",
+    "address": "ул. Абая...",
+    "currencyCode": "KZT",
+    "iikoRmsVersion": "8.x"
+  }]
+}</div>
+              </div>
+            </div>
+            <div class="field-block" style="margin-top:12px">
+              <div class="field-label">Используется для</div>
+              <div class="field-value">Уровни 1-2 drill-down: Компания → Бренд (BNA 8 точек, DNA 5 точек) → Ресторан</div>
+            </div>
+            <div class="field-block" style="margin-top:8px">
+              <div class="field-label">Target таблица</div>
+              <span class="step-target">→ Brand, Restaurant</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAYMENT TYPES -->
+        <div class="card" data-group="Reference" data-priority="CRITICAL">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/payment_types</div>
+              <div class="endpoint-name">Типы оплат (кэш, Kaspi, Halyk, Yandex, карта)</div>
+            </div>
+            <span class="priority-badge p-CRITICAL">CRITICAL</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Справочник способов оплаты. Маппинг UUID → название для классификации выручки по типам. Критично для разбивки выручки на дашборде.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request</div>
+                <div class="code-block">GET /api/1/payment_types?organizationId={uuid}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "paymentTypes": [{
+    "id": "uuid",
+    "name": "Kaspi QR",
+    "alias": "kaspi",
+    "type": "DIGITAL_WALLET" // CASH|CARD|DIGITAL_WALLET|OTHER
+  }]
+}</div>
+              </div>
+            </div>
+            <div style="margin-top:12px">
+              <span class="tag">cash</span>
+              <span class="tag">Kaspi QR</span>
+              <span class="tag">Halyk Bank</span>
+              <span class="tag">Yandex Pay</span>
+              <span class="tag">Карта</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- OLAP REVENUE -->
+        <div class="card" data-group="Revenue" data-priority="CRITICAL">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/reports/olap</div>
+              <div class="endpoint-name">OLAP отчёт — выручка по типам оплат</div>
+            </div>
+            <span class="priority-badge p-CRITICAL">CRITICAL</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Гибкий OLAP движок. Позволяет группировать выручку по типу оплаты, ресторану, дате. Основной источник данных для FinancialSnapshot.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">⚡ Каждые 15 минут</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request Body</div>
+                <div class="code-block">POST /api/1/reports/olap
+{
+  "organizationIds": ["uuid1", "uuid2"],
+  "reportType": "SALES",  // SALES | TRANSACTIONS
+  "dateFrom": "2026-03-01T00:00:00",
+  "dateTo": "2026-03-27T23:59:59",
+  "rowGroupFields": ["paymentType", "restaurantId"],
+  "columnGroupFields": ["date"],
+  "aggregateFields": ["revenue", "salesCount"],
+  "filters": {
+    "paymentType": ["CASH", "DIGITAL_WALLET"]
+  }
+}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "reportData": [{
+    "paymentType": "Kaspi QR",
+    "restaurantId": "uuid",
+    "date": "2026-03-27",
+    "revenue": 245000.00,
+    "salesCount": 183
+  }],
+  "currency": "KZT",
+  "generatedAt": "2026-03-27T..."
+}</div>
+              </div>
+            </div>
+            <div class="field-block" style="margin-top:12px">
+              <div class="field-label">Target таблица</div>
+              <span class="step-target">→ FinancialSnapshot</span>
+            </div>
+            <div class="note-block">⚠️ Может требовать несколько секунд для генерации сложных отчётов. Реализовать асинхронный опрос + кэш в Redis 15 минут TTL.</div>
+          </div>
+        </div>
+
+        <!-- DDS EXPENSES -->
+        <div class="card" data-group="DDS" data-priority="CRITICAL">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/reports/expenses</div>
+              <div class="endpoint-name">ДДС расходы по статьям (прямые затраты ресторана)</div>
+            </div>
+            <span class="priority-badge p-CRITICAL">CRITICAL</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Прямые операционные расходы ресторана по статьям ДДС: продукты, зарплата, аренда, коммунальные. Используется для P&L каждой точки.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">🔄 Каждые 30 минут</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request Body</div>
+                <div class="code-block">POST /api/1/reports/expenses
+{
+  "organizationIds": ["uuid1"],
+  "restaurantIds": ["rest_uuid"],
+  "dateFrom": "2026-03-01",
+  "dateTo": "2026-03-27",
+  "groupBy": ["restaurantId", "articleId", "date"]
+}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "expenses": [{
+    "restaurantId": "uuid",
+    "articleId": "uuid",
+    "articleName": "Продукты",
+    "date": "2026-03-27",
+    "amount": 85000.00,
+    "quantity": 150,
+    "unit": "кг"
+  }]
+}</div>
+              </div>
+            </div>
+            <div class="field-block" style="margin-top:12px">
+              <div class="field-label">Target таблица</div>
+              <span class="step-target">→ Expense (source: IIKO)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- DDS ARTICLE GROUPS -->
+        <div class="card" data-group="DDS" data-priority="HIGH">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/nomenclature/groups</div>
+              <div class="endpoint-name">Группы статей ДДС (иерархия расходов)</div>
+            </div>
+            <span class="priority-badge p-HIGH">HIGH</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Иерархическая структура статей расходов ДДС (до 40+ статей). Используется для drill-down Уровень 3 (Статьи) и Уровень 4 (Операции).</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request</div>
+                <div class="code-block">GET /api/1/nomenclature/groups
+  ?organizationId={uuid}
+  &includeArticles=true</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "groups": [{
+    "id": "uuid",
+    "name": "Продукты питания",
+    "parentId": null,  // корневая группа
+    "articles": [{
+      "id": "uuid",
+      "name": "Мясо",
+      "code": "PROD-001"
+    }]
+  }]
+}</div>
+              </div>
+            </div>
+            <div class="field-block" style="margin-top:12px">
+              <div class="field-label">Target таблица</div>
+              <span class="step-target">→ DdsArticle, DdsArticleGroup</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- NOMENCLATURE -->
+        <div class="card" data-group="DDS" data-priority="HIGH">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/nomenclature</div>
+              <div class="endpoint-name">Номенклатура / меню (привязка к статьям ДДС)</div>
+            </div>
+            <span class="priority-badge p-HIGH">HIGH</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Структура меню ресторана: категории, блюда, цены. Маппинг блюд к статьям ДДС — позволяет понять, какие блюда влекут какие прямые расходы.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request</div>
+                <div class="code-block">GET /api/1/nomenclature?organizationId={uuid}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "nomenclatureGroups": [{
+    "id": "uuid",
+    "name": "Бургеры",
+    "items": [{
+      "id": "uuid",
+      "name": "Бургер Классический",
+      "articleNumber": "BRG-001",
+      "description": "..."
+    }]
+  }]
+}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KITCHEN SHIPMENTS -->
+        <div class="card" data-group="Kitchen" data-priority="MEDIUM">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/reports/kitchen_shipments</div>
+              <div class="endpoint-name">Отгрузки с кухни (цех → рестораны)</div>
+            </div>
+            <span class="priority-badge p-MEDIUM">MEDIUM</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Внутренние переводы товаров с центральной производственной кухни в рестораны. Критично для учёта себестоимости и Cost Allocation Engine.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">🕐 Каждый час</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request Body</div>
+                <div class="code-block">POST /api/1/reports/kitchen_shipments
+{
+  "organizationIds": ["uuid"],
+  "dateFrom": "2026-03-01",
+  "dateTo": "2026-03-27",
+  "restaurantIds": ["rest_uuid"]  // optional
+}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "shipments": [{
+    "shipmentId": "uuid",
+    "sourceRestaurant": "uuid",  // цех
+    "destinationRestaurant": "uuid",
+    "date": "2026-03-27T10:00:00",
+    "items": [{
+      "dishId": "uuid",
+      "dishName": "Котлета говяжья",
+      "quantity": 50,
+      "unit": "кг"
+    }]
+  }]
+}</div>
+              </div>
+            </div>
+            <div class="field-block" style="margin-top:12px">
+              <div class="field-label">Target таблица</div>
+              <span class="step-target">→ KitchenShipment</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CASH DISCREPANCIES -->
+        <div class="card" data-group="Cash" data-priority="HIGH">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/reports/cash_discrepancies</div>
+              <div class="endpoint-name">Кассовые расхождения (ожидаемое vs фактическое)</div>
+            </div>
+            <span class="priority-badge p-HIGH">HIGH</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Сверка кассы при закрытии смены: плановый остаток vs фактический. Флаги аномалий (статус WARNING/ERROR). Ключевой показатель для операционного директора.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">🕐 Каждый час</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request Body</div>
+                <div class="code-block">POST /api/1/reports/cash_discrepancies
+{
+  "organizationIds": ["uuid"],
+  "dateFrom": "2026-03-26",
+  "dateTo": "2026-03-27",
+  "includeClosedShifts": true
+}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "discrepancies": [{
+    "terminalId": "uuid",
+    "restaurantId": "uuid",
+    "shiftDate": "2026-03-27",
+    "expectedBalance": 150000.00,
+    "actualBalance": 148500.00,
+    "discrepancy": -1500.00,
+    "discrepancyPercent": -1.0,
+    "status": "WARNING",   // OK|WARNING|ERROR
+    "shiftOpenTime": "...",
+    "shiftCloseTime": "..."
+  }]
+}</div>
+              </div>
+            </div>
+            <div class="field-block" style="margin-top:12px">
+              <div class="field-label">Target таблица</div>
+              <span class="step-target">→ CashDiscrepancy</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SHIFTS -->
+        <div class="card" data-group="Cash" data-priority="MEDIUM">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/reports/shifts</div>
+              <div class="endpoint-name">Информация о сменах (открытие/закрытие)</div>
+            </div>
+            <span class="priority-badge p-MEDIUM">MEDIUM</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Время открытия/закрытия смен, статус, кассиры. Позволяет привязать финансовые данные к конкретным сменам.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">🕐 Каждый час</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request Body</div>
+                <div class="code-block">POST /api/1/reports/shifts
+{
+  "organizationIds": ["uuid"],
+  "restaurantIds": ["uuid"],
+  "dateFrom": "2026-03-27",
+  "dateTo": "2026-03-27",
+  "status": "CLOSED"
+}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response (ключевые поля)</div>
+                <div class="code-block">{
+  "shifts": [{
+    "shiftId": "uuid",
+    "restaurantId": "uuid",
+    "terminalId": "uuid",
+    "openTime": "2026-03-27T09:00:00",
+    "closeTime": "2026-03-27T23:00:00",
+    "status": "CLOSED"
+  }]
+}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RECEIPTS -->
+        <div class="card" data-group="Revenue" data-priority="HIGH">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/reports/receipts</div>
+              <div class="endpoint-name">Детальные чеки (Уровень 4 — Операции)</div>
+            </div>
+            <span class="priority-badge p-HIGH">HIGH</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Детальные данные каждого чека: состав заказа, цены, способы оплаты. Используется для Уровня 4 drill-down (Операции) — только для Владельца.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">🔍 По запросу (on-demand)</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request Body</div>
+                <div class="code-block">POST /api/1/reports/receipts
+{
+  "organizationId": "uuid",
+  "dateFrom": "2026-03-27T00:00:00",
+  "dateTo": "2026-03-27T23:59:59",
+  "limit": 100,
+  "offset": 0
+}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "receipts": [{
+    "receiptId": "uuid",
+    "restaurantId": "uuid",
+    "date": "2026-03-27T14:32:00",
+    "items": [{"name": "Бургер", "qty": 2, "sum": 4500}],
+    "payments": [{"type": "Kaspi", "amount": 4500}],
+    "total": 4500.00
+  }]
+}</div>
+              </div>
+            </div>
+            <div class="note-block">⚠️ Требует пагинации. Дорогой запрос — только для drill-down уровня 4. Кэшировать в Redis 30 минут.</div>
+          </div>
+        </div>
+
+        <!-- TERMINAL IS ALIVE -->
+        <div class="card" data-group="Infrastructure" data-priority="MEDIUM">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/terminal_groups/is_alive</div>
+              <div class="endpoint-name">Health Check — терминалы онлайн?</div>
+            </div>
+            <span class="priority-badge p-MEDIUM">MEDIUM</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Проверка доступности POS терминалов. Позволяет агрегатору обнаружить точки, которые не отправляют данные — признак проблемы.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">🔄 Каждые 30 минут</div>
+              </div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Request</div>
+                <div class="code-block">GET /api/1/terminal_groups/is_alive
+  ?organizationId={uuid}</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Response</div>
+                <div class="code-block">{
+  "groups": [{
+    "groupId": "uuid",
+    "name": "BNA Абай",
+    "isAlive": true,
+    "lastPingTime": "2026-03-27T14:30:00"
+  }]
+}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DISCOUNTS -->
+        <div class="card" data-group="Reference" data-priority="MEDIUM">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/discounts</div>
+              <div class="endpoint-name">Типы скидок (сверка нетто-выручки)</div>
+            </div>
+            <span class="priority-badge p-MEDIUM">MEDIUM</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Справочник видов скидок. Используется для правильного расчёта нетто-выручки (брутто − скидки = нетто).</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- REMOVAL TYPES -->
+        <div class="card" data-group="Reference" data-priority="MEDIUM">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/removal_types</div>
+              <div class="endpoint-name">Причины отмен / удалений блюд</div>
+            </div>
+            <span class="priority-badge p-MEDIUM">MEDIUM</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Причины удаления позиций из заказов. Помогает объяснить расхождения между количеством заказов и выручкой.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STOP LISTS -->
+        <div class="card" data-group="Reference" data-priority="LOW">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/stop_lists</div>
+              <div class="endpoint-name">Стоп-листы (недоступные позиции)</div>
+            </div>
+            <span class="priority-badge p-LOW">LOW</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Позиции меню, временно недоступные для продажи. Контекст для объяснения провалов в выручке по конкретным товарам.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">⚡ Каждые 15 минут</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- EMPLOYEES -->
+        <div class="card" data-group="Reference" data-priority="LOW">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/employees/couriers</div>
+              <div class="endpoint-name">Сотрудники / курьеры</div>
+            </div>
+            <span class="priority-badge p-LOW">LOW</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Справочник сотрудников и курьеров. Для будущей аналитики по каналам доставки. Не требуется в MVP.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TIPS -->
+        <div class="card" data-group="Reference" data-priority="LOW">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/tips_types</div>
+              <div class="endpoint-name">Типы чаевых</div>
+            </div>
+            <span class="priority-badge p-LOW">LOW</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Категории чаевых. Для разделения чаевых и основной выручки. Может быть неактуально для KEX GROUP.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CITIES -->
+        <div class="card" data-group="Reference" data-priority="LOW">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/cities</div>
+              <div class="endpoint-name">Города / регионы (Казахстан)</div>
+            </div>
+            <span class="priority-badge p-LOW">LOW</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Географический справочник. Статичные данные, меняются редко. Для географической фильтрации отчётов.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">🔍 По запросу</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DELIVERIES -->
+        <div class="card" data-group="Reference" data-priority="LOW">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-GET">GET</span>
+            <div>
+              <div class="endpoint-path">/deliveries/order_types</div>
+              <div class="endpoint-name">Типы заказов доставки</div>
+            </div>
+            <span class="priority-badge p-LOW">LOW</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Конфигурации типов доставки. Для будущей аналитики по каналам продаж (зал / самовывоз / доставка). MVP не требует.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Синхронизация</div>
+                <div class="sync-badge">📅 Ежедневно 03:00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WEBHOOK -->
+        <div class="card" data-group="Webhooks" data-priority="LOW">
+          <div class="card-header" onclick="toggleCard(this)">
+            <span class="method-badge method-POST">POST</span>
+            <div>
+              <div class="endpoint-path">/notifications/send</div>
+              <div class="endpoint-name">Webhooks — подписка на события (Phase 2)</div>
+            </div>
+            <span class="priority-badge p-LOW">LOW</span>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="card-body">
+            <div class="field-grid">
+              <div class="field-block">
+                <div class="field-label">Описание</div>
+                <div class="field-value">Подписка на real-time события iiko вместо polling. Альтернатива опросу — снижает задержку с 15 мин до секунд. Рекомендуется для Phase 2.</div>
+              </div>
+              <div class="field-block">
+                <div class="field-label">Доступные события</div>
+                <div style="margin-top:4px">
+                  <span class="tag">order.created</span>
+                  <span class="tag">order.updated</span>
+                  <span class="tag">cash_discrepancy</span>
+                  <span class="tag">stop_list.updated</span>
+                  <span class="tag">delivery.status_changed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /endpoints-container -->
+    </div><!-- /section-all -->
+
+    <!-- ─── AUTH ─── -->
+    <div id="section-auth" class="section">
+      <div class="auth-card">
+        <div class="auth-title">🔑 Аутентификация — OAuth Bearer Token</div>
+        <div style="color:var(--text2);font-size:13px">JWT токены, выдаются на 1 час, обновление каждые 45 минут</div>
+        <div class="auth-grid">
+          <div class="auth-stat">
+            <div class="auth-stat-val">1 час</div>
+            <div class="auth-stat-lbl">Время жизни токена</div>
+          </div>
+          <div class="auth-stat">
+            <div class="auth-stat-val">45 мин</div>
+            <div class="auth-stat-lbl">Интервал обновления</div>
+          </div>
+          <div class="auth-stat">
+            <div class="auth-stat-val">Redis</div>
+            <div class="auth-stat-lbl">Хранение токена (TTL 55m)</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header" onclick="toggleCard(this)" style="cursor:default;pointer-events:none">
+          <span class="method-badge method-POST">POST</span>
+          <div>
+            <div class="endpoint-path">https://api-ru.iiko.services/api/1/access_token</div>
+          </div>
+        </div>
+        <div class="card-body open">
+          <div class="field-grid">
+            <div class="field-block">
+              <div class="field-label">1. Получение токена</div>
+              <div class="code-block">curl -X POST \
+  https://api-ru.iiko.services/api/1/access_token \
+  -H "Content-Type: application/json" \
+  -d '{"ApiLogin": "YOUR_API_LOGIN"}'
+
+# Response:
+{
+  "Token": "eyJhbGciOiJSUzI1NiIs...",
+  "CorrelationId": "3fa85f64-..."
+}</div>
+            </div>
+            <div class="field-block">
+              <div class="field-label">2. Использование токена</div>
+              <div class="code-block">curl -X GET \
+  https://api-ru.iiko.services/api/1/organizations \
+  -H "Authorization: Bearer eyJhbGciO..."</div>
+              <div class="field-label" style="margin-top:16px">3. NestJS сервис (шаблон)</div>
+              <div class="code-block">@Injectable()
+export class IikoAuthService {
+  private token: string;
+  private expiresAt: Date;
+
+  async getToken(): Promise<string> {
+    if (this.isTokenValid()) return this.token;
+    return this.refreshToken();
+  }
+
+  private async refreshToken() {
+    const res = await axios.post('/access_token',
+      { ApiLogin: process.env.IIKO_API_LOGIN });
+    this.token = res.data.Token;
+    // Store in Redis with 55min TTL
+    await this.redis.set('iiko:token',
+      this.token, 'EX', 3300);
+    return this.token;
+  }
+}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SYNC PLAN ─── -->
+    <div id="section-sync" class="section">
+      <h2 style="margin-bottom:20px;font-size:18px">План синхронизации — aggregator-worker</h2>
+      <div class="sync-timeline">
+
+        <div class="sync-step">
+          <div class="sync-step-header">
+            <div class="step-num">1</div>
+            <div class="step-name">access_token — Аутентификация</div>
+            <span class="step-schedule"><span class="sync-badge">⚡ Перед каждым запросом</span></span>
+          </div>
+          <div class="step-details">
+            Получить JWT токен. Хранить в Redis с TTL 55 минут. Рефрешить каждые 45 минут автоматически.
+            <br><span class="step-target">→ Redis cache</span>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <div class="sync-step-header">
+            <div class="step-num">2</div>
+            <div class="step-name">/organizations — Структура</div>
+            <span class="step-schedule"><span class="sync-badge">📅 Ежедневно 03:00</span></span>
+          </div>
+          <div class="step-details">
+            Загрузить иерархию: Kexbrands → BNA (8 точек) + DNA (5 точек). Обновить локальную структуру.
+            <br><span class="step-target">→ Brand, Restaurant таблицы</span>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <div class="sync-step-header">
+            <div class="step-num">3</div>
+            <div class="step-name">/reports/olap — Выручка</div>
+            <span class="step-schedule"><span class="sync-badge">⚡ Каждые 15 минут</span></span>
+          </div>
+          <div class="step-details">
+            OLAP отчёт по выручке: группировка по типу оплаты × ресторан × дата. Все 13+ точек за один запрос.
+            <br><span class="step-target">→ FinancialSnapshot</span>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <div class="sync-step-header">
+            <div class="step-num">4</div>
+            <div class="step-name">/reports/expenses — ДДС расходы</div>
+            <span class="step-schedule"><span class="sync-badge">🔄 Каждые 30 минут</span></span>
+          </div>
+          <div class="step-details">
+            Прямые операционные расходы ресторанов по статьям ДДС (40+ статей). Основа P&L каждой точки.
+            <br><span class="step-target">→ Expense (source: IIKO)</span>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <div class="sync-step-header">
+            <div class="step-num">5</div>
+            <div class="step-name">/reports/kitchen_shipments — Цех</div>
+            <span class="step-schedule"><span class="sync-badge">🕐 Каждый час</span></span>
+          </div>
+          <div class="step-details">
+            Отгрузки с центральной кухни в рестораны. Нужны для расчёта себестоимости и Cost Allocation.
+            <br><span class="step-target">→ KitchenShipment</span>
+          </div>
+        </div>
+
+        <div class="sync-step">
+          <div class="sync-step-header">
+            <div class="step-num">6</div>
+            <div class="step-name">/reports/cash_discrepancies — Касса</div>
+            <span class="step-schedule"><span class="sync-badge">🕐 Каждый час</span></span>
+          </div>
+          <div class="step-details">
+            Расхождения по кассе при закрытии смен. Флаги аномалий WARNING/ERROR для alert-системы.
+            <br><span class="step-target">→ CashDiscrepancy</span>
+          </div>
+        </div>
+
+        <div class="sync-step" style="border-color:rgba(108,99,255,0.4)">
+          <div class="sync-step-header">
+            <div class="step-num" style="background:linear-gradient(135deg,var(--accent),var(--accent2))">7</div>
+            <div class="step-name">Cost Allocation Engine — Распределение затрат</div>
+            <span class="step-schedule"><span class="sync-badge" style="color:var(--accent);border-color:rgba(108,99,255,0.3);background:rgba(108,99,255,0.1)">⚙️ После шагов 2-6</span></span>
+          </div>
+          <div class="step-details">
+            Распределить затраты ГО (из 1C) по ресторанам по коэффициенту доли выручки. Пересчёт при каждом цикле синхронизации.
+            <br><span class="step-target">→ Expense (source: ONE_C_ALLOCATED)</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─── COST ALLOCATION ─── -->
+    <div id="section-cost" class="section">
+      <h2 style="margin-bottom:20px;font-size:18px">💰 Cost Allocation Engine</h2>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-body open" style="border-top:none;padding-top:20px">
+          <div class="field-label">Алгоритм распределения затрат ГО</div>
+          <div class="formula-box">Коэффициент = Выручка_точки / Σ Выручка_все_точки
+
+Распределённая_затрата = Затрата_ГО × Коэффициент
+
+Финрезультат_точки = Выручка − Прямые_расходы(iiko) − Распределённые_затраты(1C)</div>
+
+          <div style="margin-top:20px">
+            <div class="field-label">Шаги выполнения</div>
+            <div class="algo-step">
+              <div class="algo-num">1</div>
+              <div>
+                <div style="font-weight:600;font-size:13px">Получить выручку каждого ресторана</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:4px">Из FinancialSnapshot за выбранный период (данные iiko OLAP)</div>
+              </div>
+            </div>
+            <div class="algo-step">
+              <div class="algo-num">2</div>
+              <div>
+                <div style="font-weight:600;font-size:13px">Посчитать общую выручку</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:4px">Сумма по всем 13 точкам = знаменатель для коэффициента</div>
+              </div>
+            </div>
+            <div class="algo-step">
+              <div class="algo-num">3</div>
+              <div>
+                <div style="font-weight:600;font-size:13px">Рассчитать коэффициент каждой точки</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:4px">coefficient = restaurant.revenue / total_revenue (0.0 — 1.0)</div>
+              </div>
+            </div>
+            <div class="algo-step">
+              <div class="algo-num">4</div>
+              <div>
+                <div style="font-weight:600;font-size:13px">Распределить затраты ГО из 1C</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:4px">Для каждой статьи расходов ГО: allocated = hq_expense × coefficient</div>
+              </div>
+            </div>
+            <div class="algo-step">
+              <div class="algo-num">5</div>
+              <div>
+                <div style="font-weight:600;font-size:13px">Сохранить в Expense (ONE_C_ALLOCATED)</div>
+                <div style="font-size:12px;color:var(--text2);margin-top:4px">Пересчитывать при каждой смене периода или новых данных выручки</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:20px">
+            <div class="field-label">Источники данных</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px">
+                <div style="color:var(--accent);font-weight:600;font-size:13px;margin-bottom:8px">📊 iiko (DDS)</div>
+                <div style="font-size:12px;color:var(--text2);line-height:1.7">
+                  Прямые расходы ресторана:<br>
+                  • Продукты / ингредиенты<br>
+                  • Зарплата персонала точки<br>
+                  • Коммунальные услуги<br>
+                  • Расходные материалы
+                </div>
+              </div>
+              <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px">
+                <div style="color:var(--accent2);font-weight:600;font-size:13px;margin-bottom:8px">🏢 1C (ГО)</div>
+                <div style="font-size:12px;color:var(--text2);line-height:1.7">
+                  Нераспределённые накладные:<br>
+                  • Аренда офиса / ГО<br>
+                  • IT и программы<br>
+                  • Маркетинг и реклама<br>
+                  • Юридические расходы
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── LIMITS ─── -->
+    <div id="section-limits" class="section">
+      <h2 style="margin-bottom:20px;font-size:18px">⚠️ Ограничения и важные нюансы</h2>
+
+      <div class="limit-card">
+        <div class="limit-icon">🚦</div>
+        <div>
+          <div class="limit-title">Rate Limiting</div>
+          <div class="limit-desc">Большинство reporting эндпоинтов ограничены окном запроса 15-30 дней. Для исторических данных нужна стратегия windowing: запрашивать по 15-дневным отрезкам. При превышении — exponential backoff.</div>
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <div class="limit-icon">📄</div>
+        <div>
+          <div class="limit-title">Пагинация</div>
+          <div class="limit-desc">Большие результаты (чеки, расходы за долгий период) требуют пагинации через offset + limit. Реализовать в aggregator-worker итеративный сбор всех страниц.</div>
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <div class="limit-icon">⏰</div>
+        <div>
+          <div class="limit-title">Время жизни токена — 1 час</div>
+          <div class="limit-desc">JWT токены истекают через 1 час. Необходимо автоматическое обновление каждые 45 минут. Хранить токен в Redis с TTL 55 минут. SDK-библиотеки (TypeScript/Python/Go) делают это автоматически.</div>
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <div class="limit-icon">⚡</div>
+        <div>
+          <div class="limit-title">OLAP — долгая генерация</div>
+          <div class="limit-desc">Сложные OLAP отчёты могут занимать несколько секунд. Реализовать асинхронный запрос с polling статуса. Кэшировать результаты в Redis с TTL 15 минут.</div>
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <div class="limit-icon">🔄</div>
+        <div>
+          <div class="limit-title">Eventual Consistency</div>
+          <div class="limit-desc">Данные поступают с задержкой. Polling 15 мин (выручка), 30 мин (ДДС), 1 час (касса, цех) вносит latency. Дашборд должен показывать время последнего обновления.</div>
+        </div>
+      </div>
+
+      <div class="limit-card">
+        <div class="limit-icon">🌍</div>
+        <div>
+          <div class="limit-title">Географическая задержка</div>
+          <div class="limit-desc">API базируется на серверах в России (api-ru.iiko.services). Latency из Казахстана ~200-500ms. Учитывать в timeout настройках HTTP клиента (рекомендуется 30 секунд).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── RECOMMENDATIONS ─── -->
+    <div id="section-recs" class="section">
+      <h2 style="margin-bottom:20px;font-size:18px">💡 Рекомендации по реализации</h2>
+
+      <div class="rec-card">
+        <div class="rec-header">
+          <span class="phase-badge">MVP · CRITICAL</span>
+        </div>
+        <div class="rec-action">Реализовать 6 CRITICAL эндпоинтов для полного P&L</div>
+        <div class="rec-reason">Эти 6 эндпоинтов дают полный P&L по всем 4 уровням drill-down для KEX GROUP</div>
+        <div class="rec-endpoints">
+          <span class="tag" style="color:var(--critical)">access_token</span>
+          <span class="tag" style="color:var(--critical)">organizations</span>
+          <span class="tag" style="color:var(--critical)">payment_types</span>
+          <span class="tag" style="color:var(--critical)">reports/olap</span>
+          <span class="tag" style="color:var(--critical)">reports/expenses</span>
+          <span class="tag" style="color:var(--critical)">reports/cash_discrepancies</span>
+        </div>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-header">
+          <span class="phase-badge">MVP · HIGH</span>
+        </div>
+        <div class="rec-action">Кэшировать справочные данные в Redis (TTL 24 часа)</div>
+        <div class="rec-reason">organizations, payment_types, nomenclature/groups меняются редко. 24-часовой кэш снижает нагрузку на API в 96 раз.</div>
+        <div class="rec-endpoints">
+          <span class="tag">organizations</span>
+          <span class="tag">payment_types</span>
+          <span class="tag">nomenclature/groups</span>
+          <span class="tag">discounts</span>
+        </div>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-header">
+          <span class="phase-badge">MVP · HIGH</span>
+        </div>
+        <div class="rec-action">Exponential backoff + Circuit Breaker для rate limit</div>
+        <div class="rec-reason">API может throttle в пиковые часы. Circuit breaker (NestJS @nestjs/axios или custom) предотвратит каскадные ошибки и Sentry flood.</div>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-header">
+          <span class="phase-badge">MVP+ · MEDIUM</span>
+        </div>
+        <div class="rec-action">Добавить kitchen_shipments и terminal_groups/is_alive</div>
+        <div class="rec-reason">kitchen_shipments критичен для Cost Allocation Engine. is_alive позволяет обнаруживать точки без данных и не включать их в расчёт.</div>
+        <div class="rec-endpoints">
+          <span class="tag">reports/kitchen_shipments</span>
+          <span class="tag">terminal_groups/is_alive</span>
+        </div>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-header">
+          <span class="phase-badge">Phase 2 · MEDIUM</span>
+        </div>
+        <div class="rec-action">Webhooks вместо polling для real-time данных</div>
+        <div class="rec-reason">Подписка на события снижает latency с 15 минут до секунд. Устраняет polling overhead. Рассмотреть после стабилизации MVP.</div>
+        <div class="rec-endpoints">
+          <span class="tag">order.created</span>
+          <span class="tag">cash_discrepancy</span>
+          <span class="tag">stop_list.updated</span>
+        </div>
+      </div>
+
+      <div class="rec-card">
+        <div class="rec-header">
+          <span class="phase-badge">Phase 2 · LOW</span>
+        </div>
+        <div class="rec-action">Исторический бэкфил данных (6-12 месяцев)</div>
+        <div class="rec-reason">При первом запуске нужно заполнить исторические данные. Использовать windowed queries по 15 дней для соблюдения rate limits.</div>
+      </div>
+
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+  let currentPrioFilter = 'all';
+  let currentGroupFilter = null;
+
+  function switchTab(tab) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById('section-' + tab).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  }
+
+  function filterGroup(group) {
+    currentGroupFilter = group;
+    document.getElementById('section-all').classList.add('active');
+    document.querySelectorAll('.section').forEach(s => {
+      if (s.id !== 'section-all') s.classList.remove('active');
+    });
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    filterCards();
+  }
+
+  function setPrioFilter(btn, prio) {
+    currentPrioFilter = prio;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentGroupFilter = null;
+    filterCards();
+  }
+
+  function filterCards() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#endpoints-container .card').forEach(card => {
+      const text = card.innerText.toLowerCase();
+      const prio = card.dataset.priority;
+      const group = card.dataset.group || '';
+
+      const prioMatch = currentPrioFilter === 'all' || prio === currentPrioFilter;
+      const groupMatch = !currentGroupFilter || group === currentGroupFilter;
+      const searchMatch = !q || text.includes(q);
+
+      card.style.display = (prioMatch && groupMatch && searchMatch) ? '' : 'none';
+    });
+  }
+
+  function toggleCard(header) {
+    const chevron = header.querySelector('.chevron');
+    const body = header.nextElementSibling;
+    if (!body) return;
+    body.classList.toggle('open');
+    if (chevron) chevron.classList.toggle('open');
+  }
+</script>
+</body>
+</html>

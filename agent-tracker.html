@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KEX GROUP — AI Agent Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: radial-gradient(ellipse at 30% 20%, #0D1B2E 0%, #020508 100%);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: #EFF6FF;
+    }
+
+    /* Layout */
+    .layout { display: flex; flex-direction: column; height: 100vh; }
+    .topbar {
+      height: 56px; display: flex; align-items: center; padding: 0 24px;
+      border-bottom: 1px solid rgba(59,130,246,0.08);
+      background: rgba(6,14,26,0.95); backdrop-filter: blur(20px); flex-shrink: 0;
+    }
+    .topbar-left { flex: 1; display: flex; align-items: center; gap: 16px; }
+    .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
+    .active-badge {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 20px;
+      background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2);
+    }
+    .active-dot { width: 6px; height: 6px; border-radius: 50%; background: #3B82F6; }
+    .active-text { font-size: 11px; color: #93C5FD; font-family: 'JetBrains Mono', monospace; }
+    .overall-progress { display: flex; align-items: center; gap: 8px; }
+    .overall-text { font-size: 11px; color: #10B981; font-family: 'JetBrains Mono', monospace; }
+
+    .body { flex: 1; display: flex; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 320px; flex-shrink: 0; border-right: 1px solid rgba(59,130,246,0.08);
+      overflow-y: auto; padding: 16px 12px; background: rgba(6,14,26,0.6);
+    }
+    .sidebar-label {
+      font-size: 10px; color: rgba(239,246,255,0.25); font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase; letter-spacing: 0.08em; padding: 0 6px; margin-bottom: 12px;
+    }
+    .phase-header {
+      width: 100%; display: flex; align-items: center; gap: 6px;
+      padding: 6px; border-radius: 6px; background: transparent;
+      border: none; cursor: pointer; text-align: left; color: inherit;
+    }
+    .phase-header:hover { background: rgba(255,255,255,0.03); }
+    .phase-title {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; flex: 1;
+    }
+    .phase-count { font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .task-btn {
+      width: 100%; display: flex; align-items: flex-start; gap: 8px;
+      padding: 7px 10px; border-radius: 8px; background: transparent;
+      border: 1px solid transparent; cursor: pointer; text-align: left; color: inherit;
+    }
+    .task-btn:hover { background: rgba(255,255,255,0.03); }
+    .task-btn.selected { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.25); }
+    .task-title { font-size: 12px; line-height: 1.4; word-break: break-word; }
+    .task-title.done { color: rgba(239,246,255,0.35); text-decoration: line-through; }
+    .task-title.active { color: #EFF6FF; }
+    .task-title.todo { color: rgba(239,246,255,0.65); }
+    .task-meta {
+      font-size: 10px; color: #10B981; font-family: 'JetBrains Mono', monospace; margin-top: 2px;
+    }
+
+    /* Main */
+    .main { flex: 1; overflow-y: auto; padding: 24px; }
+    .section-label {
+      font-size: 11px; color: rgba(239,246,255,0.3); font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;
+    }
+
+    /* Active cards grid */
+    .active-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 28px; }
+    .active-card {
+      background: #0D1B2E; border: 1px solid rgba(59,130,246,0.1);
+      border-radius: 12px; padding: 14px 16px; cursor: pointer; text-align: left;
+      transition: all 0.15s; color: inherit;
+    }
+    .active-card:hover { border-color: rgba(59,130,246,0.25); }
+    .active-card.selected { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.35); }
+    .active-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .active-card-title { font-size: 13px; font-weight: 600; line-height: 1.4; flex: 1; margin-right: 8px; }
+    .active-card-subtasks { font-size: 10px; color: rgba(239,246,255,0.25); font-family: 'JetBrains Mono', monospace; margin-top: 6px; }
+
+    /* Service badge */
+    .svc-badge {
+      font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace; flex-shrink: 0;
+    }
+
+    /* Progress bar */
+    .progress-bg { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; flex: 1; }
+    .progress-fill { height: 100%; border-radius: 2px; transition: width 0.6s cubic-bezier(0.16,1,0.3,1); }
+    .progress-row { display: flex; align-items: center; gap: 8px; }
+    .progress-pct { font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 700; flex-shrink: 0; }
+
+    /* Detail panel */
+    .detail-panel {
+      background: #0D1B2E; border: 1px solid rgba(59,130,246,0.12);
+      border-radius: 16px; padding: 24px;
+    }
+    .detail-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+    .detail-title { font-size: 16px; font-weight: 700; line-height: 1.4; }
+    .detail-title.done { text-decoration: line-through; text-decoration-color: rgba(239,246,255,0.3); }
+    .detail-badges { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+    .detail-status { font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+
+    /* Subtask items */
+    .subtask-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 8px;
+    }
+    .subtask-item.done { background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.15); }
+    .subtask-item.todo { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+    .subtask-text { font-size: 13px; }
+    .subtask-text.done { color: rgba(239,246,255,0.45); text-decoration: line-through; text-decoration-color: rgba(239,246,255,0.2); }
+    .subtask-text.todo { color: rgba(239,246,255,0.7); }
+
+    /* Phase overview row */
+    .phase-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; border-radius: 10px;
+      background: #0D1B2E; border: 1px solid rgba(59,130,246,0.08); margin-bottom: 8px;
+    }
+    .phase-row-name { font-size: 13px; width: 220px; flex-shrink: 0; }
+    .phase-row-name.done { color: rgba(239,246,255,0.35); text-decoration: line-through; text-decoration-color: rgba(239,246,255,0.2); }
+    .phase-row-count { font-size: 11px; font-family: 'JetBrains Mono', monospace; flex-shrink: 0; width: 50px; text-align: right; }
+    .phase-row-status { font-size: 10px; font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
+
+    /* Icons */
+    .icon { width: 14px; height: 14px; flex-shrink: 0; }
+    .icon-lg { width: 20px; height: 20px; }
+    .icon-sm { width: 13px; height: 13px; }
+    .chevron { font-size: 13px; color: rgba(239,246,255,0.3); width: 13px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.15); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.3); }
+
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spinner { animation: spin 2s linear infinite; }
+
+    .subtasks-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+    }
+    .subtasks-label {
+      font-size: 11px; color: rgba(239,246,255,0.4); font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase; letter-spacing: 0.08em;
+    }
+    .subtasks-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .progress-section { margin-bottom: 20px; }
+    .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .progress-label { font-size: 11px; color: rgba(239,246,255,0.4); font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-title">KEX GROUP — AI Agent Tracker</span>
+      <div class="active-badge">
+        <div class="active-dot"></div>
+        <span class="active-text" id="active-count"></span>
+      </div>
+      <div class="overall-progress">
+        <div class="progress-bg" style="width:140px">
+          <div class="progress-fill" id="overall-bar" style="background:linear-gradient(90deg,#10B981,#10B98199)"></div>
+        </div>
+        <span class="overall-text" id="overall-text"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <p class="sidebar-label">Все задачи</p>
+      <div id="sidebar-phases"></div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+      <p class="section-label" id="active-label"></p>
+      <div class="active-grid" id="active-grid"></div>
+
+      <p class="section-label">Детали задачи</p>
+      <div id="detail-panel"></div>
+
+      <div style="margin-top:28px">
+        <p class="section-label">Прогресс по фазам</p>
+        <div id="phase-overview"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Data ────────────────────────────────────────────────────────────────────
+const phases = [
+  {
+    id: 'infra', title: 'Инфраструктура',
+    tasks: [
+      { id: 'monorepo', title: 'Monorepo (Turborepo + npm workspaces)', status: 'done', completedBy: 'Claude', completedAt: '27.03.2026', service: 'leader' },
+      { id: 'docker', title: 'Docker: PostgreSQL 15 + Redis 7', status: 'done', completedBy: 'Claude', completedAt: '27.03.2026', service: 'leader' },
+      { id: 'prisma', title: 'Prisma схема (Brand, Restaurant, Expense, CostAllocation...)', status: 'done', completedBy: 'Claude', completedAt: '27.03.2026', service: 'leader',
+        subtasks: [
+          { title: 'Модели User, Tenant, OtpCode', done: true },
+          { title: 'Модели Brand, Restaurant', done: true },
+          { title: 'Модели Expense, CostAllocation', done: true },
+          { title: 'Модели FinancialSnapshot, CashDiscrepancy', done: true },
+          { title: 'Модели KitchenShipment, KitchenPurchase', done: true },
+        ]
+      },
+      { id: 'seed', title: 'Seed: реальная структура iiko (83 точки, 6 брендов)', status: 'done', completedBy: 'Claude', completedAt: '29.03.2026', service: 'leader',
+        subtasks: [
+          { title: '6 брендов (BNA, DNA, JD, SB, КексБрэндс, Цех)', done: true },
+          { title: '83 торговые точки с iiko UUID', done: true },
+          { title: '4 тестовых пользователя (3 роли)', done: true },
+          { title: '12 групп ДДС статей', done: true },
+          { title: 'Sample FinancialSnapshots (249 записей)', done: true },
+        ]
+      },
+    ],
+  },
+  {
+    id: 'auth', title: 'Auth Service',
+    tasks: [
+      { id: 'auth-otp', title: 'OTP через телефон (Mobizon + Telegram Gateway)', status: 'done', completedBy: 'auth-agent', completedAt: '28.03.2026', service: 'auth-service',
+        subtasks: [
+          { title: 'Генерация OTP + Redis TTL', done: true },
+          { title: 'Mobizon SMS интеграция', done: true },
+          { title: 'Telegram Gateway fallback', done: true },
+          { title: 'Rate limiting (5 попыток / 15 мин)', done: true },
+        ]
+      },
+      { id: 'auth-jwt', title: 'JWT access + refresh tokens', status: 'done', completedBy: 'auth-agent', completedAt: '28.03.2026', service: 'auth-service' },
+      { id: 'auth-roles', title: '3 роли: OWNER / FIN_DIRECTOR / OPS_DIRECTOR', status: 'active', progress: 70, service: 'auth-service',
+        subtasks: [
+          { title: 'Enum ролей в Prisma', done: true },
+          { title: 'Guard проверки ролей в NestJS', done: true },
+          { title: 'Тестовые пользователи в seed', done: true },
+          { title: 'Role-based response filtering', done: false },
+        ]
+      },
+    ],
+  },
+  {
+    id: 'aggregator', title: 'Aggregator Worker (iiko + 1С)',
+    tasks: [
+      { id: 'iiko-auth', title: 'iiko Server API аутентификация + Redis кэш', status: 'done', completedBy: 'worker-agent', completedAt: '28.03.2026', service: 'aggregator-worker',
+        subtasks: [
+          { title: 'GET /auth/getUserByLogin', done: true },
+          { title: 'Redis кэш токена TTL 55 мин', done: true },
+          { title: 'Circuit breaker + exponential backoff', done: true },
+        ]
+      },
+      { id: 'iiko-sync', title: 'iiko синхронизация: структура + выручка', status: 'active', progress: 60, service: 'aggregator-worker',
+        subtasks: [
+          { title: 'GET /corporation/departments → Brand, Restaurant', done: true },
+          { title: 'GET /reports/olap → FinancialSnapshot', done: true },
+          { title: 'GET /reports/expenses → Expense(IIKO)', done: false },
+          { title: 'GET /reports/cash_discrepancies → CashDiscrepancy', done: false },
+        ]
+      },
+      { id: 'onec-sync', title: '1С OData интеграция (затраты ГО, Цех, банки)', status: 'todo', service: 'aggregator-worker',
+        subtasks: [
+          { title: '1C REST API клиент', done: false },
+          { title: 'Затраты ГО → Expense(ONE_C)', done: false },
+          { title: 'Закупки Цеха → KitchenPurchase', done: false },
+          { title: 'Остатки банков → BankBalance', done: false },
+        ]
+      },
+      { id: 'cost-alloc', title: 'Cost Allocation Engine (распределение затрат по выручке)', status: 'todo', service: 'aggregator-worker',
+        subtasks: [
+          { title: 'Расчёт коэффициента = выручка точки / итого', done: false },
+          { title: 'Распределение затрат ГО на точки', done: false },
+          { title: 'Пересчёт при смене периода', done: false },
+        ]
+      },
+    ],
+  },
+  {
+    id: 'finance', title: 'Finance Service (drill-down API)',
+    tasks: [
+      { id: 'finance-l1', title: 'Уровень 1: Компания (GET /dashboard)', status: 'active', progress: 80, service: 'finance-service',
+        subtasks: [
+          { title: 'Выручка по брендам', done: true },
+          { title: 'Суммарные расходы', done: true },
+          { title: 'Финансовый результат', done: true },
+          { title: 'Фильтрация по роли', done: false },
+        ]
+      },
+      { id: 'finance-l2', title: 'Уровень 2: Точка (GET /dashboard/restaurant/:id)', status: 'active', progress: 50, service: 'finance-service',
+        subtasks: [
+          { title: 'Выручка по типам оплат', done: true },
+          { title: 'Расходы по группам статей ДДС', done: false },
+          { title: 'Недостачи/излишки кассы', done: false },
+          { title: 'Распределённые затраты', done: false },
+        ]
+      },
+      { id: 'finance-l3', title: 'Уровень 3: Статья (GET /dashboard/restaurant/:id/article/:gid)', status: 'todo', service: 'finance-service' },
+      { id: 'finance-l4', title: 'Уровень 4: Операция (только OWNER)', status: 'todo', service: 'finance-service' },
+    ],
+  },
+  {
+    id: 'gateway', title: 'API Gateway',
+    tasks: [
+      { id: 'gw-jwt', title: 'JWT Guard + роли на всех маршрутах', status: 'todo', service: 'api-gateway' },
+      { id: 'gw-proxy', title: 'Reverse proxy: auth + finance + aggregator', status: 'todo', service: 'api-gateway' },
+      { id: 'gw-rate', title: 'Rate limiting + Redis', status: 'todo', service: 'api-gateway' },
+    ],
+  },
+  {
+    id: 'mobile', title: 'Mobile Dashboard (React Native)',
+    tasks: [
+      { id: 'mob-auth', title: 'OTP авторизация + хранение токенов', status: 'active', progress: 85, service: 'mobile-dashboard',
+        subtasks: [
+          { title: 'LoginScreen + ввод телефона', done: true },
+          { title: 'OTP экран + подтверждение', done: true },
+          { title: 'Хранение JWT в SecureStore', done: true },
+          { title: 'Auto-refresh токена', done: false },
+        ]
+      },
+      { id: 'mob-l1', title: 'Главный экран (Вариант Б: плитки брендов)', status: 'active', progress: 75, service: 'mobile-dashboard',
+        subtasks: [
+          { title: 'DashboardScreen + BrandCard', done: true },
+          { title: 'Период-пикер (сегодня/неделя/месяц)', done: true },
+          { title: 'Локализация ru + kk', done: true },
+          { title: 'Реальные данные из API', done: false },
+        ]
+      },
+      { id: 'mob-l2', title: 'BrandDetailScreen (уровень 2 — точки бренда)', status: 'active', progress: 60, service: 'mobile-dashboard' },
+      { id: 'mob-l34', title: 'Drill-down уровни 3 и 4 (статьи + операции)', status: 'todo', service: 'mobile-dashboard' },
+      { id: 'mob-push', title: 'Push-уведомления (Firebase FCM)', status: 'todo', service: 'mobile-dashboard' },
+    ],
+  },
+  {
+    id: 'ops', title: 'DevOps & Мониторинг',
+    tasks: [
+      { id: 'sentry', title: 'Sentry: backend + mobile', status: 'todo', service: 'all' },
+      { id: 'deploy', title: 'Деплой на сервер (Docker Compose + Nginx + SSL)', status: 'todo', service: 'ops' },
+    ],
+  },
+];
+
+// ─── Service colors ─────────────────────────────────────────────────────────
+const svcColor = {
+  'leader':'#8B5CF6', 'auth-service':'#3B82F6', 'aggregator-worker':'#F59E0B',
+  'finance-service':'#10B981', 'api-gateway':'#EC4899', 'mobile-dashboard':'#06B6D4',
+  'all':'#6B7280', 'ops':'#6B7280'
+};
+const svcLabel = {
+  'leader':'leader', 'auth-service':'auth', 'aggregator-worker':'worker',
+  'finance-service':'finance', 'api-gateway':'gateway', 'mobile-dashboard':'mobile',
+  'all':'all', 'ops':'ops'
+};
+
+// ─── State ───────────────────────────────────────────────────────────────────
+const allTasks = phases.flatMap(p => p.tasks);
+let selectedId = (allTasks.find(t => t.status === 'active') || {}).id || null;
+
+// ─── Icons (SVG) ────────────────────────────────────────────────────────────
+const iconCheck = `<svg viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+const iconCircle = `<svg viewBox="0 0 24 24" fill="none" stroke="rgba(239,246,255,0.18)" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`;
+const iconSpinner = `<svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+
+function statusIcon(status, cls) {
+  if (status === 'done') return `<span class="${cls}">${iconCheck}</span>`;
+  if (status === 'active') return `<span class="${cls}">${iconSpinner}</span>`;
+  return `<span class="${cls}">${iconCircle}</span>`;
+}
+
+function svcBadge(service) {
+  if (!service) return '';
+  const c = svcColor[service] || '#6B7280';
+  const l = svcLabel[service] || service;
+  return `<span class="svc-badge" style="background:${c}22;color:${c};border:1px solid ${c}44">${l}</span>`;
+}
+
+function progressBar(pct, color) {
+  return `<div class="progress-bg"><div class="progress-fill" style="width:${pct}%;background:linear-gradient(90deg,${color},${color}99)"></div></div>`;
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function render() {
+  const doneTasks = allTasks.filter(t => t.status === 'done').length;
+  const activeTasks = allTasks.filter(t => t.status === 'active');
+  const totalTasks = allTasks.length;
+  const overallPct = Math.round((doneTasks / totalTasks) * 100);
+
+  // Topbar
+  document.getElementById('active-count').textContent = `${activeTasks.length} активных`;
+  document.getElementById('overall-bar').style.width = `${overallPct}%`;
+  document.getElementById('overall-text').textContent = `${doneTasks}/${totalTasks} \u00b7 ${overallPct}%`;
+
+  // Sidebar
+  let sidebarHTML = '';
+  for (const phase of phases) {
+    const pd = phase.tasks.filter(t => t.status === 'done').length;
+    const pt = phase.tasks.length;
+    const allDone = pd === pt;
+    const hasActive = phase.tasks.some(t => t.status === 'active');
+    const isOpen = !allDone || phase.tasks.some(t => t.id === selectedId);
+
+    const countColor = allDone ? '#10B981' : hasActive ? '#3B82F6' : 'rgba(239,246,255,0.25)';
+    const titleStyle = allDone ? 'color:rgba(239,246,255,0.3);text-decoration:line-through;text-decoration-color:rgba(239,246,255,0.2)' : 'color:rgba(239,246,255,0.55)';
+
+    sidebarHTML += `<div style="margin-bottom:4px">
+      <button class="phase-header" onclick="togglePhase('${phase.id}')">
+        <span class="chevron" id="chev-${phase.id}">${isOpen ? '\u25BE' : '\u25B8'}</span>
+        <span class="phase-title" style="${titleStyle}">${phase.title}</span>
+        <span class="phase-count" style="color:${countColor}">${pd}/${pt}</span>
+      </button>
+      <div id="phase-tasks-${phase.id}" style="padding-left:6px;display:${isOpen ? 'flex' : 'none'};flex-direction:column;gap:1px">`;
+
+    for (const task of phase.tasks) {
+      const sel = task.id === selectedId;
+      const titleCls = task.status;
+      sidebarHTML += `<button class="task-btn${sel ? ' selected' : ''}" onclick="selectTask('${task.id}')">
+        ${statusIcon(task.status, 'icon')}
+        <div style="flex:1;min-width:0">
+          <p class="task-title ${titleCls}">${task.title}</p>
+          ${task.status === 'done' && task.completedBy ? `<p class="task-meta">\u2713 ${task.completedBy} \u00b7 ${task.completedAt}</p>` : ''}
+          ${task.status === 'active' && task.progress !== undefined ? `<div style="margin-top:4px">${progressBar(task.progress, '#3B82F6')}</div>` : ''}
+        </div>
+      </button>`;
+    }
+    sidebarHTML += `</div></div>`;
+  }
+  document.getElementById('sidebar-phases').innerHTML = sidebarHTML;
+
+  // Active grid
+  document.getElementById('active-label').textContent = `В процессе (${activeTasks.length})`;
+  let gridHTML = '';
+  for (const task of activeTasks) {
+    const c = svcColor[task.service] || '#3B82F6';
+    const sel = task.id === selectedId;
+    const subDone = (task.subtasks || []).filter(s => s.done).length;
+    const subTotal = (task.subtasks || []).length;
+    gridHTML += `<button class="active-card${sel ? ' selected' : ''}" onclick="selectTask('${task.id}')">
+      <div class="active-card-header">
+        <span class="active-card-title">${task.title}</span>
+        ${svcBadge(task.service)}
+      </div>
+      <div class="progress-row">
+        ${progressBar(task.progress || 0, c)}
+        <span class="progress-pct" style="color:${c}">${task.progress}%</span>
+      </div>
+      ${subTotal ? `<p class="active-card-subtasks">${subDone}/${subTotal} подзадач</p>` : ''}
+    </button>`;
+  }
+  document.getElementById('active-grid').innerHTML = gridHTML;
+
+  // Detail
+  const task = allTasks.find(t => t.id === selectedId);
+  if (task) {
+    const c = svcColor[task.service] || '#6B7280';
+    const subDone = (task.subtasks || []).filter(s => s.done).length;
+    const subTotal = (task.subtasks || []).length;
+    let statusLabel = '';
+    if (task.status === 'done') statusLabel = `<span class="detail-status" style="color:#10B981">\u2713 Выполнено: ${task.completedBy} \u00b7 ${task.completedAt}</span>`;
+    else if (task.status === 'active') statusLabel = `<span class="detail-status" style="color:#3B82F6">\u25CF В процессе</span>`;
+    else statusLabel = `<span class="detail-status" style="color:rgba(239,246,255,0.3)">\u25CB Ожидает</span>`;
+
+    let detailHTML = `<div class="detail-panel">
+      <div class="detail-header">
+        ${statusIcon(task.status, 'icon-lg')}
+        <div style="flex:1">
+          <p class="detail-title ${task.status === 'done' ? 'done' : ''}">${task.title}</p>
+          <div class="detail-badges">${svcBadge(task.service)} ${statusLabel}</div>
+        </div>
+      </div>`;
+
+    if (task.status === 'active' && task.progress !== undefined) {
+      detailHTML += `<div class="progress-section">
+        <div class="progress-header">
+          <span class="progress-label">Прогресс</span>
+          <span class="progress-label" style="color:${c};font-weight:700">${task.progress}%</span>
+        </div>
+        ${progressBar(task.progress, c)}
+      </div>`;
+    }
+
+    if (task.subtasks && task.subtasks.length) {
+      detailHTML += `<div>
+        <div class="subtasks-header">
+          <span class="subtasks-label">Подзадачи</span>
+          <span class="subtasks-label">${subDone}/${subTotal}</span>
+        </div>
+        <div class="subtasks-list">`;
+      for (const sub of task.subtasks) {
+        const cls = sub.done ? 'done' : 'todo';
+        const icon = sub.done ? iconCheck : iconCircle;
+        detailHTML += `<div class="subtask-item ${cls}">
+          <span class="icon-sm">${icon}</span>
+          <span class="subtask-text ${cls}">${sub.title}</span>
+        </div>`;
+      }
+      detailHTML += `</div></div>`;
+    }
+    detailHTML += `</div>`;
+    document.getElementById('detail-panel').innerHTML = detailHTML;
+  }
+
+  // Phase overview
+  let overviewHTML = '';
+  for (const phase of phases) {
+    const pd = phase.tasks.filter(t => t.status === 'done').length;
+    const pt = phase.tasks.length;
+    const pct = Math.round((pd / pt) * 100);
+    const allDone = pd === pt;
+    const hasActive = phase.tasks.some(t => t.status === 'active');
+    const color = allDone ? '#10B981' : hasActive ? '#3B82F6' : 'rgba(239,246,255,0.15)';
+    const statusTxt = allDone ? `<span class="phase-row-status" style="color:#10B981">\u2713 done</span>` :
+                      hasActive ? `<span class="phase-row-status" style="color:#3B82F6">\u25CF active</span>` : '';
+    overviewHTML += `<div class="phase-row">
+      <span class="phase-row-name ${allDone ? 'done' : ''}">${phase.title}</span>
+      ${progressBar(pct, color)}
+      <span class="phase-row-count" style="color:${color}">${pd}/${pt}</span>
+      ${statusTxt}
+    </div>`;
+  }
+  document.getElementById('phase-overview').innerHTML = overviewHTML;
+}
+
+function selectTask(id) { selectedId = id; render(); }
+function togglePhase(id) {
+  const el = document.getElementById('phase-tasks-' + id);
+  const ch = document.getElementById('chev-' + id);
+  if (el.style.display === 'none') { el.style.display = 'flex'; ch.textContent = '\u25BE'; }
+  else { el.style.display = 'none'; ch.textContent = '\u25B8'; }
+}
+
+render();
+</script>
+</body>
+</html>

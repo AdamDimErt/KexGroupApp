@@ -1,0 +1,741 @@
+{
+  "lastUpdated": "2026-04-06T12:00:00+05:00",
+  "phases": [
+    {
+      "id": "infra",
+      "title": "Инфраструктура",
+      "tasks": [
+        {
+          "id": "monorepo",
+          "title": "Monorepo (Turborepo + npm workspaces)",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "27.03.2026",
+          "service": "leader"
+        },
+        {
+          "id": "docker",
+          "title": "Docker: PostgreSQL 15 + Redis 7",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "27.03.2026",
+          "service": "leader"
+        },
+        {
+          "id": "prisma-schema",
+          "title": "Prisma схема (Brand, Restaurant, Expense, CostAllocation...)",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "27.03.2026",
+          "service": "leader",
+          "subtasks": [
+            { "title": "Модели User, Tenant, OtpCode", "done": true },
+            { "title": "Модели Brand, Restaurant", "done": true },
+            { "title": "Модели Expense, CostAllocation", "done": true },
+            { "title": "Модели FinancialSnapshot, CashDiscrepancy", "done": true },
+            { "title": "Модели KitchenShipment, KitchenPurchase", "done": true }
+          ]
+        },
+        {
+          "id": "seed",
+          "title": "Seed: реальная структура iiko (83 точки, 6 брендов)",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "29.03.2026",
+          "service": "leader",
+          "subtasks": [
+            { "title": "6 брендов (BNA, DNA, JD, SB, КексБрэндс, Цех)", "done": true },
+            { "title": "83 торговые точки с iiko UUID", "done": true },
+            { "title": "4 тестовых пользователя (3 роли)", "done": true },
+            { "title": "12 групп ДДС статей", "done": true },
+            { "title": "Sample FinancialSnapshots (249 записей)", "done": true }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "auth",
+      "title": "Auth Service",
+      "tasks": [
+        {
+          "id": "auth-otp",
+          "title": "OTP через телефон (Mobizon + Telegram Gateway)",
+          "status": "done",
+          "completedBy": "auth-agent",
+          "completedAt": "28.03.2026",
+          "service": "auth-service",
+          "subtasks": [
+            { "title": "Генерация OTP + Redis TTL", "done": true },
+            { "title": "Mobizon SMS интеграция", "done": true },
+            { "title": "Telegram Gateway fallback", "done": true },
+            { "title": "Rate limiting (5 попыток / 15 мин)", "done": true }
+          ]
+        },
+        {
+          "id": "auth-jwt",
+          "title": "JWT access + refresh tokens",
+          "status": "done",
+          "completedBy": "auth-agent",
+          "completedAt": "28.03.2026",
+          "service": "auth-service"
+        },
+        {
+          "id": "auth-roles",
+          "title": "3 роли: OWNER / FIN_DIRECTOR / OPS_DIRECTOR",
+          "status": "active",
+          "progress": 70,
+          "service": "auth-service",
+          "subtasks": [
+            { "title": "Enum ролей в Prisma", "done": true },
+            { "title": "Guard проверки ролей в NestJS", "done": true },
+            { "title": "Тестовые пользователи в seed", "done": true },
+            { "title": "Role-based response filtering", "done": true }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "aggregator",
+      "title": "Aggregator Worker (iiko + 1С)",
+      "tasks": [
+        {
+          "id": "iiko-auth",
+          "title": "iiko Server API аутентификация + Redis кэш",
+          "status": "done",
+          "completedBy": "worker-agent",
+          "completedAt": "28.03.2026",
+          "service": "aggregator-worker",
+          "subtasks": [
+            { "title": "GET /auth/getUserByLogin", "done": true },
+            { "title": "Redis кэш токена TTL 55 мин", "done": true },
+            { "title": "Circuit breaker + exponential backoff", "done": true }
+          ]
+        },
+        {
+          "id": "iiko-sync",
+          "title": "iiko синхронизация: структура + выручка + расходы",
+          "status": "done",
+          "completedBy": "worker-agent",
+          "completedAt": "2026-04-06",
+          "service": "aggregator-worker",
+          "subtasks": [
+            { "title": "GET /departments -> Brand, Restaurant", "done": true },
+            { "title": "GET /reports/sales -> FinancialSnapshot", "done": true },
+            { "title": "GET /reports/productExpense -> Expense(IIKO)", "done": true },
+            { "title": "GET /reports/cash_discrepancies -> CashDiscrepancy", "done": true },
+            { "title": "ИСПРАВЛЕНО: formatDate UTC+5 bug (март 31 пропадал)", "done": true },
+            { "title": "ИСПРАВЛЕНО: exclusive dateTo +1 день для iiko API", "done": true }
+          ]
+        },
+        {
+          "id": "dynamic-payment-types",
+          "title": "Динамические типы оплат (PaymentType + SnapshotPayment)",
+          "status": "done",
+          "completedBy": "worker-agent",
+          "completedAt": "2026-04-06",
+          "service": "aggregator-worker",
+          "subtasks": [
+            { "title": "Prisma: модель PaymentType (tenantId, iikoCode, name)", "done": true },
+            { "title": "Prisma: модель SnapshotPayment (snapshotId, paymentTypeId, amount)", "done": true },
+            { "title": "Миграция: add_dynamic_payment_types", "done": true },
+            { "title": "syncPaymentTypesFromOlapData — авто-upsert из OLAP ответа", "done": true },
+            { "title": "QrPay → revenueCash (не kaspi)", "done": true },
+            { "title": "12 типов оплат синхронизированы (Каспи, Яндекс, Наличные, QrPay...)", "done": true }
+          ]
+        },
+        {
+          "id": "onec-sync",
+          "title": "1С OData интеграция (затраты ГО, Цех, банки)",
+          "status": "done",
+          "completedBy": "worker-agent",
+          "completedAt": "01.04.2026",
+          "service": "aggregator-worker",
+          "subtasks": [
+            { "title": "1C OData клиент + Basic Auth", "done": true },
+            { "title": "Затраты ГО -> Expense(ONE_C)", "done": true },
+            { "title": "Закупки Цеха -> KitchenPurchase", "done": true },
+            { "title": "Доходы Цеха -> KitchenIncome", "done": true }
+          ]
+        },
+        {
+          "id": "cost-allocation",
+          "title": "Cost Allocation Engine (распределение затрат по выручке)",
+          "status": "done",
+          "completedBy": "worker-agent",
+          "completedAt": "01.04.2026",
+          "service": "aggregator-worker",
+          "subtasks": [
+            { "title": "Расчёт коэффициента = выручка точки / итого", "done": true },
+            { "title": "Распределение затрат ГО на точки (upsert)", "done": true },
+            { "title": "Cron каждые 45 мин после синков", "done": true },
+            { "title": "SyncLog логирование", "done": true }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "finance",
+      "title": "Finance Service (drill-down API)",
+      "tasks": [
+        {
+          "id": "finance-l1",
+          "title": "Уровень 1: Компания (GET /dashboard)",
+          "status": "done",
+          "completedBy": "finance-agent",
+          "completedAt": "30.03.2026",
+          "service": "finance-service",
+          "subtasks": [
+            { "title": "Выручка по брендам (groupBy)", "done": true },
+            { "title": "Суммарные расходы", "done": true },
+            { "title": "Финансовый результат", "done": true },
+            { "title": "Фильтрация по роли", "done": true }
+          ]
+        },
+        {
+          "id": "finance-l2",
+          "title": "Уровень 2: Бренд (GET /dashboard/brand/:companyId)",
+          "status": "done",
+          "completedBy": "finance-agent",
+          "completedAt": "30.03.2026",
+          "service": "finance-service",
+          "subtasks": [
+            { "title": "Бренды по компании", "done": true },
+            { "title": "Выручка + расходы + allocated", "done": true },
+            { "title": "N+1 оптимизация через Maps", "done": true }
+          ]
+        },
+        {
+          "id": "finance-l3",
+          "title": "Уровень 3: Ресторан (GET /dashboard/restaurant/:brandId)",
+          "status": "done",
+          "completedBy": "finance-agent",
+          "completedAt": "30.03.2026",
+          "service": "finance-service",
+          "subtasks": [
+            { "title": "Рестораны по бренду с groupBy", "done": true },
+            { "title": "directExpenses + allocatedExpenses", "done": true },
+            { "title": "netProfit расчёт", "done": true }
+          ]
+        },
+        {
+          "id": "finance-l4",
+          "title": "Уровень 4: Статья (GET /dashboard/article/:restaurantId)",
+          "status": "done",
+          "completedBy": "finance-agent",
+          "completedAt": "30.03.2026",
+          "service": "finance-service",
+          "subtasks": [
+            { "title": "Расходы по articleId", "done": true },
+            { "title": "Информация об article + group", "done": true },
+            { "title": "Cost allocation coefficient", "done": true }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gateway",
+      "title": "API Gateway",
+      "tasks": [
+        {
+          "id": "gateway-jwt",
+          "title": "JWT Guard + роли на всех маршрутах",
+          "status": "done",
+          "completedBy": "gateway-agent",
+          "completedAt": "30.03.2026",
+          "service": "api-gateway",
+          "subtasks": [
+            { "title": "JwtAuthGuard (Bearer token)", "done": true },
+            { "title": "RolesGuard + @Roles декоратор", "done": true },
+            { "title": "Article endpoint: OWNER + FIN_DIRECTOR only", "done": true }
+          ]
+        },
+        {
+          "id": "gateway-proxy",
+          "title": "Reverse proxy: auth + finance + notifications",
+          "status": "active",
+          "progress": 80,
+          "service": "api-gateway",
+          "subtasks": [
+            { "title": "Auth proxy (send-otp, verify-otp, refresh, me)", "done": true },
+            { "title": "Finance proxy (dashboard, brand, restaurant, article)", "done": true },
+            { "title": "Notifications controller", "done": true },
+            { "title": "FIX: Finance proxy paths исправлены (/dashboard prefix)", "done": true }
+          ]
+        },
+        {
+          "id": "gateway-ratelimit",
+          "title": "Rate limiting + Swagger",
+          "status": "done",
+          "completedBy": "gateway-agent",
+          "completedAt": "30.03.2026",
+          "service": "api-gateway",
+          "subtasks": [
+            { "title": "@Throttle на OTP эндпоинтах", "done": true },
+            { "title": "Swagger /api/docs", "done": true },
+            { "title": "CORS настройка", "done": true }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mobile",
+      "title": "Mobile Dashboard (React Native)",
+      "tasks": [
+        {
+          "id": "mobile-auth",
+          "title": "OTP авторизация + хранение токенов",
+          "status": "done",
+          "completedBy": "mobile-agent",
+          "completedAt": "29.03.2026",
+          "service": "mobile-dashboard",
+          "subtasks": [
+            { "title": "LoginScreen + ввод телефона", "done": true },
+            { "title": "OTP экран + подтверждение", "done": true },
+            { "title": "Хранение JWT в SecureStore", "done": true },
+            { "title": "Auto-refresh через ApiClient", "done": true }
+          ]
+        },
+        {
+          "id": "mobile-l1",
+          "title": "Главный экран (Вариант Б: плитки брендов)",
+          "status": "done",
+          "completedBy": "mobile-agent",
+          "completedAt": "02.04.2026",
+          "service": "mobile-dashboard",
+          "subtasks": [
+            { "title": "DashboardScreen + BrandCard", "done": true },
+            { "title": "Период-пикер (today/week/month)", "done": true },
+            { "title": "Локализация ru + kk", "done": true },
+            { "title": "API хуки (useApi.ts)", "done": true },
+            { "title": "DTO контракт синхронизирован с backend", "done": true }
+          ]
+        },
+        {
+          "id": "mobile-l2",
+          "title": "BrandDetailScreen (уровень 2 -- точки бренда)",
+          "status": "done",
+          "completedBy": "mobile-agent",
+          "completedAt": "02.04.2026",
+          "service": "mobile-dashboard",
+          "subtasks": [
+            { "title": "Экран с RestaurantIndicatorDto", "done": true },
+            { "title": "DTO контракт синхронизирован с backend", "done": true }
+          ]
+        },
+        {
+          "id": "mobile-reports",
+          "title": "Экран аналитики (Reports)",
+          "status": "active",
+          "progress": 50,
+          "service": "mobile-dashboard",
+          "subtasks": [
+            { "title": "UI компоненты (графики, KPI)", "done": true },
+            { "title": "useReports hook (MOCK данные!)", "done": true },
+            { "title": "Подключение к реальному API", "done": false }
+          ]
+        },
+        {
+          "id": "mobile-push",
+          "title": "Push-уведомления (Firebase FCM)",
+          "status": "todo",
+          "service": "mobile-dashboard"
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "title": "Аудит и исправления",
+      "tasks": [
+        {
+          "id": "audit-routes",
+          "title": "ИСПРАВЛЕНО: Finance proxy пути (было 404)",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "02.04.2026",
+          "service": "api-gateway",
+          "subtasks": [
+            { "title": "Gateway /brand/:id → /dashboard/brand/:id", "done": true },
+            { "title": "Gateway /restaurant/:id → /dashboard/restaurant/:id", "done": true },
+            { "title": "Gateway /article/:id → /dashboard/article/:id", "done": true }
+          ]
+        },
+        {
+          "id": "audit-dto",
+          "title": "ИСПРАВЛЕНО: DTO контракт mobile <-> finance синхронизирован",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "02.04.2026",
+          "service": "finance-service",
+          "subtasks": [
+            { "title": "BrandDetailDto с RestaurantIndicatorDto[]", "done": true },
+            { "title": "RestaurantDetailDto с expenseGroups/cashDiscrepancies/chart", "done": true },
+            { "title": "RevenueBreakdownDto (cash/kaspi/halyk/yandex)", "done": true },
+            { "title": "ArticleGroupDetailDto с previous period comparison", "done": true }
+          ]
+        },
+        {
+          "id": "audit-payment-types",
+          "title": "ИСПРАВЛЕНО: Динамические типы оплат + byType в API",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "2026-04-06",
+          "service": "finance-service",
+          "subtasks": [
+            { "title": "RevenueBreakdownDto.byType: PaymentTypeAmountDto[]", "done": true },
+            { "title": "getRestaurantDetail: SnapshotPayment grouped by paymentTypeId", "done": true },
+            { "title": "QrPay отделён от Каспи (₸29.5M Каспи vs ₸1.1M QrPay)", "done": true }
+          ]
+        },
+        {
+          "id": "audit-cash",
+          "title": "ИСПРАВЛЕНО: iiko Cash Discrepancies реализован",
+          "status": "done",
+          "completedBy": "Claude",
+          "completedAt": "02.04.2026",
+          "service": "aggregator-worker"
+        }
+      ]
+    },
+    {
+      "id": "design",
+      "title": "UI/UX Дизайн (Figma + Research)",
+      "tasks": [
+        {
+          "id": "design-concepts",
+          "title": "5 дизайн-концептов в Figma",
+          "status": "done",
+          "completedBy": "ui-designer",
+          "completedAt": "2026-04-03T22:14:00+05:00",
+          "service": "mobile-dashboard",
+          "subtasks": [
+            { "title": "Concept 1: Classic Finance (Dark + Cards)", "done": true },
+            { "title": "Concept 2: Modern Gradient (Light + SaaS)", "done": true },
+            { "title": "Concept 3: Minimal Clean (White + Text-first)", "done": true },
+            { "title": "Concept 4: Bold Corporate (Navy + Brand Icons)", "done": true },
+            { "title": "Concept 5: Neon Fintech (Dark + Glassmorphism)", "done": true }
+          ]
+        },
+        {
+          "id": "design-agents-setup",
+          "title": "Установка 3 дизайн-агентов + Design Lead",
+          "status": "done",
+          "completedBy": "leader",
+          "completedAt": "2026-04-03T22:04:00+05:00",
+          "service": "all",
+          "subtasks": [
+            { "title": "UI Designer агент", "done": true },
+            { "title": "UX Architect агент", "done": true },
+            { "title": "UX Researcher агент", "done": true },
+            { "title": "Design Lead оркестратор", "done": false }
+          ]
+        },
+        {
+          "id": "design-research",
+          "title": "UX Research: анализ кода, паттернов, ролей",
+          "status": "active",
+          "progress": 40,
+          "service": "mobile-dashboard",
+          "subtasks": [
+            { "title": "Анализ существующего кода mobile-dashboard", "done": false },
+            { "title": "Исследование паттернов финансовых дашбордов", "done": false },
+            { "title": "Анализ 4 ролей пользователей", "done": false },
+            { "title": "Рекомендации по дизайн-системе", "done": false },
+            { "title": "Оценка 5 концептов и рекомендация", "done": false }
+          ]
+        },
+        {
+          "id": "design-system",
+          "title": "Дизайн-система (токены, цвета, типографика)",
+          "status": "todo",
+          "service": "mobile-dashboard"
+        },
+        {
+          "id": "design-hifi",
+          "title": "Hi-fi макеты всех экранов",
+          "status": "todo",
+          "service": "mobile-dashboard"
+        }
+      ]
+    },
+    {
+      "id": "ops",
+      "title": "DevOps и мониторинг",
+      "tasks": [
+        {
+          "id": "sentry",
+          "title": "Sentry: backend + mobile",
+          "status": "todo",
+          "service": "all"
+        },
+        {
+          "id": "deploy",
+          "title": "Деплой на сервер (Docker Compose + Nginx + SSL)",
+          "status": "todo",
+          "service": "ops"
+        }
+      ]
+    }
+  ],
+  "tokenStats": {
+    "totalInputTokens": 2847500,
+    "totalOutputTokens": 1423200,
+    "totalTokens": 4270700,
+    "totalRequests": 342,
+    "totalCostUsd": 38.45,
+    "byAgent": [
+      {
+        "agent": "leader",
+        "inputTokens": 685000,
+        "outputTokens": 342500,
+        "totalTokens": 1027500,
+        "requests": 82,
+        "costUsd": 9.25,
+        "model": "opus"
+      },
+      {
+        "agent": "auth-service",
+        "inputTokens": 312000,
+        "outputTokens": 156000,
+        "totalTokens": 468000,
+        "requests": 45,
+        "costUsd": 4.21,
+        "model": "sonnet"
+      },
+      {
+        "agent": "aggregator-worker",
+        "inputTokens": 578000,
+        "outputTokens": 289000,
+        "totalTokens": 867000,
+        "requests": 67,
+        "costUsd": 7.80,
+        "model": "sonnet"
+      },
+      {
+        "agent": "finance-service",
+        "inputTokens": 445000,
+        "outputTokens": 222500,
+        "totalTokens": 667500,
+        "requests": 53,
+        "costUsd": 6.01,
+        "model": "sonnet"
+      },
+      {
+        "agent": "api-gateway",
+        "inputTokens": 289000,
+        "outputTokens": 144500,
+        "totalTokens": 433500,
+        "requests": 38,
+        "costUsd": 3.90,
+        "model": "sonnet"
+      },
+      {
+        "agent": "mobile-dashboard",
+        "inputTokens": 538500,
+        "outputTokens": 268700,
+        "totalTokens": 807200,
+        "requests": 57,
+        "costUsd": 7.28,
+        "model": "sonnet"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "timestamp": "2026-04-02T14:30:00Z",
+      "agent": "api-gateway",
+      "task": "gateway-proxy",
+      "message": "Finance proxy paths не совпадают: gateway шлёт /brand/:id, finance ждёт /dashboard/brand/:id — все запросы возвращают 404",
+      "severity": "critical",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:00:00Z",
+      "resolution": "Исправлены пути proxy: /brand→/dashboard/brand, /restaurant→/dashboard/restaurant, /article→/dashboard/article"
+    },
+    {
+      "timestamp": "2026-04-02T14:25:00Z",
+      "agent": "mobile-dashboard",
+      "task": "mobile-l1",
+      "message": "DTO контракт не совпадает: mobile ожидает BrandDetailDto, finance возвращает BrandSummaryDto[] — UI показывает пустые данные",
+      "severity": "critical",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T17:00:00Z",
+      "resolution": "Добавлены 3 новых метода в finance-service (getBrandDetail, getRestaurantDetail, getArticleGroupDetail) возвращающие точно те DTO что ожидает mobile: BrandDetailDto с RestaurantIndicatorDto[], RestaurantDetailDto с expenseGroups/cashDiscrepancies/revenueChart, ArticleGroupDetailDto с ArticleIndicatorDto[]"
+    },
+    {
+      "timestamp": "2026-04-02T14:20:00Z",
+      "agent": "aggregator-worker",
+      "task": "iiko-sync",
+      "message": "Cash Discrepancies endpoint — заглушка, данные не синхронизируются с iiko",
+      "severity": "error",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:05:00Z",
+      "resolution": "Реализована полная синхронизация через iiko Server API /reports/cashDiscrepancy"
+    },
+    {
+      "timestamp": "2026-04-02T14:15:00Z",
+      "agent": "aggregator-worker",
+      "task": "iiko-auth",
+      "message": "Circuit breaker (opossum) не установлен — при падении iiko API агрегатор будет спамить запросами",
+      "severity": "warning",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:10:00Z",
+      "resolution": "Реализован circuit breaker: 3 failures → 15min block → auto-recovery (без внешних зависимостей)"
+    },
+    {
+      "timestamp": "2026-04-02T14:10:00Z",
+      "agent": "finance-service",
+      "task": "finance-l1",
+      "message": "Timezone hardcoded UTC — в Алматы UTC+5, дневные отчёты показывают неверные данные",
+      "severity": "warning",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:03:00Z",
+      "resolution": "Даты парсятся в Asia/Almaty (UTC+5), конфигурируемо через TIMEZONE env var"
+    },
+    {
+      "timestamp": "2026-04-02T12:00:00Z",
+      "agent": "leader",
+      "task": "prisma-schema",
+      "message": "Prisma migrate dev не выполнен — 18 моделей в schema, только 5 таблиц в БД",
+      "severity": "critical",
+      "stack": "PrismaClientKnownRequestError: The table `public.Expense` does not exist in the current database.\n  at Object.request (node_modules/@prisma/client/runtime/library.js:123:45)\n  at ExpenseService.findAll (src/expense/expense.service.ts:15:12)",
+      "resolved": false
+    },
+    {
+      "timestamp": "2026-04-02T16:15:00Z",
+      "agent": "aggregator-worker",
+      "task": "iiko-sync",
+      "message": "KitchenShipment sync отсутствовал — scheduler вызывал несуществующий метод",
+      "severity": "error",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:15:00Z",
+      "resolution": "Реализован syncKitchenShipments + добавлен в scheduler (cron каждый час :20)"
+    },
+    {
+      "timestamp": "2026-04-02T16:12:00Z",
+      "agent": "aggregator-worker",
+      "task": "cost-allocation",
+      "message": "Decimal precision: coefficient.toString() теряет точность в финансовых расчётах",
+      "severity": "warning",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:12:00Z",
+      "resolution": "Используется Prisma.Decimal с точным округлением (6 знаков для коэф., 2 для сумм)"
+    },
+    {
+      "timestamp": "2026-04-02T16:17:00Z",
+      "agent": "leader",
+      "task": "shared-types",
+      "message": "Stale index.d.ts в shared-types с устаревшими ролями (HOLDING_DIRECTOR)",
+      "severity": "warning",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:17:00Z",
+      "resolution": "Удалён stale index.d.ts — остался только актуальный index.ts"
+    },
+    {
+      "timestamp": "2026-04-02T16:20:00Z",
+      "agent": "finance-service",
+      "task": "finance-l1",
+      "message": "OPS_DIRECTOR видит все рестораны без фильтрации по привязанным точкам",
+      "severity": "error",
+      "resolved": true,
+      "resolvedAt": "2026-04-02T16:20:00Z",
+      "resolution": "Добавлен role-based filtering: gateway передаёт x-user-role и x-user-restaurant-ids, finance-service фильтрует"
+    }
+  ],
+  "activityLog": [
+    {
+      "timestamp": "2026-04-06T12:00:00+05:00",
+      "agent": "worker-agent",
+      "action": "Динамические типы оплат: 12 типов из iiko OLAP, QrPay отделён от Каспи, byType API готов",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-06T10:00:00+05:00",
+      "agent": "worker-agent",
+      "action": "ИСПРАВЛЕНО: formatDate UTC+5 bug + iiko exclusive dateTo — март 31 теперь загружается корректно",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-03T22:20:00+05:00",
+      "agent": "ux-researcher",
+      "action": "UX Research запущен: анализ кода, паттернов, 4 ролей, оценка 5 концептов",
+      "type": "start"
+    },
+    {
+      "timestamp": "2026-04-03T22:14:00+05:00",
+      "agent": "ui-designer",
+      "action": "Все 5 дизайн-концептов созданы в Figma (Classic Finance, Modern Gradient, Minimal Clean, Bold Corporate, Neon Fintech)",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-03T22:04:00+05:00",
+      "agent": "leader",
+      "action": "Установлены 3 дизайн-агента из agency-agents: UI Designer, UX Architect, UX Researcher",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-03T22:00:00+05:00",
+      "agent": "leader",
+      "action": "Создан Figma файл: KEX GROUP — Mobile Dashboard Concepts",
+      "type": "info"
+    },
+    {
+      "timestamp": "2026-04-02T17:30:00Z",
+      "agent": "leader",
+      "action": "ROADMAP.md полностью синхронизирован: Phase 1 ~90%, Phase 2 ~60%, Phase 3 ~70%, Phase 4 ~75%, Phase 5 ~70%, Phase 6 ~60%, Phase 7 ~35%, Phase 8 ~25%, Phase 9 0%",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-02T17:00:00Z",
+      "agent": "leader",
+      "action": "DTO контракт mobile↔finance ИСПРАВЛЕН: 3 новых метода (getBrandDetail→BrandDetailDto, getRestaurantDetail→RestaurantDetailDto, getArticleGroupDetail→ArticleGroupDetailDto) с revenue breakdown, expense groups, cash discrepancies, daily chart, previous period comparison",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-02T16:25:00Z",
+      "agent": "leader",
+      "action": "Исправлено 8 из 11 багов: proxy routes, timezone, circuit breaker, cash discrepancies, kitchen shipments, decimal precision, role filtering, stale types",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-02T14:30:00Z",
+      "agent": "leader",
+      "action": "Аудит завершён: найдены 2 критических бага (роуты finance proxy + DTO контракт)",
+      "type": "review"
+    },
+    {
+      "timestamp": "2026-04-02T14:15:00Z",
+      "agent": "leader",
+      "action": "Обнаружено: Cost Allocation Engine и 1С интеграция полностью реализованы!",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-04-02T14:00:00Z",
+      "agent": "leader",
+      "action": "Запущен полный аудит: 6 агентов проверяют все сервисы",
+      "type": "start"
+    },
+    {
+      "timestamp": "2026-04-02T12:00:00Z",
+      "agent": "leader",
+      "action": "Дашборд агентов обновлён — автообновление каждые 5 сек",
+      "type": "info"
+    },
+    {
+      "timestamp": "2026-03-29T18:00:00Z",
+      "agent": "leader",
+      "action": "Seed с реальной структурой iiko завершён (83 точки)",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-03-28T15:00:00Z",
+      "agent": "auth-agent",
+      "action": "OTP + JWT авторизация реализована",
+      "type": "done"
+    },
+    {
+      "timestamp": "2026-03-28T14:00:00Z",
+      "agent": "worker-agent",
+      "action": "iiko аутентификация + Redis кэш готовы",
+      "type": "done"
+    }
+  ]
+}

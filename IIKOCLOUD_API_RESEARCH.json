@@ -1,0 +1,839 @@
+{
+  "metadata": {
+    "apiBase": "https://api-ru.iiko.services/api/1/",
+    "legacyBase": "https://iiko.biz:9900/api/0/",
+    "authType": "OAuth Bearer Token (JWT)",
+    "researched": "2026-03-27",
+    "tokenLifetime": "1 hour",
+    "languages": ["Russian", "English"],
+    "versions": ["v1", "v0"]
+  },
+  "authentication": {
+    "endpoint": "POST /access_token",
+    "description": "Obtain JWT authentication token for subsequent API requests",
+    "method": "POST",
+    "path": "/access_token",
+    "requestBody": {
+      "ApiLogin": {
+        "type": "string",
+        "description": "API login configured in iikoWeb dashboard",
+        "required": true
+      }
+    },
+    "responseFields": {
+      "CorrelationID": {
+        "type": "UUID",
+        "description": "Unique operation identifier"
+      },
+      "Token": {
+        "type": "string",
+        "description": "JWT bearer token for Authorization header"
+      },
+      "CorrelationId": {
+        "type": "string",
+        "description": "Alternative correlation ID field"
+      }
+    },
+    "headerRequired": "Authorization: Bearer {Token}",
+    "tokenLifetime": "1 hour",
+    "autoRefreshInterval": "45 minutes (configurable in SDK)",
+    "priority": "CRITICAL",
+    "notes": "Token must be refreshed before expiry. SDKs handle automatic refresh. All subsequent requests must include Authorization header."
+  },
+  "endpoints": [
+    {
+      "id": "org_001",
+      "group": "Organizations",
+      "name": "List Organizations",
+      "method": "GET",
+      "path": "/organizations",
+      "description": "Returns all organizations (brands/restaurants) available to authenticated API user",
+      "requestParameters": {
+        "ReturnAdditionalInfo": {
+          "type": "boolean",
+          "description": "Include additional metadata about organizations",
+          "default": false
+        }
+      },
+      "responseFields": {
+        "organizations": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "country": "string",
+            "address": "string",
+            "latitude": "float",
+            "longitude": "float",
+            "iikoRmsVersion": "string",
+            "currencyCode": "string"
+          }
+        }
+      },
+      "usedFor": "Load organization/brand/restaurant structure for dashboard drill-down (Level 1: Company -> Brand -> Restaurant)",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "CRITICAL",
+      "notes": "Essential for multi-location setup. Returns parent-child relationships between brands and restaurants."
+    },
+    {
+      "id": "fin_001",
+      "group": "Revenue",
+      "name": "Get Financial Snapshots",
+      "method": "POST",
+      "path": "/reports/olap",
+      "description": "Retrieve aggregated revenue data by payment type per restaurant per day",
+      "requestBody": {
+        "organizationIds": {
+          "type": "array[UUID]",
+          "description": "Organization IDs to query",
+          "required": true
+        },
+        "reportType": {
+          "type": "enum",
+          "values": ["SALES", "TRANSACTIONS"],
+          "description": "SALES = revenue by dish; TRANSACTIONS = financial operations",
+          "required": true
+        },
+        "dateFrom": {
+          "type": "ISO8601",
+          "description": "Start date for report period",
+          "required": true
+        },
+        "dateTo": {
+          "type": "ISO8601",
+          "description": "End date for report period",
+          "required": true
+        },
+        "rowGroupFields": {
+          "type": "array[string]",
+          "description": "Group rows by: 'paymentType', 'restaurantId', 'date', etc.",
+          "required": false
+        },
+        "columnGroupFields": {
+          "type": "array[string]",
+          "description": "Group columns by: 'date', 'paymentType', etc.",
+          "required": false
+        },
+        "aggregateFields": {
+          "type": "array[string]",
+          "description": "Aggregate: 'revenue', 'salesCount', 'guestCount'",
+          "required": true
+        },
+        "filters": {
+          "type": "object",
+          "description": "Filter by paymentType, date range, etc.",
+          "required": false
+        }
+      },
+      "responseFields": {
+        "reportData": {
+          "type": "array",
+          "description": "Rows of aggregated financial data"
+        },
+        "currency": "string",
+        "generatedAt": "ISO8601"
+      },
+      "usedFor": "Populate FinancialSnapshot (every 15 min): revenue by payment type (cash, Kaspi, Halyk, Yandex, card) per restaurant",
+      "syncSchedule": "every 15 minutes",
+      "priority": "CRITICAL",
+      "notes": "Flexible OLAP engine allows custom grouping. Supports date range queries. May require pagination for large result sets."
+    },
+    {
+      "id": "fin_002",
+      "group": "Revenue",
+      "name": "Get Receipts / Check Items",
+      "method": "POST",
+      "path": "/reports/receipts",
+      "description": "Retrieve detailed receipt/check data including items, quantities, prices, payment methods",
+      "requestBody": {
+        "organizationId": "UUID",
+        "dateFrom": "ISO8601",
+        "dateTo": "ISO8601",
+        "excludeClosed": "boolean",
+        "limit": "integer",
+        "offset": "integer"
+      },
+      "responseFields": {
+        "receipts": {
+          "type": "array",
+          "items": {
+            "receiptId": "UUID",
+            "restaurantId": "UUID",
+            "date": "ISO8601",
+            "items": [
+              {
+                "name": "string",
+                "quantity": "decimal",
+                "price": "decimal",
+                "sum": "decimal"
+              }
+            ],
+            "payments": [
+              {
+                "type": "string",
+                "amount": "decimal"
+              }
+            ],
+            "total": "decimal"
+          }
+        }
+      },
+      "usedFor": "Validate revenue data, drill into individual transactions, audit payment accuracy",
+      "syncSchedule": "on-demand",
+      "priority": "HIGH",
+      "notes": "Pagination required. May be computationally expensive for large date ranges."
+    },
+    {
+      "id": "pay_001",
+      "group": "Reference",
+      "name": "Get Payment Types",
+      "method": "GET",
+      "path": "/payment_types",
+      "description": "Returns list of payment method types available in iiko (cash, card, Kaspi, Halyk, Yandex, etc.)",
+      "requestParameters": {
+        "organizationId": {
+          "type": "UUID",
+          "description": "Organization to get payment types for",
+          "required": false
+        }
+      },
+      "responseFields": {
+        "paymentTypes": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "alias": "string",
+            "type": "enum (CASH|CARD|DIGITAL_WALLET|OTHER)"
+          }
+        }
+      },
+      "usedFor": "Classify revenue by payment type in FinancialSnapshot (cash, Kaspi, Halyk, Yandex, card)",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "CRITICAL",
+      "notes": "Essential reference data. Maps payment method IDs to dashboard display names."
+    },
+    {
+      "id": "dds_001",
+      "group": "DDS",
+      "name": "Get Nomenclature / Menu Items",
+      "method": "GET",
+      "path": "/nomenclature",
+      "description": "Returns restaurant menu structure: categories, items, prices. Includes DDS article mappings.",
+      "requestParameters": {
+        "organizationId": {
+          "type": "UUID",
+          "required": true
+        }
+      },
+      "responseFields": {
+        "nomenclatureGroups": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "items": [
+              {
+                "id": "UUID",
+                "name": "string",
+                "articleNumber": "string",
+                "description": "string"
+              }
+            ]
+          }
+        }
+      },
+      "usedFor": "Map DDS expense articles to menu items. Identify which dishes incur which direct costs.",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "HIGH",
+      "notes": "DDS article structure may vary by organization. Used to link expenses to products."
+    },
+    {
+      "id": "dds_002",
+      "group": "DDS",
+      "name": "Get DDS Expenses",
+      "method": "POST",
+      "path": "/reports/expenses",
+      "description": "Retrieve Direct Delivery System (DDS) expenses by article, restaurant, date. Restaurant-level operating expenses.",
+      "requestBody": {
+        "organizationIds": "array[UUID]",
+        "restaurantIds": "array[UUID]",
+        "dateFrom": "ISO8601",
+        "dateTo": "ISO8601",
+        "groupBy": ["restaurantId", "articleId", "date"]
+      },
+      "responseFields": {
+        "expenses": {
+          "type": "array",
+          "items": {
+            "restaurantId": "UUID",
+            "articleId": "UUID",
+            "articleName": "string",
+            "date": "date",
+            "amount": "decimal",
+            "quantity": "decimal",
+            "unit": "string"
+          }
+        }
+      },
+      "usedFor": "Populate Expense(IIKO) table: direct operating expenses by article (DDS). Critical for restaurant P&L.",
+      "syncSchedule": "every 30 minutes",
+      "priority": "CRITICAL",
+      "notes": "DDS = restaurant's own inventory/supply expenses. Different from kitchen purchases (from 1C). Aggregated at drill-down level 3 (restaurant)."
+    },
+    {
+      "id": "dds_003",
+      "group": "DDS",
+      "name": "Get DDS Article Groups",
+      "method": "GET",
+      "path": "/nomenclature/groups",
+      "description": "Returns DDS article category structure (e.g., 'Utilities', 'Labor', 'Supplies'). Used for expense classification.",
+      "requestParameters": {
+        "organizationId": "UUID",
+        "includeArticles": "boolean"
+      },
+      "responseFields": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "parentId": "UUID (optional)",
+            "articles": [
+              {
+                "id": "UUID",
+                "name": "string",
+                "code": "string"
+              }
+            ]
+          }
+        }
+      },
+      "usedFor": "Categorize DDS expenses into logical groups for reporting and drill-down (Level 4: Article).",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "HIGH",
+      "notes": "Enables hierarchical expense classification. May have restaurant overrides."
+    },
+    {
+      "id": "kitchen_001",
+      "group": "Kitchen",
+      "name": "Get Kitchen Shipments",
+      "method": "POST",
+      "path": "/reports/kitchen_shipments",
+      "description": "Retrieve internal kitchen transfers from central production kitchen to restaurant locations",
+      "requestBody": {
+        "organizationIds": "array[UUID]",
+        "dateFrom": "ISO8601",
+        "dateTo": "ISO8601",
+        "restaurantIds": "array[UUID] (optional)"
+      },
+      "responseFields": {
+        "shipments": {
+          "type": "array",
+          "items": {
+            "shipmentId": "UUID",
+            "sourceRestaurant": "UUID (production kitchen)",
+            "destinationRestaurant": "UUID",
+            "date": "ISO8601",
+            "items": [
+              {
+                "dishId": "UUID",
+                "dishName": "string",
+                "quantity": "decimal",
+                "unit": "string"
+              }
+            ]
+          }
+        }
+      },
+      "usedFor": "Track KitchenShipment table: internal inter-restaurant transfers. Used in cost allocation calculations.",
+      "syncSchedule": "every 1 hour",
+      "priority": "MEDIUM",
+      "notes": "Distinguishes between restaurant's own inventory vs. transferred items from central kitchen. Impacts cost allocation."
+    },
+    {
+      "id": "cash_001",
+      "group": "Cash",
+      "name": "Get Cash Discrepancies",
+      "method": "POST",
+      "path": "/reports/cash_discrepancies",
+      "description": "Retrieve shift-end cash register reconciliation: expected vs. actual cash balance, discrepancies",
+      "requestBody": {
+        "organizationIds": "array[UUID]",
+        "dateFrom": "ISO8601",
+        "dateTo": "ISO8601",
+        "includeClosedShifts": "boolean"
+      },
+      "responseFields": {
+        "discrepancies": {
+          "type": "array",
+          "items": {
+            "terminalId": "UUID",
+            "restaurantId": "UUID",
+            "shiftDate": "date",
+            "expectedBalance": "decimal",
+            "actualBalance": "decimal",
+            "discrepancy": "decimal",
+            "discrepancyPercent": "decimal",
+            "status": "enum (OK|WARNING|ERROR)",
+            "shiftOpenTime": "ISO8601",
+            "shiftCloseTime": "ISO8601"
+          }
+        }
+      },
+      "usedFor": "Populate CashDiscrepancy table: track cash register accuracy at shift close. Used for audit and anomaly detection.",
+      "syncSchedule": "every 1 hour",
+      "priority": "HIGH",
+      "notes": "Critical for cash flow reconciliation. Flags shifts with unusual discrepancies for investigation."
+    },
+    {
+      "id": "cash_002",
+      "group": "Cash",
+      "name": "Get Shift Information",
+      "method": "POST",
+      "path": "/reports/shifts",
+      "description": "Retrieve shift open/close times, status, cash counts",
+      "requestBody": {
+        "organizationIds": "array[UUID]",
+        "restaurantIds": "array[UUID]",
+        "dateFrom": "ISO8601",
+        "dateTo": "ISO8601",
+        "status": "enum (OPEN|CLOSED|PENDING)"
+      },
+      "responseFields": {
+        "shifts": {
+          "type": "array",
+          "items": {
+            "shiftId": "UUID",
+            "restaurantId": "UUID",
+            "terminalId": "UUID",
+            "openTime": "ISO8601",
+            "closeTime": "ISO8601",
+            "operatorId": "UUID",
+            "status": "string"
+          }
+        }
+      },
+      "usedFor": "Correlate shift timing with financial snapshots. Link transactions to specific shifts.",
+      "syncSchedule": "every 1 hour",
+      "priority": "MEDIUM",
+      "notes": "Supports drilling into specific shift data for audit purposes."
+    },
+    {
+      "id": "ref_001",
+      "group": "Reference",
+      "name": "Get Employees / Couriers",
+      "method": "GET",
+      "path": "/employees/couriers",
+      "description": "Returns list of delivery couriers and their status",
+      "requestParameters": {
+        "organizationId": "UUID"
+      },
+      "responseFields": {
+        "employees": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "phone": "string",
+            "status": "enum (ACTIVE|INACTIVE)"
+          }
+        }
+      },
+      "usedFor": "Reference: support multi-channel analytics (if delivery data is tracked)",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "LOW",
+      "notes": "Not immediately required for MVP; included for completeness."
+    },
+    {
+      "id": "ref_002",
+      "group": "Reference",
+      "name": "Get Cities / Regions",
+      "method": "GET",
+      "path": "/cities",
+      "description": "Returns geographic reference data (cities, regions for Kazakhstan)",
+      "requestParameters": {
+        "countryCode": "string"
+      },
+      "responseFields": {
+        "cities": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "regionId": "UUID"
+          }
+        }
+      },
+      "usedFor": "Geographic filtering/reporting (optional)",
+      "syncSchedule": "on-demand",
+      "priority": "LOW",
+      "notes": "Static reference data, rarely changes."
+    },
+    {
+      "id": "ref_003",
+      "group": "Reference",
+      "name": "Get Discounts",
+      "method": "GET",
+      "path": "/discounts",
+      "description": "Returns available discount types and rules",
+      "requestParameters": {
+        "organizationId": "UUID"
+      },
+      "responseFields": {
+        "discounts": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "type": "enum (PERCENT|FIXED|LOYALTY)"
+          }
+        }
+      },
+      "usedFor": "Audit: verify revenue calculations account for discounts",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "MEDIUM",
+      "notes": "Used to reconcile net revenue vs. gross sales."
+    },
+    {
+      "id": "ref_004",
+      "group": "Reference",
+      "name": "Get Removal Types / Cancellation Causes",
+      "method": "GET",
+      "path": "/removal_types",
+      "description": "Returns reasons for order cancellations/removals",
+      "requestParameters": {
+        "organizationId": "UUID"
+      },
+      "responseFields": {
+        "removalTypes": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "code": "string"
+          }
+        }
+      },
+      "usedFor": "Track reasons for revenue adjustments/cancellations",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "MEDIUM",
+      "notes": "Helps identify if revenue deletions are valid (accidental orders, errors, etc.)"
+    },
+    {
+      "id": "ref_005",
+      "group": "Reference",
+      "name": "Get Stop Lists",
+      "method": "GET",
+      "path": "/stop_lists",
+      "description": "Returns out-of-stock items (stopped items not available for sale)",
+      "requestParameters": {
+        "organizationId": "UUID"
+      },
+      "responseFields": {
+        "items": {
+          "type": "array",
+          "items": {
+            "itemId": "UUID",
+            "restaurantId": "UUID",
+            "reason": "string"
+          }
+        }
+      },
+      "usedFor": "Contextual analysis: understand unavailable items during a period",
+      "syncSchedule": "every 15 minutes",
+      "priority": "LOW",
+      "notes": "Used to explain revenue anomalies."
+    },
+    {
+      "id": "ref_006",
+      "group": "Reference",
+      "name": "Get Tips Types",
+      "method": "GET",
+      "path": "/tips_types",
+      "description": "Returns tip categories and types",
+      "requestParameters": {
+        "organizationId": "UUID"
+      },
+      "responseFields": {
+        "tipsTypes": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string"
+          }
+        }
+      },
+      "usedFor": "Separate tips from core revenue (if tracked)",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "LOW",
+      "notes": "May not be significant for KEX GROUP; included for completeness."
+    },
+    {
+      "id": "order_001",
+      "group": "Orders",
+      "name": "Create Order",
+      "method": "POST",
+      "path": "/order/create",
+      "description": "Create a new table order (POS integration)",
+      "requestBody": {
+        "organizationId": "UUID",
+        "restaurantId": "UUID",
+        "items": "array[{itemId, quantity, price}]",
+        "customerId": "UUID (optional)"
+      },
+      "responseFields": {
+        "orderId": "UUID",
+        "orderNumber": "string",
+        "status": "string"
+      },
+      "usedFor": "NOT USED FOR KEX GROUP - iiko is read-only for aggregation",
+      "syncSchedule": "N/A",
+      "priority": "LOW",
+      "notes": "Order creation is managed within iiko POS. KEX GROUP reads data only."
+    },
+    {
+      "id": "delivery_001",
+      "group": "Deliveries",
+      "name": "Get Delivery Order Types",
+      "method": "GET",
+      "path": "/deliveries/order_types",
+      "description": "Returns available delivery order type configurations",
+      "requestParameters": {
+        "organizationId": "UUID"
+      },
+      "responseFields": {
+        "orderTypes": {
+          "type": "array",
+          "items": {
+            "id": "UUID",
+            "name": "string",
+            "description": "string"
+          }
+        }
+      },
+      "usedFor": "Reference data (if delivery analytics are needed later)",
+      "syncSchedule": "daily 03:00 UTC",
+      "priority": "LOW",
+      "notes": "KEX GROUP may not use delivery data initially; included for future expansion."
+    },
+    {
+      "id": "term_001",
+      "group": "Infrastructure",
+      "name": "Terminal Groups Is Alive",
+      "method": "GET",
+      "path": "/terminal_groups/is_alive",
+      "description": "Check health/availability of POS terminal groups",
+      "requestParameters": {
+        "organizationId": "UUID"
+      },
+      "responseFields": {
+        "groups": {
+          "type": "array",
+          "items": {
+            "groupId": "UUID",
+            "name": "string",
+            "isAlive": "boolean",
+            "lastPingTime": "ISO8601"
+          }
+        }
+      },
+      "usedFor": "Data freshness validation: confirm terminals are actively syncing",
+      "syncSchedule": "every 30 minutes",
+      "priority": "MEDIUM",
+      "notes": "Used by aggregator to detect data gaps or missing restaurants."
+    },
+    {
+      "id": "notif_001",
+      "group": "Webhooks",
+      "name": "Send Notifications (Webhook)",
+      "method": "POST",
+      "path": "/notifications/send",
+      "description": "Setup webhook subscriptions for real-time events (orders, deliveries, etc.)",
+      "requestBody": {
+        "organizationId": "UUID",
+        "eventTypes": ["ORDER_CREATED", "ORDER_UPDATED", "DELIVERY_STATUS_CHANGED", "CASH_DISCREPANCY"],
+        "webhookUrl": "string (KEX GROUP backend URL)"
+      },
+      "responseFields": {
+        "subscriptionId": "UUID",
+        "status": "string"
+      },
+      "usedFor": "Optional: Real-time event streaming instead of polling. Not required for MVP.",
+      "syncSchedule": "event-driven (real-time)",
+      "priority": "LOW",
+      "notes": "Alternative to polling-based aggregation. Consider for Phase 2 optimization."
+    }
+  ],
+  "webhooks": [
+    {
+      "event": "order.created",
+      "description": "Fired when a new order is created in iiko"
+    },
+    {
+      "event": "order.updated",
+      "description": "Fired when order status changes"
+    },
+    {
+      "event": "delivery.status_changed",
+      "description": "Fired when delivery order status changes"
+    },
+    {
+      "event": "cash_discrepancy",
+      "description": "Fired when shift ends with cash mismatch"
+    },
+    {
+      "event": "stop_list.updated",
+      "description": "Fired when menu items are stopped/unstoppable"
+    }
+  ],
+  "limitations": [
+    {
+      "limit": "Rate Limiting",
+      "description": "Most polling endpoints are limited to query windows of ~15-30 days; aggregate-worker must use windowing strategy for historical data"
+    },
+    {
+      "limit": "Pagination",
+      "description": "Large result sets require pagination with offset/limit parameters"
+    },
+    {
+      "limit": "Token Lifetime",
+      "description": "Tokens expire after 1 hour; refresh required. SDKs handle automatically."
+    },
+    {
+      "limit": "OLAP Report Generation",
+      "description": "Complex OLAP reports may require several seconds; asynchronous polling may be needed"
+    },
+    {
+      "limit": "Real-time Guarantees",
+      "description": "Data is eventually consistent. Polling frequency (15 min, 30 min, 1 hr) introduces latency."
+    },
+    {
+      "limit": "Geographic Scope",
+      "description": "API base URL is api-ru.iiko.services (Russian region); latency for Kazakhstan may be ~200-500ms"
+    }
+  ],
+  "recommendations": [
+    {
+      "phase": "MVP",
+      "priority": "CRITICAL",
+      "action": "Implement polling for 6 CRITICAL endpoints",
+      "endpoints": [
+        "access_token (refresh before expiry)",
+        "organizations (daily)",
+        "payment_types (daily)",
+        "reports/olap for revenue (15 min)",
+        "reports/expenses for DDS (30 min)",
+        "reports/cash_discrepancies (1 hour)"
+      ],
+      "reason": "These provide complete P&L for all 4 drill-down levels"
+    },
+    {
+      "phase": "MVP",
+      "priority": "HIGH",
+      "action": "Cache reference data (organizations, payment_types, articles) with 24-hour TTL",
+      "reason": "Reference data changes rarely; reduces API calls significantly"
+    },
+    {
+      "phase": "MVP",
+      "priority": "HIGH",
+      "action": "Implement exponential backoff + circuit breaker for rate limit handling",
+      "reason": "API may throttle during high-load periods"
+    },
+    {
+      "phase": "MVP+",
+      "priority": "MEDIUM",
+      "action": "Add kitchen_shipments and terminal_groups_is_alive for data freshness checks",
+      "reason": "Helps explain cost allocation anomalies and detect missing data"
+    },
+    {
+      "phase": "Phase 2",
+      "priority": "MEDIUM",
+      "action": "Evaluate webhook subscriptions for real-time event streaming",
+      "reason": "Reduce latency in financial dashboards; eliminate polling overhead"
+    },
+    {
+      "phase": "Phase 2",
+      "priority": "LOW",
+      "action": "Implement historical data sync for first-time setup",
+      "reason": "Backfill 6-12 months of data; use windowed queries (15-30 day windows) to stay within rate limits"
+    }
+  ],
+  "dataSyncPlan": {
+    "aggregatorWorker": {
+      "syncSteps": [
+        {
+          "step": 1,
+          "endpoint": "access_token",
+          "schedule": "on-demand (before any request)",
+          "purpose": "Obtain JWT token for subsequent calls",
+          "target": "In-memory cache"
+        },
+        {
+          "step": 2,
+          "endpoint": "organizations",
+          "schedule": "daily 03:00",
+          "purpose": "Load org hierarchy (brands, restaurants)",
+          "target": "Brand, Restaurant tables"
+        },
+        {
+          "step": 3,
+          "endpoint": "reports/olap (SALES)",
+          "schedule": "every 15 minutes",
+          "purpose": "Revenue by payment type, restaurant, date",
+          "target": "FinancialSnapshot table"
+        },
+        {
+          "step": 4,
+          "endpoint": "reports/expenses",
+          "schedule": "every 30 minutes",
+          "purpose": "DDS expenses by article, restaurant, date",
+          "target": "Expense(IIKO) table"
+        },
+        {
+          "step": 5,
+          "endpoint": "reports/kitchen_shipments",
+          "schedule": "every 1 hour",
+          "purpose": "Internal kitchen transfers",
+          "target": "KitchenShipment table"
+        },
+        {
+          "step": 6,
+          "endpoint": "reports/cash_discrepancies",
+          "schedule": "every 1 hour",
+          "purpose": "Cash register reconciliation",
+          "target": "CashDiscrepancy table"
+        },
+        {
+          "step": 7,
+          "endpoint": "Cost Allocation Engine",
+          "schedule": "after steps 2-6",
+          "purpose": "Distribute HQ expenses (1C) by revenue coefficient",
+          "target": "Expense(1C_ALLOCATED) table"
+        }
+      ],
+      "errorHandling": "Retry with exponential backoff; log to Sentry; skip step if timeout (data will sync on next cycle)"
+    }
+  },
+  "costAllocationIntegration": {
+    "description": "Cost Allocation Engine combines iiko DDS + 1C HQ expenses",
+    "inputs": [
+      {
+        "source": "iiko (DDS expenses)",
+        "description": "Restaurant-level operating costs (supplies, labor, utilities)"
+      },
+      {
+        "source": "1C (undistributed HQ expenses)",
+        "description": "Corporate overhead (rent, IT, legal, marketing) not tied to specific restaurant"
+      }
+    ],
+    "algorithm": {
+      "step1": "Calculate total revenue per restaurant (from FinancialSnapshot)",
+      "step2": "Calculate total revenue (sum of all restaurants)",
+      "step3": "For each HQ expense item, calculate distribution coefficient: restaurant_revenue / total_revenue",
+      "step4": "Allocate expense: distributed_amount = hq_expense * coefficient",
+      "step5": "Store allocated amounts in Expense(1C_ALLOCATED) table"
+    },
+    "recalculationTrigger": "When date changes (daily) OR when new revenue data arrives"
+  }
+}
