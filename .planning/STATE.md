@@ -39,7 +39,7 @@ progress:
 - Auth service: OTP, Mobizon SMS, Redis rate-limiting, JWT, biometric endpoints (enable/verify), AuditLog
 - API Gateway: JWT guard, 3 roles (OWNER/FINANCE_DIRECTOR/OPERATIONS_DIRECTOR), 9 finance proxy routes, E2E tests
 - Finance service: DataAccessInterceptor, 4-level drill-down queries, 4 cross-restaurant reports
-- Aggregator worker: iiko sync (nomenclature, expenses, kitchen shipments), Sentry, dead letter queue
+- Aggregator worker: iiko sync (nomenclature, expenses, kitchen shipments), Sentry, dead letter queue, AlertService (sync health + revenue thresholds + large expenses → api-gateway)
 - Mobile: Expo 54, biometrics, OTP flow, JWT store, resend timer, inactivity logout, Sentry
 
 ## Known Blockers
@@ -72,6 +72,7 @@ progress:
 - **07-03** (2026-04-07): SkeletonLoader reusable component (animated pulse 0.3→0.7). DashboardScreen: 3 KPI cards (БАЛАНС hidden for OPS_DIRECTOR), lastSyncAt indicator (red when stale >1h), skeleton loader on initial load, pull-to-refresh with haptic feedback. PointDetailScreen: tappable expense groups (OWNER+FIN_DIR Level 3 drilldown), financial result breakdown (direct + distributed), cash discrepancies section, View-based daily revenue bar chart (last 14 days), pull-to-refresh with haptics. tsc passes. Commits: c49a064, a29c615
 - **07-04** (2026-04-07): ReportsScreen rewritten with 4 real report endpoints (DDS/company/kitchen/trends). useCachedQuery hook provides AsyncStorage-based offline cache with stale detection (>1hr). OfflineBanner shows offline/stale state with timestamp. OPS_DIRECTOR sees only Kitchen and Trends sections. Trends section has inline bar chart. tsc passes. Commits: de6d9cb, 3d61f51
 - **08-01** (2026-04-08): Fixed 3 role dispatch bugs (LOW_REVENUE→OWNER+OPS_DIRECTOR, LARGE_EXPENSE→OWNER+FIN_DIRECTOR, SYNC_FAILURE→OWNER not ADMIN). Added NotificationPreference Prisma model + migration SQL. Added isNotificationEnabled preference check in sendToUser. Added handleInternalTrigger method. Added getUserPreferences/updatePreference. Added InternalNotificationController at POST /internal/notifications/trigger with x-internal-secret auth. 10 unit tests, tsc clean. Commits: 1e7bc49, 6804417, bebb02e
+- **08-02** (2026-04-08): AlertService created in aggregator-worker — checkSyncHealth (IIKO/ONE_C, >1h failure), checkRevenueThresholds (<70% 30-day avg), checkLargeExpenses (>500000 KZT default), shouldFireAlert (Redis 4h dedup), fireAlert (fire-and-forget HTTP POST to api-gateway /internal/notifications/trigger). AlertModule registered. Wired into syncRevenue/syncExpenses/syncOneCExpenses in SchedulerService. 10 unit tests, 38/38 total, tsc clean. Commits: 0345e44, 1502cb6
 
 ## Key Decisions
 
@@ -123,6 +124,9 @@ progress:
 - **[08-01]** InternalNotificationController is separate class to bypass JwtAuthGuard applied at NotificationController class level
 - **[08-01]** x-internal-secret header auth for aggregator-worker internal trigger — simple for internal microservice comms
 - **[08-01]** Promise.allSettled for multi-role dispatch (triggerLowRevenueAlert, triggerLargeExpenseAlert) — one role failure never blocks the other
+- **[08-02]** SyncLog.system is DataSource enum (IIKO|ONE_C) — checkSyncHealth uses typed 'IIKO'|'ONE_C' literal union, not free string; scheduler calls use 'IIKO' for iiko syncs, 'ONE_C' for 1C syncs
+- **[08-02]** dateFrom moved to method scope (before try block) in cron methods so alert checks can reference it without scoping issues
+- **[08-02]** Redis mock declared as module-level object before jest.mock() call so all tests share the same instance (not per-instance)
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
