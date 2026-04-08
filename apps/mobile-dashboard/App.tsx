@@ -7,8 +7,8 @@ Sentry.init({
   enabled: process.env.EXPO_PUBLIC_APP_ENV === 'production',
 });
 
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Alert, Animated } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Alert, Animated, PanResponder } from 'react-native';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { getStoredTokens, clearTokens } from './src/services/auth';
 import {
@@ -31,6 +31,8 @@ import type { Screen, User } from './src/types';
 import { ArticleDetailScreen } from './src/screens/ArticleDetailScreen';
 import { OperationsScreen } from './src/screens/OperationsScreen';
 import { useInactivityLogout } from './src/hooks/useInactivityLogout';
+import { useAuthStore } from './src/store/auth';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 type AppState = 'bootstrapping' | 'biometric-prompt' | 'login' | 'biometric-setup' | 'app';
 type BiometricType = 'faceid' | 'fingerprint' | 'iris' | null;
@@ -65,6 +67,9 @@ function App() {
       isBiometricAvailable(),
       isBiometricEnabled(),
     ]);
+
+    // Синхронизируем Zustand auth store
+    useAuthStore.getState().setUser(storedUser);
 
     if (available && enabled) {
       // Биометрия включена — просим подтвердить
@@ -112,6 +117,7 @@ function App() {
     loggedUser: User,
   ) => {
     setUser(loggedUser);
+    useAuthStore.getState().setUser(loggedUser);
 
     // Проверяем, доступна ли биометрия и не была ли она уже настроена
     const [available, alreadyEnabled] = await Promise.all([
@@ -132,11 +138,16 @@ function App() {
   const handleLogout = async () => {
     await clearTokens();
     setUser(null);
+    useAuthStore.getState().logout();
     setScreen('dashboard');
     setAppState('login');
   };
 
   useInactivityLogout(appState === 'app', handleLogout);
+
+  // ─── Push-уведомления ─────────────────────────────────────────────────────
+  const { accessToken } = useAuthStore();
+  usePushNotifications(appState === 'app' ? accessToken : null);
 
   // ─── Навигация ────────────────────────────────────────────────────────────
   const handleBrandSelect = (id: string, name: string) => {
@@ -162,6 +173,45 @@ function App() {
     setCurrentRestaurantId(restaurantId);
     setScreen('operations');
   };
+
+  // ─── Навигация назад ───────────────────────────────────────────────────────
+  const goBack = useCallback(() => {
+    switch (screen) {
+      case 'operations':
+        setScreen('article-detail');
+        break;
+      case 'article-detail':
+        setScreen('point-details');
+        break;
+      case 'point-details':
+        setScreen(brandId ? 'brand-details' : 'dashboard');
+        break;
+      case 'brand-details':
+        setScreen('dashboard');
+        break;
+      case 'notifications':
+        setScreen('dashboard');
+        break;
+      default:
+        break;
+    }
+  }, [screen, brandId]);
+
+  // Свайп слева направо для "назад"
+  const canGoBack = !['dashboard', 'points', 'reports'].includes(screen);
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        // Свайп вправо от левого края (начало < 40px) или быстрый свайп
+        return gestureState.dx > 30 && Math.abs(gestureState.dy) < 50;
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        if (gestureState.dx > 80) {
+          goBack();
+        }
+      },
+    })
+  ).current;
 
   // ─── Рендер ───────────────────────────────────────────────────────────────
   if (appState === 'bootstrapping') {
@@ -281,7 +331,9 @@ function App() {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-      {renderScreen()}
+      <View style={{ flex: 1 }} {...(canGoBack ? panResponder.panHandlers : {})}>
+        {renderScreen()}
+      </View>
       <BottomNav current={screen} onNavigate={setScreen} hasAlerts={true} />
     </View>
   );

@@ -1,14 +1,25 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import { registerPushToken } from '../services/notifications';
+
+// Set foreground handler ONCE at module level — must be before any Notifications API calls
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 /**
  * Hook для регистрации push-уведомлений через Expo Notifications.
  *
- * Требует установки expo-notifications и expo-device:
- *   npx expo install expo-notifications expo-device
- *
- * Регистрирует FCM token на бэкенде после логина.
+ * Использует нативный FCM/APNS токен (getDevicePushTokenAsync),
+ * не Expo proxy токен. tokenData.data — raw FCM/APNS token string.
  */
 export function usePushNotifications(accessToken: string | null) {
   const tokenRef = useRef<string | null>(null);
@@ -20,10 +31,6 @@ export function usePushNotifications(accessToken: string | null) {
 
     (async () => {
       try {
-        // Dynamic import — avoid crash if expo-notifications not installed yet
-        const Notifications = await import('expo-notifications');
-        const Device = await import('expo-device');
-
         // Must be a physical device
         if (!Device.isDevice) {
           console.log('[Push] Simulator detected — skipping registration');
@@ -53,10 +60,10 @@ export function usePushNotifications(accessToken: string | null) {
           });
         }
 
-        // Get push token
-        const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
-        });
+        // Get native FCM/APNS push token (not Expo proxy token)
+        // tokenData.type === 'fcm' on Android, 'ios' on iOS
+        // tokenData.data === raw FCM/APNS token string for direct FCM HTTP v1
+        const tokenData = await Notifications.getDevicePushTokenAsync();
 
         if (cancelled) return;
 

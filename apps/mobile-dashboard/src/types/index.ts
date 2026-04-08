@@ -1,5 +1,5 @@
 // ─── Навигация ────────────────────────────────────────────────────────────────
-export type Screen = 'login' | 'dashboard' | 'brand-details' | 'points' | 'point-details' | 'notifications' | 'reports' | 'article-detail' | 'operations';
+export type Screen = 'login' | 'dashboard' | 'brand-details' | 'points' | 'point-details' | 'notifications' | 'reports' | 'article-detail' | 'operations' | 'profile';
 
 // ─── Пользователь ────────────────────────────────────────────────────────────
 export type UserRole = 'ADMIN' | 'OWNER' | 'FINANCE_DIRECTOR' | 'OPERATIONS_DIRECTOR';
@@ -104,6 +104,13 @@ export interface DailyRevenuePointDto {
   revenue: number;
 }
 
+export interface DistributedExpenseItemDto {
+  name: string;
+  source: string;
+  amount: number;
+  coefficient: number;
+}
+
 export interface RestaurantDetailDto {
   id: string;
   name: string;
@@ -113,8 +120,9 @@ export interface RestaurantDetailDto {
   expenseGroups: ExpenseGroupDto[];
   directExpensesTotal: number;
   distributedExpensesTotal: number;
+  distributedExpenseItems: DistributedExpenseItemDto[];
   financialResult: number;
-  salesCount: number;                // Количество чеков за период
+  salesCount: number;
   cashDiscrepancies: CashDiscrepancyDto[];
   revenueChart: DailyRevenuePointDto[];
 }
