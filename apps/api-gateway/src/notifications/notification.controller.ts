@@ -3,16 +3,25 @@ import {
   Post,
   Get,
   Patch,
+  Put,
   Body,
   Param,
   Query,
   UseGuards,
   Req,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { NotificationService } from './notification.service';
-import { RegisterTokenDto, UnregisterTokenDto } from '../dto/notification.dto';
+import {
+  RegisterTokenDto,
+  UnregisterTokenDto,
+  UpdatePreferenceDto,
+  InternalTriggerDto,
+} from '../dto/notification.dto';
 
 @ApiTags('Notifications')
 @Controller('notifications')
@@ -71,6 +80,53 @@ export class NotificationController {
   @ApiOperation({ summary: 'Отметить все уведомления как прочитанные' })
   async markAllAsRead(@Req() req: { user: { sub: string } }) {
     await this.notificationService.markAllAsRead(req.user.sub);
+    return { success: true };
+  }
+
+  @Get('preferences')
+  @ApiOperation({ summary: 'Настройки уведомлений пользователя' })
+  async getPreferences(@Req() req: { user: { sub: string } }) {
+    return this.notificationService.getUserPreferences(req.user.sub);
+  }
+
+  @Put('preferences/:type')
+  @ApiOperation({ summary: 'Обновить настройку уведомления' })
+  async updatePreference(
+    @Req() req: { user: { sub: string } },
+    @Param('type') type: string,
+    @Body() body: UpdatePreferenceDto,
+  ) {
+    await this.notificationService.updatePreference(
+      req.user.sub,
+      type,
+      body.enabled,
+    );
+    return { success: true };
+  }
+}
+
+@ApiTags('Internal')
+@Controller('internal/notifications')
+export class InternalNotificationController {
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly config: ConfigService,
+  ) {}
+
+  @Post('trigger')
+  @ApiOperation({ summary: 'Internal alert trigger (aggregator-worker)' })
+  async internalTrigger(
+    @Headers('x-internal-secret') secret: string,
+    @Body() body: InternalTriggerDto,
+  ) {
+    const expected = this.config.get<string>('INTERNAL_API_SECRET');
+    if (!expected || secret !== expected) {
+      throw new UnauthorizedException('Invalid internal secret');
+    }
+    await this.notificationService.handleInternalTrigger(
+      body.type,
+      body.payload,
+    );
     return { success: true };
   }
 }

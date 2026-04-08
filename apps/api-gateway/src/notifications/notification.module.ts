@@ -3,12 +3,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
-import { NotificationController } from './notification.controller';
+import {
+  NotificationController,
+  InternalNotificationController,
+} from './notification.controller';
 import { NotificationService } from './notification.service';
 
 @Module({
   imports: [ConfigModule],
-  controllers: [NotificationController],
+  controllers: [NotificationController, InternalNotificationController],
   providers: [
     NotificationService,
     {
