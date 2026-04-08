@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: complete
-last_updated: "2026-04-08T19:50:00.000Z"
+status: in-progress
+last_updated: "2026-04-08T21:00:00.000Z"
 progress:
-  total_phases: 9
-  completed_phases: 8
-  total_plans: 22
-  completed_plans: 22
-  percent: 100
-  bar: "[██████████] 100%"
+  [██████████] 96%
+  total_phases: 10
+  completed_phases: 7
+  total_plans: 24
+  completed_plans: 23
+  percent: 96
 ---
 
 ---
@@ -133,6 +133,9 @@ progress:
 - **[08-03]** getDevicePushTokenAsync returns { type: 'fcm'|'ios', data: string } — tokenData.data is raw FCM/APNS token string for direct FCM HTTP v1 (not ExponentPushToken[] wrapper from getExpoPushTokenAsync)
 - **[08-03]** NotificationBehavior in Expo SDK 54 requires shouldShowBanner + shouldShowList in addition to shouldShowAlert — TypeScript enforces all fields
 - **[08-03]** onNavigateProfile added as optional prop to DashboardScreen — settings icon only renders when prop is passed, backward compatible with existing call sites
+- **[08.1-02]** GROUP_COLORS inlined in each screen (not extracted to shared constants file) — mobile scope is self-contained, avoids premature abstraction
+- **[08.1-02]** Emoji icons used per explicit user request ("красиво") — exception to no-emoji rule documented in code comments
+- **[08.1-02]** expandedGroup stores groupId string for natural single-accordion pattern; null = all collapsed; no animation for performance on low-end Android
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
@@ -166,6 +169,10 @@ progress:
 - 1С OData: `notebooklm chat -n ea3c975a-5c18-4b52-93d0-cb446ecca184 "..."`
 - 1С:ЗУП: `notebooklm chat -n 7ae5179b-11e9-47eb-b74c-d21fb22b108b "..."`
 - Подробные инструкции: `.planning/NOTEBOOKLM.md`
+
+## Roadmap Evolution
+
+- Phase 08.1 inserted after Phase 8: Подключить реальные ДДС статьи из iiko Server API — синхронизация транзакций по 42 статьям (URGENT)
 
 ## Next Steps (Recommended Order)
 
