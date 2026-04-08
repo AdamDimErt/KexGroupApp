@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { OneCyncService } from '../onec/onec-sync.service';
 import { AllocationService } from '../allocation/allocation.service';
 import { SchedulerService } from '../scheduler/scheduler.service';
+import { AlertService } from '../alert/alert.service';
 
 describe('IikoSyncService', () => {
   let service: IikoSyncService;
@@ -281,12 +282,19 @@ describe('IikoSyncService', () => {
         runAllocation: jest.fn(),
       };
 
+      const mockAlertService = {
+        checkSyncHealth: jest.fn().mockResolvedValue(undefined),
+        checkRevenueThresholds: jest.fn().mockResolvedValue(undefined),
+        checkLargeExpenses: jest.fn().mockResolvedValue(undefined),
+      };
+
       const schedulerModule = await Test.createTestingModule({
         providers: [
           SchedulerService,
           { provide: IikoSyncService, useValue: mockIikoSync },
           { provide: OneCyncService, useValue: mockOneCync },
           { provide: AllocationService, useValue: mockAllocation },
+          { provide: AlertService, useValue: mockAlertService },
         ],
       }).compile();
 

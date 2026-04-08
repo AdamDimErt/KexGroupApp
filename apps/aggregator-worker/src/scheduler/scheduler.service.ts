@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { IikoSyncService } from '../iiko/iiko-sync.service';
 import { OneCyncService } from '../onec/onec-sync.service';
 import { AllocationService } from '../allocation/allocation.service';
+import { AlertService } from '../alert/alert.service';
 
 @Injectable()
 export class SchedulerService {
@@ -12,6 +13,7 @@ export class SchedulerService {
     private readonly iikoSync: IikoSyncService,
     private readonly oneCync: OneCyncService,
     private readonly allocation: AllocationService,
+    private readonly alertService: AlertService,
   ) {}
 
   // Daily 03:00 — sync organizations
@@ -43,12 +45,12 @@ export class SchedulerService {
   // Every 15 minutes — sync revenue (OLAP)
   @Cron('*/15 * * * *')
   async syncRevenue() {
-    try {
-      const now = new Date();
-      const dateFrom = new Date(now);
-      dateFrom.setDate(dateFrom.getDate() - 1); // Last 1 day
-      const dateTo = now;
+    const now = new Date();
+    const dateFrom = new Date(now);
+    dateFrom.setDate(dateFrom.getDate() - 1); // Last 1 day
+    const dateTo = now;
 
+    try {
       this.logger.log(
         `Syncing revenue from ${dateFrom.toISOString()} to ${dateTo.toISOString()}...`,
       );
@@ -58,17 +60,23 @@ export class SchedulerService {
         `Revenue sync failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+    try {
+      await this.alertService.checkSyncHealth('IIKO');
+      await this.alertService.checkRevenueThresholds();
+    } catch (e) {
+      this.logger.warn(`Alert check failed after syncRevenue: ${e}`);
+    }
   }
 
   // Every 30 minutes — sync DDS expenses
   @Cron('*/30 * * * *')
   async syncExpenses() {
-    try {
-      const now = new Date();
-      const dateFrom = new Date(now);
-      dateFrom.setDate(dateFrom.getDate() - 1);
-      const dateTo = now;
+    const now = new Date();
+    const dateFrom = new Date(now);
+    dateFrom.setDate(dateFrom.getDate() - 1);
+    const dateTo = now;
 
+    try {
       this.logger.log(
         `Syncing DDS expenses from ${dateFrom.toISOString()} to ${dateTo.toISOString()}...`,
       );
@@ -77,6 +85,12 @@ export class SchedulerService {
       this.logger.error(
         `Expense sync failed: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+    try {
+      await this.alertService.checkSyncHealth('IIKO');
+      await this.alertService.checkLargeExpenses(dateFrom);
+    } catch (e) {
+      this.logger.warn(`Alert check failed after syncExpenses: ${e}`);
     }
   }
 
@@ -123,12 +137,12 @@ export class SchedulerService {
   // Every hour — sync 1C expenses
   @Cron('5 * * * *')
   async syncOneCExpenses() {
-    try {
-      const now = new Date();
-      const dateFrom = new Date(now);
-      dateFrom.setDate(dateFrom.getDate() - 1);
-      const dateTo = now;
+    const now = new Date();
+    const dateFrom = new Date(now);
+    dateFrom.setDate(dateFrom.getDate() - 1);
+    const dateTo = now;
 
+    try {
       this.logger.log(
         `Syncing 1C expenses from ${dateFrom.toISOString()} to ${dateTo.toISOString()}...`,
       );
@@ -137,6 +151,12 @@ export class SchedulerService {
       this.logger.error(
         `1C expense sync failed: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+    try {
+      await this.alertService.checkSyncHealth('ONE_C');
+      await this.alertService.checkLargeExpenses(dateFrom);
+    } catch (e) {
+      this.logger.warn(`Alert check failed after syncOneCExpenses: ${e}`);
     }
   }
 
