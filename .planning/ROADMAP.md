@@ -530,7 +530,7 @@ Plans:
 ## Phase 8: Push-уведомления
 **Статус: 🔄 ~25% готово**
 **Срок по ТЗ: Этап 3 (3-4 недели)**
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [ ] 08-01-PLAN.md — Fix role targeting, NotificationPreference model, prefs endpoints, internal trigger

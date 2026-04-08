@@ -3,19 +3,33 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-07T12:42:00.248Z"
+last_updated: "2026-04-08T19:29:17.696Z"
 progress:
   total_phases: 9
-  completed_phases: 5
-  total_plans: 19
-  completed_plans: 18
+  completed_phases: 6
+  total_plans: 22
+  completed_plans: 21
+  percent: 91
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.5
+milestone_name: milestone
+status: unknown
+last_updated: "2026-04-08T19:21:39.253Z"
+progress:
+  [█████████░] 91%
+  completed_phases: 6
+  total_plans: 22
+  completed_plans: 19
 ---
 
 # Project State
 
 ## Current Phase
 
-**Phase 7: Mobile Screens** — IN PROGRESS. Plans 07-01, 07-02, 07-03, and 07-04 complete: infrastructure layer + Level 3/4 drill-down screens, DashboardScreen/PointDetailScreen enhanced with KPI cards, skeleton loader, lastSyncAt, haptics, expense drilldown, financial result, cash discrepancies, revenue bar chart, plus ReportsScreen rewritten with 4 real report endpoints and offline cache. Next: remaining Phase 7 plans.
+**Phase 8: Push Notifications** — IN PROGRESS. Plan 08-01 complete: fixed 3 critical role dispatch bugs (LOW_REVENUE → OWNER+OPS_DIRECTOR, LARGE_EXPENSE → OWNER+FIN_DIRECTOR, SYNC_FAILURE → OWNER not ADMIN), added NotificationPreference Prisma model, preferences CRUD API, internal trigger endpoint with x-internal-secret auth, 10 unit tests passing.
 
 ## What's Working
 
@@ -57,6 +71,7 @@ progress:
 - **07-02** (2026-04-07): Level 3/4 drill-down screens — ArticleDetailScreen shows DDS articles with source badge, change%, allocation badge; role-gated (OWNER drills to Level 4, FIN_DIRECTOR read-only, OPS_DIRECTOR stops at Level 2); OperationsScreen shows paginated operations with date, amount, comment, source, coefficient; load-more pagination; both screens use Haptics.impactAsync on pull-to-refresh; App.tsx placeholder components replaced with real imports. tsc passes. Commits: 864c87c, 7d592b5
 - **07-03** (2026-04-07): SkeletonLoader reusable component (animated pulse 0.3→0.7). DashboardScreen: 3 KPI cards (БАЛАНС hidden for OPS_DIRECTOR), lastSyncAt indicator (red when stale >1h), skeleton loader on initial load, pull-to-refresh with haptic feedback. PointDetailScreen: tappable expense groups (OWNER+FIN_DIR Level 3 drilldown), financial result breakdown (direct + distributed), cash discrepancies section, View-based daily revenue bar chart (last 14 days), pull-to-refresh with haptics. tsc passes. Commits: c49a064, a29c615
 - **07-04** (2026-04-07): ReportsScreen rewritten with 4 real report endpoints (DDS/company/kitchen/trends). useCachedQuery hook provides AsyncStorage-based offline cache with stale detection (>1hr). OfflineBanner shows offline/stale state with timestamp. OPS_DIRECTOR sees only Kitchen and Trends sections. Trends section has inline bar chart. tsc passes. Commits: de6d9cb, 3d61f51
+- **08-01** (2026-04-08): Fixed 3 role dispatch bugs (LOW_REVENUE→OWNER+OPS_DIRECTOR, LARGE_EXPENSE→OWNER+FIN_DIRECTOR, SYNC_FAILURE→OWNER not ADMIN). Added NotificationPreference Prisma model + migration SQL. Added isNotificationEnabled preference check in sendToUser. Added handleInternalTrigger method. Added getUserPreferences/updatePreference. Added InternalNotificationController at POST /internal/notifications/trigger with x-internal-secret auth. 10 unit tests, tsc clean. Commits: 1e7bc49, 6804417, bebb02e
 
 ## Key Decisions
 
@@ -104,6 +119,10 @@ progress:
 - **[07-03]** Revenue bar chart is View-based (no victory-native) — last 14 days, proportional heights, day-of-month labels
 - **[07-03]** usePointDetail refetch returned outside useMemo — computed state memoized separately; refetch callback is stable from useApiQuery
 - **[07-04]** Each report section fetches independently — network failures in one section do not block others
+- **[08-01]** NotificationPreference stored in @@schema(auth) — opt-out model (no row = enabled), @@unique([userId, type])
+- **[08-01]** InternalNotificationController is separate class to bypass JwtAuthGuard applied at NotificationController class level
+- **[08-01]** x-internal-secret header auth for aggregator-worker internal trigger — simple for internal microservice comms
+- **[08-01]** Promise.allSettled for multi-role dispatch (triggerLowRevenueAlert, triggerLargeExpenseAlert) — one role failure never blocks the other
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
