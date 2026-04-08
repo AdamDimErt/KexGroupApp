@@ -83,6 +83,7 @@ model User {
   auditLogs           AuditLog[]
   notificationTokens  NotificationToken[]
   notificationLogs    NotificationLog[]
+  notificationPreferences NotificationPreference[]
 
   @@schema("auth")
 }
@@ -132,6 +133,19 @@ model NotificationLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead, createdAt])
+  @@schema("auth")
+}
+
+/// Настройки уведомлений пользователя (per-type enable/disable)
+model NotificationPreference {
+  id      String  @id @default(uuid())
+  userId  String
+  type    String              // "SYNC_FAILURE" | "LOW_REVENUE" | "LARGE_EXPENSE"
+  enabled Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
   @@schema("auth")
 }
 

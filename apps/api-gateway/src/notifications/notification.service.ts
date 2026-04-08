@@ -47,6 +47,18 @@ export class NotificationService {
     });
   }
 
+  // ─── Notification preference check ──────────────────────────────────────
+
+  private async isNotificationEnabled(
+    userId: string,
+    type: string,
+  ): Promise<boolean> {
+    const pref = await this.prisma.notificationPreference.findUnique({
+      where: { userId_type: { userId, type } },
+    });
+    return pref?.enabled ?? true; // default: enabled when no row exists
+  }
+
   // ─── Send to user ────────────────────────────────────────────────────────
 
   async sendToUser(
@@ -54,6 +66,13 @@ export class NotificationService {
     type: string,
     message: FcmMessage,
   ): Promise<void> {
+    if (!(await this.isNotificationEnabled(userId, type))) {
+      this.logger.debug(
+        `Notification type ${type} disabled for user ${userId} — skipping`,
+      );
+      return;
+    }
+
     const tokens = await this.prisma.notificationToken.findMany({
       where: { userId, isActive: true },
     });
@@ -149,7 +168,7 @@ export class NotificationService {
     amount: number,
     threshold: number,
   ): Promise<void> {
-    await this.sendToRole('OWNER', 'LOW_REVENUE', {
+    const msg: FcmMessage = {
       title: 'Низкая выручка',
       body: `${restaurantName}: ${amount.toLocaleString('ru-RU')} ₸ (порог: ${threshold.toLocaleString('ru-RU')} ₸)`,
       data: {
@@ -157,7 +176,11 @@ export class NotificationService {
         amount: String(amount),
         threshold: String(threshold),
       },
-    });
+    };
+    await Promise.allSettled([
+      this.sendToRole('OWNER', 'LOW_REVENUE', msg),
+      this.sendToRole('OPERATIONS_DIRECTOR', 'LOW_REVENUE', msg),
+    ]);
   }
 
   async triggerLargeExpenseAlert(
@@ -165,18 +188,75 @@ export class NotificationService {
     articleName: string,
     amount: number,
   ): Promise<void> {
-    await this.sendToRole('OWNER', 'LARGE_EXPENSE', {
+    const msg: FcmMessage = {
       title: 'Крупный расход',
       body: `${restaurantName} — ${articleName}: ${amount.toLocaleString('ru-RU')} ₸`,
       data: { restaurantName, articleName, amount: String(amount) },
-    });
+    };
+    await Promise.allSettled([
+      this.sendToRole('OWNER', 'LARGE_EXPENSE', msg),
+      this.sendToRole('FINANCE_DIRECTOR', 'LARGE_EXPENSE', msg),
+    ]);
   }
 
   async triggerSyncFailureAlert(system: string, error: string): Promise<void> {
-    await this.sendToRole('ADMIN', 'SYNC_FAILURE', {
+    await this.sendToRole('OWNER', 'SYNC_FAILURE', {
       title: `Ошибка синхронизации ${system}`,
       body: error.slice(0, 200),
       data: { system, error: error.slice(0, 500) },
+    });
+  }
+
+  async handleInternalTrigger(
+    type: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    switch (type) {
+      case 'SYNC_FAILURE':
+        await this.triggerSyncFailureAlert(
+          payload.system as string,
+          payload.error as string,
+        );
+        break;
+      case 'LOW_REVENUE':
+        await this.triggerLowRevenueAlert(
+          payload.restaurantName as string,
+          payload.amount as number,
+          payload.threshold as number,
+        );
+        break;
+      case 'LARGE_EXPENSE':
+        await this.triggerLargeExpenseAlert(
+          payload.restaurantName as string,
+          payload.articleName as string,
+          payload.amount as number,
+        );
+        break;
+      default:
+        this.logger.warn(`Unknown trigger type: ${type}`);
+    }
+  }
+
+  async getUserPreferences(userId: string) {
+    const types = ['SYNC_FAILURE', 'LOW_REVENUE', 'LARGE_EXPENSE'];
+    const prefs = await this.prisma.notificationPreference.findMany({
+      where: { userId },
+    });
+    return types.map((type) => {
+      const pref = prefs.find((p) => p.type === type);
+      return { type, enabled: pref?.enabled ?? true };
+    });
+  }
+
+  async updatePreference(
+    userId: string,
+    type: string,
+    enabled: boolean,
+  ): Promise<void> {
+    await this.prisma.notificationPreference.upsert({
+      where: { userId_type: { userId, type } },
+      update: { enabled },
+      create: { userId, type, enabled },
     });
   }
 
