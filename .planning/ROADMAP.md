@@ -557,7 +557,7 @@ Plans:
 **Goal:** Sync real DDS expense articles (42 accounts) from iiko Server API into finance DB and enhance mobile screens to display all 12 expense categories beautifully with color-coded groups and expandable drill-down.
 **Requirements**: [DDS-01, DDS-02, DDS-03, DDS-04, DDS-05, DDS-06]
 **Depends on:** Phase 8
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 08.1-01-PLAN.md — Backend: syncDdsArticles + syncDdsTransactions + cron wiring + tests

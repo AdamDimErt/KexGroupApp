@@ -2,15 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: in-progress
-last_updated: "2026-04-08T21:00:00.000Z"
+status: unknown
+last_updated: "2026-04-08T20:24:14.286Z"
 progress:
-  [██████████] 96%
   total_phases: 10
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 24
-  completed_plans: 23
-  percent: 96
+  completed_plans: 24
+  percent: 91
 ---
 
 ---
@@ -30,7 +29,7 @@ progress:
 
 ## Current Phase
 
-**Phase 8: Push Notifications** — COMPLETE. All 3 plans done. Plan 08-03 complete: fixed 3 critical role dispatch bugs (LOW_REVENUE → OWNER+OPS_DIRECTOR, LARGE_EXPENSE → OWNER+FIN_DIRECTOR, SYNC_FAILURE → OWNER not ADMIN), added NotificationPreference Prisma model, preferences CRUD API, internal trigger endpoint with x-internal-secret auth, 10 unit tests passing.
+**Phase 08.1: iiko Server API DDS sync** — COMPLETE. Plan 08.1-01 complete: syncDdsArticles fetches /v2/entities/list and upserts DdsArticle records; syncDdsTransactions fetches /v2/cashshifts/list per restaurant and upserts Expense with dds:{shiftId}:{movId} syncId; resolveGroupCode maps 12 DDS group codes; POST /sync/dds endpoint added; syncAll and syncBackfill include DDS. 54 tests passing.
 
 ## What's Working
 
@@ -75,6 +74,7 @@ progress:
 - **08-01** (2026-04-08): Fixed 3 role dispatch bugs (LOW_REVENUE→OWNER+OPS_DIRECTOR, LARGE_EXPENSE→OWNER+FIN_DIRECTOR, SYNC_FAILURE→OWNER not ADMIN). Added NotificationPreference Prisma model + migration SQL. Added isNotificationEnabled preference check in sendToUser. Added handleInternalTrigger method. Added getUserPreferences/updatePreference. Added InternalNotificationController at POST /internal/notifications/trigger with x-internal-secret auth. 10 unit tests, tsc clean. Commits: 1e7bc49, 6804417, bebb02e
 - **08-02** (2026-04-08): AlertService created in aggregator-worker — checkSyncHealth (IIKO/ONE_C, >1h failure), checkRevenueThresholds (<70% 30-day avg), checkLargeExpenses (>500000 KZT default), shouldFireAlert (Redis 4h dedup), fireAlert (fire-and-forget HTTP POST to api-gateway /internal/notifications/trigger). AlertModule registered. Wired into syncRevenue/syncExpenses/syncOneCExpenses in SchedulerService. 10 unit tests, 38/38 total, tsc clean. Commits: 0345e44, 1502cb6
 - **08-03** (2026-04-08): Native FCM token registration fixed (getDevicePushTokenAsync replacing getExpoPushTokenAsync), static imports replacing dynamic import(), module-level setNotificationHandler with shouldShowAlert/shouldShowBanner/shouldShowList. usePushNotifications wired in App.tsx. useNotificationPrefs hook with optimistic toggle + error revert. ProfileScreen with 3 Switch rows (SYNC_FAILURE, LOW_REVENUE, LARGE_EXPENSE). Navigation: DashboardScreen settings icon → ProfileScreen. tsc clean. Commits: 9d473e1, 0aca2bb
+- **08.1-01** (2026-04-08): syncDdsArticles (POST /v2/entities/list with GET fallback), syncDdsTransactions (/v2/cashshifts/list per restaurant, dds:{shiftId}:{movId} syncId deduplication), resolveGroupCode (12 DDS group codes). POST /sync/dds endpoint. syncAll + syncBackfill include DDS. 54 tests passing, tsc clean. Commits: 572d80c, fa33d42
 
 ## Key Decisions
 
@@ -133,6 +133,11 @@ progress:
 - **[08-03]** getDevicePushTokenAsync returns { type: 'fcm'|'ios', data: string } — tokenData.data is raw FCM/APNS token string for direct FCM HTTP v1 (not ExponentPushToken[] wrapper from getExpoPushTokenAsync)
 - **[08-03]** NotificationBehavior in Expo SDK 54 requires shouldShowBanner + shouldShowList in addition to shouldShowAlert — TypeScript enforces all fields
 - **[08-03]** onNavigateProfile added as optional prop to DashboardScreen — settings icon only renders when prop is passed, backward compatible with existing call sites
+- **[08.1-01]** resolveGroupCode checks 'заработн' in addition to 'зарплат' to cover both 'Заработная плата' and 'Зарплата' Russian account name forms
+- **[08.1-01]** syncDdsArticles tries POST /v2/entities/list first, falls back to GET — iiko Server v2 API pattern with graceful degradation
+- **[08.1-01]** DdsArticle.upsert uses compound key groupId_code — code is not globally unique in schema (@@unique([groupId, code]))
+- **[08.1-01]** syncDdsTransactions uses findFirst({ source: 'IIKO' }) not findUnique — DdsArticle.code is optional and only unique per groupId
+- **[08.1-01]** syncId for DDS Expenses: dds:{shiftId}:{movementId} — global deduplication across restaurants, days, articles
 - **[08.1-02]** GROUP_COLORS inlined in each screen (not extracted to shared constants file) — mobile scope is self-contained, avoids premature abstraction
 - **[08.1-02]** Emoji icons used per explicit user request ("красиво") — exception to no-emoji rule documented in code comments
 - **[08.1-02]** expandedGroup stores groupId string for natural single-accordion pattern; null = all collapsed; no animation for performance on low-end Android
