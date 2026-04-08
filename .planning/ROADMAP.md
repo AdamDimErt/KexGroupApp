@@ -181,15 +181,15 @@ Kexbrands ЦО (Корпорация)
 ---
 
 ## Phase 2: Auth Service
-**Статус: 🔄 ~60% готово**
+**Статус: ✅ ~95% готово**
 **Срок по ТЗ: входит в Этап 1 (3-4 недели)**
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans executed
 
 Plans:
 - [x] 02-00-PLAN.md -- Leader schema migration (biometricEnabled field)
 - [x] 02-01-PLAN.md -- AuditLog integration + JWT TTL reduction
-- [ ] 02-02-PLAN.md -- Telegram Gateway OTP (primary channel + SMS fallback)
+- [x] 02-02-PLAN.md -- Telegram Gateway OTP (primary channel + SMS fallback)
 - [x] 02-03-PLAN.md -- Biometric endpoints (service + controller)
 - [x] 02-04-PLAN.md -- Unit tests for biometric + AuditLog
 
@@ -205,14 +205,14 @@ Plans:
 - [x] `class-validator` + `class-transformer` для валидации DTO
 - [x] Health check: `GET /health`
 - [ ] **Интегрировать Prisma** — найти/создать пользователя по номеру телефона в реальной БД (сейчас mock)
-- [ ] **Telegram-бот** (Telegraf.js) для отправки OTP кодов (основной канал)
-- [ ] **PIN/биометрия (Face ID / отпечаток пальца):**
-  - [ ] Endpoint `POST /auth/biometric/enable` — включить биометрию для пользователя (сохранить флаг в DB)
-  - [ ] Endpoint `POST /auth/biometric/verify` — выдать JWT по refresh token + biometric flag
+- [x] **Telegram Gateway** — OTP через Telegram (основной канал), SMS fallback через Mobizon
+- [x] **PIN/биометрия (Face ID / отпечаток пальца):**
+  - [x] Endpoint `POST /auth/biometric/enable` — включить биометрию для пользователя
+  - [x] Endpoint `POST /auth/biometric/verify` — выдать JWT по refresh token + biometric flag
   - [x] Поле `biometricEnabled: Boolean` в модели User
-- [ ] **Автовыход при неактивности** (настраиваемый таймаут, по ТЗ)
-- [ ] **AuditLog:** записывать каждый логин (userId, action, IP, timestamp)
-- [ ] Unit-тесты для auth.service.ts (Jest)
+- [x] **Автовыход при неактивности** (реализован в мобилке через useInactivityLogout)
+- [x] **AuditLog:** записывать каждый логин (userId, action, IP, timestamp)
+- [x] Unit-тесты для auth.service.ts (35 тестов, Jest)
 
 ---
 
@@ -446,75 +446,96 @@ Plans:
 ---
 
 ## Phase 7: Mobile App — Экраны (4 уровня drill-down)
-**Статус: 🔄 ~35% готово**
+**Статус: 🔄 ~75% готово**
 **Срок по ТЗ: Этап 1 + Этап 2 (6-8 недель)**
 **Plans:** 4/4 plans complete
 
 Plans:
-- [ ] 07-01-PLAN.md — Infrastructure: types, API methods, navigation wiring
-- [ ] 07-02-PLAN.md — New screens: ArticleDetailScreen (L3) + OperationsScreen (L4)
-- [ ] 07-03-PLAN.md — Enhance existing: DashboardScreen + PointDetailScreen
-- [ ] 07-04-PLAN.md — Reports rewrite + offline cache
+- [x] 07-01-PLAN.md — Infrastructure: types, API methods, navigation wiring
+- [x] 07-02-PLAN.md — New screens: ArticleDetailScreen (L3) + OperationsScreen (L4)
+- [x] 07-03-PLAN.md — Enhance existing: DashboardScreen + PointDetailScreen
+- [x] 07-04-PLAN.md — Reports rewrite + offline cache
 
 ### Уровень 1 — Главный экран (Компания)
 - [x] DashboardScreen — основной экран с данными
-- [ ] Три ключевые цифры: Выручка · Расходы · Баланс — частично (нужна верстка)
-- [ ] Переключатель периода: Сегодня / Неделя / Месяц / Прошлый месяц / Свой диапазон
+- [x] Три ключевые цифры: Выручка · Расходы · Баланс
+- [x] Переключатель периода: Сегодня / Неделя / Месяц / Прошлый месяц / Свой диапазон
 - [x] **Плитки по брендам** (Вариант Б):
   - [x] Burger na Abaya → выручка, динамика (+/-%)
   - [x] Doner na Abaya → выручка, динамика (+/-%)
   - [x] Нажатие → переход к BrandDetailScreen
-- [ ] Индикатор "последняя синхронизация: ЧЧ:ММ"
-- [ ] Pull-to-refresh
-- [ ] Skeleton loader при загрузке
-- [ ] Фильтрация по матрице доступа (OPS_DIRECTOR не видит баланс)
+- [x] Индикатор "последняя синхронизация: ЧЧ:ММ"
+- [x] Pull-to-refresh с haptic feedback
+- [x] Skeleton loader при загрузке
+- [x] Фильтрация по матрице доступа (OPS_DIRECTOR не видит баланс и финрезультат)
+- [x] Динамическое приветствие по времени суток
+- [x] Error state с кнопкой "Повторить"
 
 ### Уровень 1b — Бренд (список точек)
 - [x] BrandDetailScreen — список ресторанов бренда
 - [x] RestaurantCard компонент (со стилями)
 - [x] Переход к PointDetailScreen при нажатии
+- [x] Pull-to-refresh с haptic feedback
+- [x] OfflineBanner
 
 ### Уровень 2 — Детализация по точке
 - [x] PointDetailScreen — экран детализации точки
 - [x] Выручка по типам оплат (Наличные, Kaspi QR, Halyk QR, Яндекс) — подключено к бэкенду
-- [x] Расходы по группам статей ДДС (с суммой по группе) — подключено к бэкенду
-- [ ] Распределённые затраты (доля ГО и Цеха)
-- [ ] Финрезультат = Выручка − Прямые − Распределённые
-- [ ] Недостачи и излишки по кассе
-- [ ] График выручки по дням за период (victory-native)
+- [x] Расходы по группам статей ДДС (с суммой по группе) — Продукты питания + Прочие расходы
+- [x] Распределённые затраты (доля ГО и Цеха) с детализацией по статьям
+- [x] Финрезультат = Выручка − Прямые − Распределённые (формула на экране)
+- [x] Недостачи и излишки по кассе (таблица: Дата/Ожидание/Факт/Разница)
+- [x] График выручки по дням (кликабельные столбцы, средняя линия, горизонтальный скролл для длинных периодов)
+- [x] Свайп назад (слева → направо)
 
-### Уровень 3 — Детализация по статьям (👑 + 📊)
-- [ ] Экран статей ДДС внутри группы с суммами
-- [ ] Доля каждой статьи в общих расходах (%)
-- [ ] Сравнение с предыдущим аналогичным периодом (+/-)
-- [ ] Пометка: прямая (iiko) или распределённая (1С)
+### Уровень 3 — Детализация по статьям (👑 + 📊 + 🔧)
+- [x] Экран статей ДДС внутри группы с суммами
+- [x] Доля каждой статьи в общих расходах (%)
+- [x] Сравнение с предыдущим аналогичным периодом (+/-)
+- [x] Пометка: прямая (iiko) или распределённая (1С)
+- [x] ADMIN имеет полный доступ
 
-### Уровень 4 — Детализация по операциям (только 👑)
-- [ ] Список операций: дата, сумма, комментарий
-- [ ] Источник: iiko или 1С
-- [ ] Коэффициент распределения (для распределённых затрат)
+### Уровень 4 — Детализация по операциям (только 👑 + 🔧)
+- [x] Список операций: дата, сумма, комментарий
+- [x] Источник: iiko или 1С
+- [x] Коэффициент распределения (для распределённых затрат)
+- [x] Пагинация "Загрузить ещё"
+- [x] ADMIN имеет полный доступ
 
 ### Отчёты (отдельный таб)
-- [x] ReportsScreen — подключен к реальному API (KPI, бренды, рейтинг)
-- [ ] ДДС сводный по всем точкам
-- [ ] Затраты компании (ГО + Цех)
-- [ ] Закупки и отгрузки Цеха
-- [ ] Аналитика и тренды (графики)
+- [x] ReportsScreen — 4 секции с role-based доступом
+- [x] ДДС сводный по всем точкам (OWNER + FIN_DIR + ADMIN)
+- [x] Затраты компании (ГО + Цех) (OWNER + FIN_DIR + ADMIN)
+- [x] Закупки и отгрузки Цеха (все роли)
+- [x] Аналитика и тренды — график + средние значения (все роли)
+- [x] Empty states для пустых данных
+- [x] Haptic feedback на pull-to-refresh
 
 ### Уведомления
 - [x] NotificationsScreen — экран уведомлений
 
 ### Офлайн и UX
-- [ ] React Query + AsyncStorage persister — офлайн кэш
-- [ ] Баннер "Нет соединения, данные от ЧЧ:ММ"
-- [ ] Индикатор "данные устарели" (> 1 часа, красный)
-- [ ] Haptic feedback (`expo-haptics`)
+- [x] React Query + AsyncStorage persister — офлайн кэш на всех экранах
+- [x] Баннер "Нет соединения, данные от ЧЧ:ММ" — на всех 5 data-экранах
+- [x] Индикатор "данные устарели" (> 1 часа, красный)
+- [x] Haptic feedback на pull-to-refresh (все экраны)
+
+### Оставшееся
+- [ ] Вкладка "Рестораны" — список всех точек загружается, но может быть медленно (2 API-вызова)
+- [ ] Реальные ДДС статьи из iiko Cloud API `/reports/expenses` (аренда, зарплаты, коммуналка)
+- [ ] Комиссии банков (Kaspi, Halyk, Яндекс)
 
 ---
 
 ## Phase 8: Push-уведомления
 **Статус: 🔄 ~25% готово**
 **Срок по ТЗ: Этап 3 (3-4 недели)**
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Fix role targeting, NotificationPreference model, prefs endpoints, internal trigger
+- [ ] 08-02-PLAN.md — AlertService in aggregator-worker (sync health, revenue, expenses thresholds)
+- [ ] 08-03-PLAN.md — Mobile: fix push token, wire usePushNotifications, ProfileScreen with settings
 
 - [ ] Firebase Cloud Messaging (FCM) — серверная часть
 - [x] `expo-notifications` установлен (v0.31.0) + usePushNotifications хук
