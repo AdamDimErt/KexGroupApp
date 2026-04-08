@@ -1,12 +1,139 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, type DimensionValue } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Dimensions, type DimensionValue } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { usePointDetail } from '../hooks/usePointDetail';
 import { PeriodSelector, PERIOD_OPTIONS } from '../components/PeriodSelector';
 import { useDashboardStore } from '../store/dashboard';
 import { useAuthStore } from '../store/auth';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { colors } from '../theme';
 import { styles } from './PointDetailScreen.styles';
+
+function fmtRevenue(v: number): string {
+  if (v >= 1000000) return `₸${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `₸${Math.round(v / 1000)}K`;
+  return `₸${v.toFixed(0)}`;
+}
+
+function DailyRevenueChart({ data, periodLabel }: { data: { date: string; revenue: number }[]; periodLabel: string }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const points = data;
+  const maxRev = Math.max(...points.map(p => p.revenue), 1);
+  const avgRev = points.reduce((s, p) => s + p.revenue, 0) / points.length;
+
+  // Адаптивная ширина: если > 14 дней — горизонтальный скролл
+  const screenW = Dimensions.get('window').width - 80;
+  const barWidth = points.length <= 14
+    ? (screenW / points.length) - 6
+    : 22; // фиксированная ширина для скролла
+  const chartTotalW = points.length <= 14
+    ? screenW
+    : points.length * (barWidth + 6);
+
+  // Показывать подписи: каждую для ≤14, через одну для 15-21, каждую 3ю для 22+
+  const labelStep = points.length <= 14 ? 1 : points.length <= 21 ? 2 : 3;
+
+  const handlePress = (index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelected(selected === index ? null : index);
+  };
+
+  const sel = selected !== null ? points[selected] : null;
+  const selDate = sel ? new Date(sel.date) : null;
+  const dayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+  return (
+    <View style={styles.chartCard}>
+      <View style={styles.chartHeader}>
+        <Text style={styles.chartTitle}>Выручка по дням</Text>
+        <Text style={styles.chartSub}>{periodLabel}</Text>
+      </View>
+
+      {sel && selDate && (
+        <View style={{ backgroundColor: 'rgba(99,102,241,0.15)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+            {dayNames[selDate.getDay()]}, {selDate.getDate()}.{String(selDate.getMonth() + 1).padStart(2, '0')}
+          </Text>
+          <Text style={{ color: '#10B981', fontSize: 18, fontWeight: '700', marginTop: 2 }}>
+            {fmtRevenue(sel.revenue)}
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2 }}>
+            {sel.revenue > avgRev
+              ? `+${((sel.revenue / avgRev - 1) * 100).toFixed(0)}% от среднего`
+              : sel.revenue < avgRev
+                ? `${((sel.revenue / avgRev - 1) * 100).toFixed(0)}% от среднего`
+                : 'равно среднему'}
+          </Text>
+        </View>
+      )}
+
+      {!sel && (
+        <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginBottom: 4 }}>
+          Ср. выручка/день: {fmtRevenue(avgRev)}  •  Нажмите на столбец
+        </Text>
+      )}
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={{ width: chartTotalW }}>
+          {/* Bars + average line overlay */}
+          <View style={{ height: 120, position: 'relative' }}>
+            {/* Average line — positioned exactly at avg height from bottom */}
+            {avgRev > 0 && (
+              <View style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: (avgRev / maxRev) * 120,
+                borderTopWidth: 1,
+                borderStyle: 'dashed',
+                borderColor: 'rgba(255,255,255,0.25)',
+                zIndex: 1,
+              }}>
+                <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9, position: 'absolute', right: 0, top: -14 }}>
+                  ср. {fmtRevenue(avgRev)}
+                </Text>
+              </View>
+            )}
+            {/* Bars */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 120, justifyContent: 'space-between' }}>
+              {points.map((p, i) => {
+                const h = maxRev > 0 ? (p.revenue / maxRev) * 120 : 2;
+                const isSelected = selected === i;
+                return (
+                  <TouchableOpacity key={i} onPress={() => handlePress(i)} activeOpacity={0.7} style={{ alignItems: 'center', flex: 1 }}>
+                    <View style={[
+                      styles.bar,
+                      { height: Math.max(h, 2), width: barWidth },
+                      isSelected && { backgroundColor: '#10B981' },
+                    ]} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+          {/* Date labels */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+            {points.map((p, i) => {
+              const d = new Date(p.date);
+              const showLabel = i % labelStep === 0;
+              const isSelected = selected === i;
+              return (
+                <View key={i} style={{ alignItems: 'center', flex: 1 }}>
+                  <Text style={[
+                    { color: 'rgba(255,255,255,0.4)', fontSize: points.length > 14 ? 8 : 10 },
+                    isSelected && { color: '#10B981', fontWeight: '600' },
+                  ]}>
+                    {showLabel ? String(d.getDate()) : ''}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
 
 interface Props {
   pointId: string | null;
@@ -32,6 +159,37 @@ function expenseBarPct(amount: number, maxAmount: number): DimensionValue {
   return `${(amount / maxAmount) * 100}%` as DimensionValue;
 }
 
+// ─── DDS expense group colors and emoji icons ─────────────────────────────
+// NOTE: User requested emoji icons for visual distinction ("красиво") — emoji allowed here
+const GROUP_COLORS: Record<string, string> = {
+  'Продукты питания': '#10B981',     // green
+  'Аренда помещений': '#6366F1',     // indigo
+  'Заработная плата': '#F59E0B',     // amber
+  'Коммунальные услуги': '#06B6D4',  // cyan
+  'Маркетинг и реклама': '#EC4899',  // pink
+  'IT и связь': '#8B5CF6',           // violet
+  'Транспорт и доставка': '#F97316', // orange
+  'Оборудование и ремонт': '#64748B',// slate
+  'Налоги и сборы': '#EF4444',       // red
+  'Прочие расходы': '#94A3B8',       // gray
+  'Комиссии банков': '#3B82F6',      // blue
+  'Цех (производство)': '#14B8A6',   // teal
+};
+const GROUP_EMOJI: Record<string, string> = {
+  'Продукты питания': '🍔',
+  'Аренда помещений': '🏠',
+  'Заработная плата': '👥',
+  'Коммунальные услуги': '💡',
+  'Маркетинг и реклама': '📣',
+  'IT и связь': '💻',
+  'Транспорт и доставка': '🚛',
+  'Оборудование и ремонт': '🔧',
+  'Налоги и сборы': '📋',
+  'Прочие расходы': '📦',
+  'Комиссии банков': '🏦',
+  'Цех (производство)': '🏭',
+};
+
 // Color palette for dynamic payment types — known iiko codes get fixed colors,
 // unknown types cycle through the fallback palette
 const KNOWN_PAYMENT_COLORS: Record<string, string> = {
@@ -55,15 +213,18 @@ export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props)
   const {
     restaurant: r, statusColor: col, statusLabel, profit, profitColor,
     hourlyData, planLine, maxBar, barW, expenseItems, isLoading,
-    expenseGroups, directExpensesTotal, distributedExpensesTotal,
+    expenseGroups, directExpensesTotal, distributedExpensesTotal, distributedExpenseItems,
     financialResult, cashDiscrepancies, revenueChart, refetch,
+    isStale, isOffline, cachedAt,
   } = usePointDetail(pointId);
   const period = useDashboardStore(s => s.period);
   const periodLabel = PERIOD_OPTIONS.find(p => p.key === period)?.label ?? 'Сегодня';
   const role = useAuthStore(s => s.user?.role);
-  const canDrillToLevel3 = role === 'OWNER' || role === 'FINANCE_DIRECTOR';
+  const canDrillToLevel3 = role === 'OWNER' || role === 'FINANCE_DIRECTOR' || role === 'ADMIN';
 
-  const maxExpense = expenseGroups.length > 0 ? Math.max(...expenseGroups.map(g => g.totalAmount)) : 0;
+  const sortedExpenseGroups = [...expenseGroups].sort((a, b) => b.totalAmount - a.totalAmount);
+  const totalExpenses = expenseGroups.reduce((sum, g) => sum + g.totalAmount, 0);
+  const maxExpense = sortedExpenseGroups.length > 0 ? sortedExpenseGroups[0].totalAmount : 0;
 
   const handleRefresh = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -84,6 +245,8 @@ export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props)
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <OfflineBanner isOffline={isOffline} isStale={isStale} cachedAt={cachedAt} />
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -160,87 +323,122 @@ export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props)
         );
       })()}
 
-      {/* График выручки по часам */}
-      <View style={styles.chartCard}>
-        <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>Выручка по часам</Text>
-          <Text style={styles.chartSub}>{periodLabel}</Text>
-        </View>
-
-        <View style={styles.chartArea}>
-          {maxBar > 0 && (
-            <View style={[styles.planLine, { bottom: (planLine / maxBar) * 120 }]}>
-              <Text style={styles.planText}>план</Text>
-            </View>
-          )}
-          <View style={styles.barsRow}>
-            {hourlyData.map((d: any, i: number) => (
-              <View key={i} style={styles.barCol}>
-                <View style={[styles.bar, { height: (d.value / maxBar) * 120, width: barW }]} />
-                <Text style={styles.barLabel}>{d.hour}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
+      {/* График выручки по дням (за период) — с кликабельными столбцами */}
+      {revenueChart.length > 1 && <DailyRevenueChart data={revenueChart} periodLabel={periodLabel} />}
 
       {/* Расходы по группам статей ДДС */}
       <View style={styles.expCard}>
-        <Text style={styles.expTitle}>Расходы по группам</Text>
-        {expenseGroups.map((group) => {
-          const barWidth = maxExpense > 0 ? expenseBarPct(group.totalAmount, maxExpense) : '0%';
-          const row = (
-            <View style={styles.expRow}>
-              <Text style={styles.expLabel}>{group.groupName}</Text>
-              <View style={styles.expBarBg}>
-                <View style={[styles.expBarFill, { width: barWidth as DimensionValue }]} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
+          <Text style={styles.expTitle}>Расходы по группам</Text>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
+            {sortedExpenseGroups.length} {sortedExpenseGroups.length === 1 ? 'категория' : sortedExpenseGroups.length <= 4 ? 'категории' : 'категорий'}
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600' }}>
+            Всего: {fmtAmount(totalExpenses)}
+          </Text>
+        </View>
+        {sortedExpenseGroups.map((group) => {
+          const groupColor = GROUP_COLORS[group.groupName] ?? '#94A3B8';
+          const groupEmoji = GROUP_EMOJI[group.groupName] ?? '📦';
+          const pct = totalExpenses > 0 ? ((group.totalAmount / totalExpenses) * 100).toFixed(1) : '0.0';
+          const barFillPct = maxExpense > 0 ? (group.totalAmount / maxExpense) * 100 : 0;
+          const rowContent = (
+            <View style={[styles.expGroupRow, { borderLeftColor: groupColor }]}>
+              <Text style={styles.expGroupIcon}>{groupEmoji}</Text>
+              <View style={styles.expGroupInfo}>
+                <Text style={styles.expGroupName}>{group.groupName}</Text>
+                <View style={[styles.expGroupBar, { width: `${barFillPct}%` as DimensionValue, backgroundColor: groupColor }]} />
               </View>
-              <Text style={styles.expAmount}>-₸{group.totalAmount.toLocaleString()}</Text>
-              {canDrillToLevel3 && <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.3)', marginLeft: 4 }}>›</Text>}
+              <View style={styles.expGroupRight}>
+                <Text style={styles.expGroupAmount}>{fmtAmount(group.totalAmount)}</Text>
+                <Text style={styles.expGroupPct}>{pct}%</Text>
+              </View>
+              {canDrillToLevel3 && <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.3)', marginLeft: 8 }}>›</Text>}
             </View>
           );
           if (canDrillToLevel3 && onNavigateArticle) {
             return (
               <TouchableOpacity key={group.groupId} onPress={() => onNavigateArticle(group.groupId)} activeOpacity={0.7}>
-                {row}
+                {rowContent}
               </TouchableOpacity>
             );
           }
-          return <View key={group.groupId}>{row}</View>;
+          return <View key={group.groupId}>{rowContent}</View>;
         })}
       </View>
 
       {/* Финансовый результат */}
       <View style={styles.expCard}>
         <Text style={styles.expTitle}>Финансовый результат</Text>
+        {/* Revenue line */}
+        <View style={styles.expRow}>
+          <Text style={styles.expLabel}>Выручка</Text>
+          <Text style={[styles.expAmount, { color: '#10B981' }]}>₸{r.revenue.toLocaleString()}</Text>
+        </View>
+        {/* Direct expenses */}
         <View style={styles.expRow}>
           <Text style={styles.expLabel}>Прямые расходы</Text>
           <Text style={styles.expAmount}>-₸{directExpensesTotal.toLocaleString()}</Text>
         </View>
+        {/* Distributed expenses (HQ + Kitchen share) with breakdown */}
         <View style={styles.expRow}>
-          <Text style={styles.expLabel}>Распределённые расходы</Text>
+          <Text style={styles.expLabel}>Распред. расходы</Text>
           <Text style={styles.expAmount}>-₸{distributedExpensesTotal.toLocaleString()}</Text>
         </View>
-        <View style={[styles.expRow, { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 12 }]}>
-          <Text style={[styles.expLabel, { fontWeight: '700' }]}>Итого</Text>
-          <Text style={[styles.expAmount, { color: financialResult >= 0 ? '#10B981' : '#EF4444', fontWeight: '700' }]}>
+        {distributedExpenseItems.length > 0 ? (
+          <View style={{ marginLeft: 12, marginBottom: 8 }}>
+            {distributedExpenseItems.map((item, idx) => (
+              <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, flex: 1 }} numberOfLines={1}>
+                  {item.name}
+                  <Text style={{ color: 'rgba(255,255,255,0.3)' }}> ({item.source === 'IIKO' ? 'iiko' : '1С'})</Text>
+                </Text>
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginLeft: 8 }}>
+                  -₸{item.amount.toLocaleString()}
+                </Text>
+              </View>
+            ))}
+            <Text style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10, marginTop: 4 }}>
+              коэфф. = выручка точки / общая выручка
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.finFormulaHint}>доля ГО и Цеха по коэффициенту</Text>
+        )}
+        {/* Result line */}
+        <View style={[styles.expRow, styles.finResultRow]}>
+          <Text style={[styles.expLabel, { fontWeight: '700' }]}>Фин. результат</Text>
+          <Text style={[styles.expAmount, { color: financialResult >= 0 ? '#10B981' : '#EF4444', fontWeight: '700', fontSize: 15 }]}>
             ₸{financialResult.toLocaleString()}
           </Text>
         </View>
       </View>
 
-      {/* Недостачи и излишки */}
+      {/* Недостачи и излишки по кассе */}
       {cashDiscrepancies.length > 0 && (
         <View style={styles.expCard}>
           <Text style={styles.expTitle}>Недостачи и излишки</Text>
+          {/* Column headers */}
+          <View style={styles.discHeaderRow}>
+            <Text style={styles.discHeaderCell}>Дата</Text>
+            <Text style={styles.discHeaderCell}>Ожидание</Text>
+            <Text style={styles.discHeaderCell}>Факт</Text>
+            <Text style={[styles.discHeaderCell, { textAlign: 'right' }]}>Разница</Text>
+          </View>
           {cashDiscrepancies.map((disc, i) => {
             const diffColor = disc.difference >= 0 ? '#10B981' : '#EF4444';
             const diffSign = disc.difference >= 0 ? '+' : '';
             return (
-              <View key={i} style={styles.expRow}>
-                <Text style={styles.expLabel}>{new Date(disc.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}</Text>
-                <Text style={[styles.expAmount, { color: diffColor }]}>
-                  {diffSign}₸{disc.difference.toLocaleString()}
+              <View key={i} style={styles.discRow}>
+                <Text style={styles.discCell}>
+                  {new Date(disc.date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}
+                </Text>
+                <Text style={styles.discCell}>{fmtAmount(disc.expected)}</Text>
+                <Text style={styles.discCell}>{fmtAmount(disc.actual)}</Text>
+                <Text style={[styles.discCell, { color: diffColor, textAlign: 'right', fontWeight: '600' }]}>
+                  {diffSign}₸{Math.abs(disc.difference).toLocaleString()}
                 </Text>
               </View>
             );
@@ -248,30 +446,9 @@ export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props)
         </View>
       )}
 
-      {/* График выручки по дням за период */}
-      {revenueChart.length > 0 && (() => {
-        const maxRevenue = Math.max(...revenueChart.map(p => p.revenue), 1);
-        const CHART_HEIGHT = 100;
-        return (
-          <View style={styles.revenueChartCard}>
-            <Text style={styles.revenueChartTitle}>Выручка по дням</Text>
-            <View style={styles.revenueChartContainer}>
-              {revenueChart.slice(-14).map((point, i) => {
-                const barHeight = Math.max((point.revenue / maxRevenue) * CHART_HEIGHT, 2);
-                const dayLabel = new Date(point.date).getDate().toString();
-                return (
-                  <View key={i} style={styles.revenueChartBarWrapper}>
-                    <View style={[styles.revenueChartBar, { height: barHeight }]} />
-                    <Text style={styles.revenueChartLabel}>{dayLabel}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        );
-      })()}
 
       <View style={{ height: 24 }} />
     </ScrollView>
+    </View>
   );
 }

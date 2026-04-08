@@ -62,6 +62,86 @@ export const styles = StyleSheet.create({
   expBarBg: { flex: 1, height: 6, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 3, marginRight: 12 },
   expBarFill: { height: '100%', backgroundColor: 'rgba(59,130,246,0.35)', borderRadius: 3 },
   expAmount: { color: colors.red, fontSize: 13, fontWeight: '500', width: 100, textAlign: 'right' },
+  // Financial result formula hint
+  finFormulaHint: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 10,
+    marginTop: -8,
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  finResultRow: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    paddingTop: 12,
+    marginTop: 4,
+  },
+  // Cash discrepancy table
+  discHeaderRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  discHeaderCell: {
+    flex: 1,
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  discRow: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  discCell: {
+    flex: 1,
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+  },
+  // DDS expense group rows (color-coded)
+  expGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  expGroupIcon: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  expGroupInfo: {
+    flex: 1,
+  },
+  expGroupName: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  expGroupBar: {
+    height: 3,
+    borderRadius: 2,
+    marginTop: 6,
+  },
+  expGroupRight: {
+    alignItems: 'flex-end',
+    marginLeft: 8,
+  },
+  expGroupAmount: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  expGroupPct: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    marginTop: 2,
+  },
   // Revenue chart (daily bar chart)
   revenueChartCard: {
     backgroundColor: '#12122A',
