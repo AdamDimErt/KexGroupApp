@@ -841,11 +841,19 @@ export class IikoSyncService {
             });
 
             if (!article) {
-              // Create default group if needed
+              // Classify article into proper group based on name
+              const nameLower = productName.toLowerCase();
+              const packagingWords = ['пакет', 'коробка', 'стакан', 'ложка', 'вилка', 'салфетка', 'фольга', 'соусничка', 'контейнер', 'крышка', 'трубочка', 'пленка'];
+              const groupCode = packagingWords.some(w => nameLower.includes(w)) ? 'OTHER' : 'FOOD';
+
               const group = await this.prisma.ddsArticleGroup.upsert({
-                where: { tenantId_code: { tenantId, code: 'default' } },
+                where: { tenantId_code: { tenantId, code: groupCode } },
                 update: {},
-                create: { tenantId, code: 'default', name: 'Default' },
+                create: {
+                  tenantId,
+                  code: groupCode,
+                  name: groupCode === 'FOOD' ? 'Продукты питания' : 'Прочие расходы',
+                },
               });
 
               article = await this.prisma.ddsArticle.create({
@@ -1425,6 +1433,219 @@ export class IikoSyncService {
       this.logger.error(
         `Failed to log sync: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+  }
+
+  /**
+   * Map a Russian DDS account name to one of the 12 DdsArticleGroup codes.
+   * Uses deterministic .toLowerCase().includes() checks.
+   */
+  private resolveGroupCode(accountName: string): string {
+    const name = accountName.toLowerCase();
+    if (name.includes('аренд')) return 'RENT';
+    if (name.includes('заработн') || name.includes('зарплат') || name.includes('зп') || name.includes('оплата труда')) return 'SALARY';
+    if (name.includes('комисси') || name.includes('банк')) return 'BANK_FEE';
+    if (name.includes('коммунал') || name.includes('электр') || name.includes('вода')) return 'UTILITIES';
+    if (name.includes('маркетинг') || name.includes('реклам')) return 'MARKETING';
+    if (name.includes('it') || name.includes('програм') || name.includes('интернет')) return 'IT';
+    if (name.includes('транспорт') || name.includes('доставк')) return 'TRANSPORT';
+    if (name.includes('оборуд') || name.includes('ремонт')) return 'EQUIPMENT';
+    if (name.includes('налог') || name.includes('штраф')) return 'TAXES';
+    if (name.includes('кухн') || name.includes('производств')) return 'KITCHEN';
+    if (name.includes('продукт') || name.includes('еда') || name.includes('food')) return 'FOOD';
+    return 'OTHER';
+  }
+
+  /**
+   * Sync DDS account catalog from iiko Server /v2/entities/list?rootType=Account.
+   * Upserts DdsArticle records keyed by iiko account UUID.
+   * Must run BEFORE syncDdsTransactions to ensure FK references exist.
+   */
+  async syncDdsArticles(): Promise<void> {
+    const startTime = Date.now();
+    const tenantId = await this.getTenantId();
+
+    try {
+      const token = await this.iikoAuth.getAccessToken();
+
+      // Try POST JSON (v2 endpoint pattern used by iiko Server)
+      let accounts: Array<{ id: string; name: string; parentId?: string }> = [];
+
+      try {
+        const response = await this.makePostJsonRequest<{ items?: Array<{ id: string; name: string; parentId?: string }> }>(
+          '/v2/entities/list',
+          { rootType: 'Account' },
+          token,
+        );
+        accounts = response?.items ?? [];
+        this.logger.debug(`syncDdsArticles raw response keys: ${JSON.stringify(Object.keys(response ?? {}))}`);
+      } catch (postError) {
+        // Fallback: some iiko Server versions expose GET endpoint
+        this.logger.warn(
+          `POST /v2/entities/list failed (${postError instanceof Error ? postError.message : String(postError)}), trying GET`,
+        );
+        const xmlData = await this.makeRequest('GET', '/v2/entities/list?rootType=Account', token);
+        const parsed = this.xmlParser.parse(xmlData) as Record<string, unknown>;
+        this.logger.debug(`syncDdsArticles GET parsed keys: ${JSON.stringify(Object.keys(parsed))}`);
+        const rawItems = parsed['items'] || parsed['accounts'] || parsed['list'] || [];
+        accounts = this.normalizeArray(rawItems) as Array<{ id: string; name: string; parentId?: string }>;
+      }
+
+      let processedCount = 0;
+
+      for (const account of accounts) {
+        if (!account.id || !account.name) continue;
+
+        const groupCode = this.resolveGroupCode(account.name);
+        const group = await this.prisma.ddsArticleGroup.findFirst({
+          where: { tenantId, code: groupCode },
+        });
+
+        if (!group) {
+          this.logger.warn(`DdsArticleGroup code=${groupCode} not found for tenant=${tenantId}, skipping account: ${account.name}`);
+          continue;
+        }
+
+        // HQ-level accounts (no parent / parentId points to root) → DISTRIBUTED
+        const allocationType = account.parentId ? 'DIRECT' : 'DISTRIBUTED';
+
+        await this.prisma.ddsArticle.upsert({
+          where: { groupId_code: { groupId: group.id, code: account.id } },
+          update: { name: account.name, isActive: true },
+          create: {
+            groupId: group.id,
+            name: account.name,
+            code: account.id,
+            source: 'IIKO',
+            allocationType,
+            isActive: true,
+          },
+        });
+
+        processedCount++;
+      }
+
+      const durationMs = Date.now() - startTime;
+      await this.logSync(tenantId, 'IIKO', 'SUCCESS', processedCount, durationMs);
+      this.logger.log(`syncDdsArticles: upserted ${processedCount} DDS articles`);
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      this.logger.error(`syncDdsArticles failed: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncDdsArticles');
+        Sentry.captureException(error);
+      });
+    }
+  }
+
+  /**
+   * Sync DDS cash shift transactions (payIn/payOut) per restaurant.
+   * Upserts Expense records with syncId = `dds:{shiftId}:{movementId}` for deduplication.
+   * Must be called AFTER syncDdsArticles so FK references exist.
+   */
+  async syncDdsTransactions(dateFrom: Date, dateTo: Date): Promise<void> {
+    const startTime = Date.now();
+    const tenantId = await this.getTenantId();
+
+    try {
+      const restaurants = await this.prisma.restaurant.findMany({
+        where: { isActive: true },
+      });
+
+      const token = await this.iikoAuth.getAccessToken();
+      let processedCount = 0;
+
+      for (const restaurant of restaurants) {
+        if (!restaurant.iikoId) continue;
+
+        try {
+          const response = await this.makePostJsonRequest<{
+            cashShifts?: Array<{
+              id: string;
+              date?: string;
+              payIns?: Array<{ id: string; accountId: string; amount: number; comment?: string | null }>;
+              payOuts?: Array<{ id: string; accountId: string; amount: number; comment?: string | null }>;
+            }>;
+          }>(
+            '/v2/cashshifts/list',
+            {
+              organizationId: restaurant.iikoId,
+              dateFrom: dateFrom.toISOString(),
+              dateTo: dateTo.toISOString(),
+            },
+            token,
+          );
+
+          // LOW CONFIDENCE on response schema — log raw keys for first-run observability
+          this.logger.debug(`syncDdsTransactions raw response keys (${restaurant.name}): ${JSON.stringify(Object.keys(response ?? {}))}`);
+
+          const shifts = response?.cashShifts ?? [];
+
+          for (const shift of shifts) {
+            const movements = [...(shift.payIns ?? []), ...(shift.payOuts ?? [])];
+
+            for (const movement of movements) {
+              const syncId = `dds:${shift.id}:${movement.id}`;
+
+              const article = await this.prisma.ddsArticle.findFirst({
+                where: { code: movement.accountId, source: 'IIKO' },
+              });
+
+              if (!article) {
+                this.logger.warn(
+                  `syncDdsTransactions: no DdsArticle for accountId=${movement.accountId} (syncId=${syncId}), skipping`,
+                );
+                continue;
+              }
+
+              const shiftDate = shift.date ? new Date(shift.date) : dateFrom;
+
+              await this.prisma.expense.upsert({
+                where: { syncId },
+                update: { amount: movement.amount, comment: movement.comment ?? null },
+                create: {
+                  syncId,
+                  articleId: article.id,
+                  restaurantId: restaurant.id,
+                  date: shiftDate,
+                  amount: movement.amount,
+                  comment: movement.comment ?? null,
+                  source: 'IIKO',
+                },
+              });
+
+              processedCount++;
+            }
+          }
+        } catch (restaurantError) {
+          this.logger.warn(
+            `syncDdsTransactions: failed for restaurant ${restaurant.name} (${restaurant.iikoId}): ${
+              restaurantError instanceof Error ? restaurantError.message : String(restaurantError)
+            }`,
+          );
+        }
+      }
+
+      const durationMs = Date.now() - startTime;
+      await this.logSync(tenantId, 'IIKO', 'SUCCESS', processedCount, durationMs);
+      this.logger.log(`syncDdsTransactions: upserted ${processedCount} expense records`);
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.logSync(tenantId, 'IIKO', 'ERROR', undefined, durationMs, errorMessage);
+      this.logger.error(`syncDdsTransactions failed: ${errorMessage}`);
+      Sentry.withScope((scope) => {
+        scope.setTag('system', 'IIKO');
+        scope.setTag('method', 'syncDdsTransactions');
+        scope.setContext('sync', {
+          dateFrom: dateFrom?.toISOString(),
+          dateTo: dateTo?.toISOString(),
+        });
+        Sentry.captureException(error);
+      });
     }
   }
 

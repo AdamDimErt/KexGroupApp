@@ -50,10 +50,13 @@ describe('IikoSyncService', () => {
             },
             ddsArticle: {
               findFirst: jest.fn(),
+              findUnique: jest.fn(),
               create: jest.fn(),
+              upsert: jest.fn(),
             },
             ddsArticleGroup: {
               upsert: jest.fn(),
+              findFirst: jest.fn(),
             },
             cashDiscrepancy: {
               upsert: jest.fn(),
@@ -258,6 +261,180 @@ describe('IikoSyncService', () => {
       await service.syncRevenue(new Date(), new Date());
 
       expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveGroupCode', () => {
+    it('should map аренд* to RENT', () => {
+      expect((service as any).resolveGroupCode('Аренда помещения офиса')).toBe('RENT');
+    });
+
+    it('should map зарплат* to SALARY', () => {
+      expect((service as any).resolveGroupCode('Заработная плата сотрудников')).toBe('SALARY');
+    });
+
+    it('should map комисси*/банк* to BANK_FEE', () => {
+      expect((service as any).resolveGroupCode('Комиссия банка Kaspi')).toBe('BANK_FEE');
+    });
+
+    it('should map коммунал* to UTILITIES', () => {
+      expect((service as any).resolveGroupCode('Коммунальные платежи')).toBe('UTILITIES');
+    });
+
+    it('should map маркетинг* to MARKETING', () => {
+      expect((service as any).resolveGroupCode('Маркетинг Instagram')).toBe('MARKETING');
+    });
+
+    it('should map unknown name to OTHER', () => {
+      expect((service as any).resolveGroupCode('Непонятная статья XYZ')).toBe('OTHER');
+    });
+
+    it('should map налог* to TAXES', () => {
+      expect((service as any).resolveGroupCode('Налог на прибыль')).toBe('TAXES');
+    });
+
+    it('should map кухн* to KITCHEN', () => {
+      expect((service as any).resolveGroupCode('Кухня закупки')).toBe('KITCHEN');
+    });
+  });
+
+  describe('syncDdsArticles', () => {
+    beforeEach(() => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+    });
+
+    it('should upsert DdsArticle for each account and log SUCCESS', async () => {
+      const mockAccounts = [
+        { id: 'account-uuid-1', name: 'Аренда помещения' },
+        { id: 'account-uuid-2', name: 'Заработная плата' },
+      ];
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue(
+        '<accounts><account><id>account-uuid-1</id><name>Аренда помещения</name></account></accounts>',
+      );
+      // POST returns items array with 2 accounts (one has parentId, one doesn't)
+      jest.spyOn(service as any, 'makePostJsonRequest').mockResolvedValue({ items: mockAccounts });
+      (prisma.ddsArticleGroup.findFirst as jest.Mock).mockResolvedValue({ id: 'group-1' });
+      (prisma.ddsArticle.upsert as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+
+      await service.syncDdsArticles();
+
+      expect(prisma.ddsArticle.upsert).toHaveBeenCalledTimes(2);
+      expect(prisma.syncLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ system: 'IIKO', status: 'SUCCESS' }),
+        }),
+      );
+    });
+
+    it('should log ERROR and capture Sentry on HTTP error', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Sentry = require('@sentry/node') as { captureException: jest.Mock; withScope: jest.Mock };
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      const apiError = new Error('Network error');
+      jest.spyOn(service as any, 'makeRequest').mockRejectedValue(apiError);
+      jest.spyOn(service as any, 'makePostJsonRequest').mockRejectedValue(apiError);
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncDdsArticles();
+
+      expect(prisma.syncLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ system: 'IIKO', status: 'ERROR' }),
+        }),
+      );
+      expect(Sentry.captureException).toHaveBeenCalledWith(apiError);
+    });
+  });
+
+  describe('syncDdsTransactions', () => {
+    beforeEach(() => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+    });
+
+    it('should upsert Expense with syncId pattern dds: and log SUCCESS', async () => {
+      const dateFrom = new Date('2026-04-01');
+      const dateTo = new Date('2026-04-07');
+      const mockRestaurants = [{ id: 'rest-1', iikoId: 'iiko-uuid-1', name: 'BNA Samal' }];
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue(mockRestaurants);
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      const mockShiftResponse = {
+        cashShifts: [
+          {
+            id: 'shift-1',
+            date: '2026-04-01',
+            payIns: [{ id: 'mov-1', accountId: 'account-uuid-1', amount: 50000, comment: 'Аренда' }],
+            payOuts: [],
+          },
+        ],
+      };
+      jest.spyOn(service as any, 'makePostJsonRequest').mockResolvedValue(mockShiftResponse);
+      (prisma.ddsArticle.findFirst as jest.Mock).mockResolvedValue({ id: 'article-1' });
+      (prisma.expense.upsert as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncDdsTransactions(dateFrom, dateTo);
+
+      expect(prisma.expense.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { syncId: 'dds:shift-1:mov-1' },
+          create: expect.objectContaining({ source: 'IIKO', syncId: 'dds:shift-1:mov-1' }),
+        }),
+      );
+      expect(prisma.syncLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ system: 'IIKO', status: 'SUCCESS' }),
+        }),
+      );
+    });
+
+    it('should skip movements with unknown accountId and log warning', async () => {
+      const dateFrom = new Date('2026-04-01');
+      const dateTo = new Date('2026-04-07');
+      const mockRestaurants = [{ id: 'rest-1', iikoId: 'iiko-uuid-1', name: 'BNA Samal' }];
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue(mockRestaurants);
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      const mockShiftResponse = {
+        cashShifts: [
+          {
+            id: 'shift-1',
+            date: '2026-04-01',
+            payIns: [{ id: 'mov-1', accountId: 'unknown-account-id', amount: 50000, comment: null }],
+            payOuts: [],
+          },
+        ],
+      };
+      jest.spyOn(service as any, 'makePostJsonRequest').mockResolvedValue(mockShiftResponse);
+      // Article not found
+      (prisma.ddsArticle.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+      const warnSpy = jest.spyOn((service as any).logger, 'warn');
+
+      await service.syncDdsTransactions(dateFrom, dateTo);
+
+      expect(prisma.expense.upsert).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown-account-id'));
+    });
+
+    it('should log ERROR and capture Sentry when getAccessToken fails (outer error)', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Sentry = require('@sentry/node') as { captureException: jest.Mock; withScope: jest.Mock };
+      const dateFrom = new Date('2026-04-01');
+      const dateTo = new Date('2026-04-07');
+      (prisma.restaurant.findMany as jest.Mock).mockResolvedValue([{ id: 'rest-1', iikoId: 'iiko-uuid-1', name: 'BNA Samal' }]);
+      const authError = new Error('Auth service down');
+      (iikoAuth.getAccessToken as jest.Mock).mockRejectedValue(authError);
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncDdsTransactions(dateFrom, dateTo);
+
+      expect(prisma.syncLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ system: 'IIKO', status: 'ERROR' }),
+        }),
+      );
+      expect(Sentry.captureException).toHaveBeenCalledWith(authError);
     });
   });
 
