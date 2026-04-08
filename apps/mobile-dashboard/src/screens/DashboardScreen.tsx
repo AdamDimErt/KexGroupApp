@@ -6,6 +6,7 @@ import { colors } from '../theme';
 import { RestaurantCard } from '../components/RestaurantCard';
 import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
 import { SkeletonLoader } from '../components/SkeletonLoader';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { useDashboard } from '../hooks/useDashboard';
 import { useDashboardStore } from '../store/dashboard';
 import { useAuthStore } from '../store/auth';
@@ -15,18 +16,31 @@ interface DashboardProps {
   onPointSelect: (id: string) => void;
   onNavigateBrand?: (id: string, name: string) => void;
   onNavigateNotifications: () => void;
+  onNavigateProfile?: () => void;
   onLogout: () => void;
 }
 
-export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onLogout }: DashboardProps) {
-  const { totalRevenue, totalExpenses, financialResult, totalRestaurantCount, restaurantItems, confirmLogout, isLoading, error, lastSyncAt, refetch } = useDashboard(onLogout);
+export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onNavigateProfile, onLogout }: DashboardProps) {
+  const {
+    totalRevenue, totalExpenses, financialResult, totalRestaurantCount,
+    restaurantItems, confirmLogout, isLoading, isRefreshing, error,
+    lastSyncAt, refetch, handleRefresh, greeting,
+    isStale, isOffline, cachedAt,
+  } = useDashboard(onLogout);
+
   const heroLabel = usePeriodHeroLabel('ВЫРУЧКА');
   const role = useAuthStore(s => s.user?.role);
-  const showBalance = role === 'OWNER' || role === 'FINANCE_DIRECTOR';
 
-  const handleRefresh = async () => {
+  // Access matrix:
+  // OWNER + FINANCE_DIRECTOR: see revenue, expenses, balance (financial result)
+  // OPERATIONS_DIRECTOR: see revenue + expenses only (no balance / financial result)
+  // ADMIN: same as OWNER
+  const showBalance = role === 'OWNER' || role === 'FINANCE_DIRECTOR' || role === 'ADMIN';
+  const showFinancialResult = role === 'OWNER' || role === 'FINANCE_DIRECTOR' || role === 'ADMIN';
+
+  const onRefresh = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    refetch();
+    handleRefresh();
   };
 
   const formatAmount = (amount: number) => {
@@ -35,24 +49,34 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
     return `₸${amount.toFixed(0)}`;
   };
 
+  // ─── Loading state with skeleton ────────────────────────────────────────────
   if (isLoading) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {/* Header stays the same */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Загрузка...</Text>
+            <Text style={styles.greeting}>{greeting}</Text>
             <Text style={styles.title}>Kex Group</Text>
           </View>
         </View>
+        {/* Period selector skeleton */}
+        <View style={styles.skeletonPeriodRow}>
+          <SkeletonLoader width={80} height={34} borderRadius={20} />
+          <SkeletonLoader width={80} height={34} borderRadius={20} />
+          <SkeletonLoader width={80} height={34} borderRadius={20} />
+          <SkeletonLoader width={100} height={34} borderRadius={20} />
+        </View>
+        {/* KPI row skeleton */}
         <View style={styles.skeletonRow}>
           <SkeletonLoader width={'33%'} height={70} borderRadius={12} />
           <SkeletonLoader width={'33%'} height={70} borderRadius={12} />
           <SkeletonLoader width={'33%'} height={70} borderRadius={12} />
         </View>
+        {/* Hero card skeleton */}
         <View style={{ marginHorizontal: 16, marginTop: 16 }}>
           <SkeletonLoader width={'100%'} height={120} borderRadius={16} />
         </View>
+        {/* Brand list skeleton */}
         <View style={{ marginHorizontal: 16, marginTop: 16, gap: 12 }}>
           <SkeletonLoader width={'100%'} height={80} borderRadius={12} />
           <SkeletonLoader width={'100%'} height={80} borderRadius={12} />
@@ -61,26 +85,44 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
     );
   }
 
+  // ─── Error state with retry ─────────────────────────────────────────────────
   if (error) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', flex: 1, padding: 24 }]}>
-        <Text style={[styles.heroLabel, { color: colors.red, marginBottom: 8 }]}>Ошибка загрузки</Text>
-        <Text style={styles.heroGray}>{typeof error === 'string' ? error : (typeof error === 'object' && error !== null && 'message' in error ? (error as Error).message : 'Неизвестная ошибка')}</Text>
+      <View style={styles.errorContainer}>
+        <Feather name="alert-circle" size={48} color={colors.red} />
+        <Text style={styles.errorTitle}>Ошибка загрузки</Text>
+        <Text style={styles.errorMessage}>
+          {typeof error === 'string' ? error : (typeof error === 'object' && error !== null && 'message' in error ? (error as Error).message : 'Неизвестная ошибка')}
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()} activeOpacity={0.7}>
+          <Feather name="refresh-cw" size={16} color="#FFF" />
+          <Text style={styles.retryButtonText}>Повторить</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
+  // ─── Main dashboard ─────────────────────────────────────────────────────────
   return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <OfflineBanner isOffline={isOffline} isStale={isStale} cachedAt={cachedAt} />
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor={colors.accent} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+        />
+      }
     >
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Доброе утро 👋</Text>
+          <Text style={styles.greeting}>{greeting} 👋</Text>
           <Text style={styles.title}>Kex Group</Text>
         </View>
         <View style={styles.headerRight}>
@@ -88,6 +130,11 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
             <Text style={styles.bellIcon}>🔔</Text>
             <View style={styles.bellBadge} />
           </TouchableOpacity>
+          {onNavigateProfile && (
+            <TouchableOpacity onPress={onNavigateProfile} style={styles.logoutBtn}>
+              <Feather name="settings" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={confirmLogout} style={styles.logoutBtn}>
             <Feather name="log-out" size={18} color={colors.textTertiary} />
           </TouchableOpacity>
@@ -119,8 +166,8 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
 
       {/* Last sync indicator */}
       {lastSyncAt && (() => {
-        const isStale = (Date.now() - new Date(lastSyncAt).getTime()) > 3600000;
-        const syncColor = isStale ? '#EF4444' : 'rgba(255,255,255,0.35)';
+        const syncStale = (Date.now() - new Date(lastSyncAt).getTime()) > 3600000;
+        const syncColor = syncStale ? '#EF4444' : 'rgba(255,255,255,0.35)';
         const timeStr = new Date(lastSyncAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         return (
           <View style={styles.syncRow}>
@@ -130,7 +177,7 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
         );
       })()}
 
-      {/* Hero Card — общая выручка */}
+      {/* Hero Card — total revenue */}
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
           <Text style={styles.heroLabel}>{heroLabel}</Text>
@@ -144,14 +191,16 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
         </View>
         <Text style={styles.heroAmount}>{formatAmount(totalRevenue)}</Text>
         <View style={styles.heroSubRow}>
-          <Text style={financialResult >= 0 ? styles.heroGreen : styles.heroGray}>
-            {financialResult >= 0 ? '↑' : '↓'} Результат: {formatAmount(financialResult)}
-          </Text>
+          {showFinancialResult && (
+            <Text style={financialResult >= 0 ? styles.heroGreen : styles.heroGray}>
+              {financialResult >= 0 ? '↑' : '↓'} Результат: {formatAmount(financialResult)}
+            </Text>
+          )}
           <Text style={styles.heroGray}>Расходы: {formatAmount(totalExpenses)}</Text>
         </View>
       </View>
 
-      {/* Список брендов */}
+      {/* Brand list */}
       <View style={styles.listHeader}>
         <Text style={styles.listTitle}>Бренды</Text>
         <Text style={styles.listCount}>{totalRestaurantCount} точек</Text>
@@ -174,5 +223,6 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
 
       <View style={{ height: 24 }} />
     </ScrollView>
+    </View>
   );
 }

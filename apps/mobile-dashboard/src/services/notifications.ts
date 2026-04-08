@@ -92,3 +92,36 @@ export async function markAllNotificationsRead(
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   });
 }
+
+// ─── Notification preferences ──────────────────────────────────────────────
+
+export interface NotificationPref {
+  type: string;
+  enabled: boolean;
+}
+
+export async function fetchNotificationPrefs(
+  accessToken: string,
+): Promise<NotificationPref[]> {
+  const res = await fetch(`${API_URL}/notifications/preferences`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+  });
+  return res.json();
+}
+
+export async function updateNotificationPref(
+  accessToken: string,
+  type: string,
+  enabled: boolean,
+): Promise<void> {
+  await fetch(`${API_URL}/notifications/preferences/${type}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ enabled }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+  });
+}

@@ -33,6 +33,7 @@ import { OperationsScreen } from './src/screens/OperationsScreen';
 import { useInactivityLogout } from './src/hooks/useInactivityLogout';
 import { useAuthStore } from './src/store/auth';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
+import { ProfileScreen } from './src/screens/ProfileScreen';
 
 type AppState = 'bootstrapping' | 'biometric-prompt' | 'login' | 'biometric-setup' | 'app';
 type BiometricType = 'faceid' | 'fingerprint' | 'iris' | null;
@@ -192,13 +193,16 @@ function App() {
       case 'notifications':
         setScreen('dashboard');
         break;
+      case 'profile':
+        setScreen('dashboard');
+        break;
       default:
         break;
     }
   }, [screen, brandId]);
 
   // Свайп слева направо для "назад"
-  const canGoBack = !['dashboard', 'points', 'reports'].includes(screen);
+  const canGoBack = !['dashboard', 'points', 'reports', 'notifications'].includes(screen);
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gestureState) => {
@@ -267,6 +271,7 @@ function App() {
             onPointSelect={handlePointSelect}
             onNavigateBrand={handleBrandSelect}
             onNavigateNotifications={() => setScreen('notifications')}
+            onNavigateProfile={() => setScreen('profile')}
             onLogout={handleLogout}
           />
         );
@@ -316,12 +321,15 @@ function App() {
         return <ReportsScreen />;
       case 'notifications':
         return <NotificationsScreen />;
+      case 'profile':
+        return <ProfileScreen onBack={() => setScreen('dashboard')} />;
       default:
         return (
           <DashboardScreen
             onPointSelect={handlePointSelect}
             onNavigateBrand={handleBrandSelect}
             onNavigateNotifications={() => setScreen('notifications')}
+            onNavigateProfile={() => setScreen('profile')}
             onLogout={handleLogout}
           />
         );
