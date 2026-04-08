@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: unknown
-last_updated: "2026-04-08T19:29:17.696Z"
+status: complete
+last_updated: "2026-04-08T19:50:00.000Z"
 progress:
   total_phases: 9
-  completed_phases: 6
+  completed_phases: 8
   total_plans: 22
-  completed_plans: 21
-  percent: 91
+  completed_plans: 22
+  percent: 100
+  bar: "[██████████] 100%"
 ---
 
 ---
@@ -29,7 +30,7 @@ progress:
 
 ## Current Phase
 
-**Phase 8: Push Notifications** — IN PROGRESS. Plan 08-01 complete: fixed 3 critical role dispatch bugs (LOW_REVENUE → OWNER+OPS_DIRECTOR, LARGE_EXPENSE → OWNER+FIN_DIRECTOR, SYNC_FAILURE → OWNER not ADMIN), added NotificationPreference Prisma model, preferences CRUD API, internal trigger endpoint with x-internal-secret auth, 10 unit tests passing.
+**Phase 8: Push Notifications** — COMPLETE. All 3 plans done. Plan 08-03 complete: fixed 3 critical role dispatch bugs (LOW_REVENUE → OWNER+OPS_DIRECTOR, LARGE_EXPENSE → OWNER+FIN_DIRECTOR, SYNC_FAILURE → OWNER not ADMIN), added NotificationPreference Prisma model, preferences CRUD API, internal trigger endpoint with x-internal-secret auth, 10 unit tests passing.
 
 ## What's Working
 
@@ -73,6 +74,7 @@ progress:
 - **07-04** (2026-04-07): ReportsScreen rewritten with 4 real report endpoints (DDS/company/kitchen/trends). useCachedQuery hook provides AsyncStorage-based offline cache with stale detection (>1hr). OfflineBanner shows offline/stale state with timestamp. OPS_DIRECTOR sees only Kitchen and Trends sections. Trends section has inline bar chart. tsc passes. Commits: de6d9cb, 3d61f51
 - **08-01** (2026-04-08): Fixed 3 role dispatch bugs (LOW_REVENUE→OWNER+OPS_DIRECTOR, LARGE_EXPENSE→OWNER+FIN_DIRECTOR, SYNC_FAILURE→OWNER not ADMIN). Added NotificationPreference Prisma model + migration SQL. Added isNotificationEnabled preference check in sendToUser. Added handleInternalTrigger method. Added getUserPreferences/updatePreference. Added InternalNotificationController at POST /internal/notifications/trigger with x-internal-secret auth. 10 unit tests, tsc clean. Commits: 1e7bc49, 6804417, bebb02e
 - **08-02** (2026-04-08): AlertService created in aggregator-worker — checkSyncHealth (IIKO/ONE_C, >1h failure), checkRevenueThresholds (<70% 30-day avg), checkLargeExpenses (>500000 KZT default), shouldFireAlert (Redis 4h dedup), fireAlert (fire-and-forget HTTP POST to api-gateway /internal/notifications/trigger). AlertModule registered. Wired into syncRevenue/syncExpenses/syncOneCExpenses in SchedulerService. 10 unit tests, 38/38 total, tsc clean. Commits: 0345e44, 1502cb6
+- **08-03** (2026-04-08): Native FCM token registration fixed (getDevicePushTokenAsync replacing getExpoPushTokenAsync), static imports replacing dynamic import(), module-level setNotificationHandler with shouldShowAlert/shouldShowBanner/shouldShowList. usePushNotifications wired in App.tsx. useNotificationPrefs hook with optimistic toggle + error revert. ProfileScreen with 3 Switch rows (SYNC_FAILURE, LOW_REVENUE, LARGE_EXPENSE). Navigation: DashboardScreen settings icon → ProfileScreen. tsc clean. Commits: 9d473e1, 0aca2bb
 
 ## Key Decisions
 
@@ -127,6 +129,10 @@ progress:
 - **[08-02]** SyncLog.system is DataSource enum (IIKO|ONE_C) — checkSyncHealth uses typed 'IIKO'|'ONE_C' literal union, not free string; scheduler calls use 'IIKO' for iiko syncs, 'ONE_C' for 1C syncs
 - **[08-02]** dateFrom moved to method scope (before try block) in cron methods so alert checks can reference it without scoping issues
 - **[08-02]** Redis mock declared as module-level object before jest.mock() call so all tests share the same instance (not per-instance)
+- **[08-03]** setNotificationHandler placed at module level (outside hook body) — prevents duplicate handler registration on re-renders; must be before any Notifications API calls
+- **[08-03]** getDevicePushTokenAsync returns { type: 'fcm'|'ios', data: string } — tokenData.data is raw FCM/APNS token string for direct FCM HTTP v1 (not ExponentPushToken[] wrapper from getExpoPushTokenAsync)
+- **[08-03]** NotificationBehavior in Expo SDK 54 requires shouldShowBanner + shouldShowList in addition to shouldShowAlert — TypeScript enforces all fields
+- **[08-03]** onNavigateProfile added as optional prop to DashboardScreen — settings icon only renders when prop is passed, backward compatible with existing call sites
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
