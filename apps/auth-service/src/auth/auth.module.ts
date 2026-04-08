@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
+import { TelegramGateway } from 'node-telegram-gateway-api';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
@@ -39,6 +40,15 @@ import { AuthService } from './auth.service';
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         const adapter = new PrismaPg(pool as any);
         return new PrismaClient({ adapter });
+      },
+    },
+    {
+      provide: 'TELEGRAM_GATEWAY_CLIENT',
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const token = config.get<string>('TELEGRAM_GATEWAY_TOKEN');
+        if (!token) return null; // Gateway disabled — SMS only mode
+        return new TelegramGateway(token);
       },
     },
   ],

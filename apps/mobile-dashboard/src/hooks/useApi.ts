@@ -1,18 +1,16 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { dashboardApi } from '../services/api';
 import { useDashboardStore } from '../store/dashboard';
+import { useCachedQuery } from './useOfflineCache';
 
 /**
  * Хуки для загрузки данных с API.
  *
- * Используют простой подход с useState + useEffect
- * (react-query подключается в QueryProvider, но для MVP
- * эти хуки работают и без него).
+ * All data hooks use useCachedQuery for offline support via AsyncStorage.
+ * Legacy useApiQuery is kept for non-cacheable queries (e.g. notifications).
  */
 
-// ─── Generic fetch hook ────────────────────────────────────────────────────
-
-import { useState, useEffect } from 'react';
+// ─── Generic fetch hook (legacy, no offline cache) ─────────────────────────
 
 interface UseQueryResult<T> {
   data: T | null;
@@ -110,20 +108,23 @@ export function useDashboardSummary() {
   const customFrom = useDashboardStore(s => s.customFrom);
   const customTo = useDashboardStore(s => s.customTo);
   const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
-  return useApiQuery(
+  return useCachedQuery(
+    `dashboard_${period}_${dateFrom}_${dateTo}`,
     () => dashboardApi.getDashboard(period, dateFrom, dateTo),
     [period, customFrom, customTo],
   );
 }
 
-export function useBrandDetail(brandId: string) {
+export function useBrandDetail(brandId: string, options?: { enabled?: boolean }) {
   const period = useDashboardStore(s => s.period);
   const customFrom = useDashboardStore(s => s.customFrom);
   const customTo = useDashboardStore(s => s.customTo);
   const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
-  return useApiQuery(
+  return useCachedQuery(
+    `brand_${brandId}_${period}_${dateFrom}_${dateTo}`,
     () => dashboardApi.getBrand(brandId, period, dateFrom, dateTo),
     [brandId, period, customFrom, customTo],
+    options,
   );
 }
 
@@ -132,7 +133,8 @@ export function useRestaurantDetail(restaurantId: string) {
   const customFrom = useDashboardStore(s => s.customFrom);
   const customTo = useDashboardStore(s => s.customTo);
   const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
-  return useApiQuery(
+  return useCachedQuery(
+    `restaurant_${restaurantId}_${period}_${dateFrom}_${dateTo}`,
     () => dashboardApi.getRestaurant(restaurantId, period, dateFrom, dateTo),
     [restaurantId, period, customFrom, customTo],
   );
@@ -143,7 +145,8 @@ export function useArticleDetail(articleId: string, restaurantId: string) {
   const customFrom = useDashboardStore(s => s.customFrom);
   const customTo = useDashboardStore(s => s.customTo);
   const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
-  return useApiQuery(
+  return useCachedQuery(
+    `article_${articleId}_${restaurantId}_${period}_${dateFrom}_${dateTo}`,
     () => dashboardApi.getArticle(articleId, restaurantId, period, dateFrom, dateTo),
     [articleId, restaurantId, period, customFrom, customTo],
   );
@@ -154,7 +157,8 @@ export function useOperations(articleId: string, restaurantId: string, page: num
   const customFrom = useDashboardStore(s => s.customFrom);
   const customTo = useDashboardStore(s => s.customTo);
   const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
-  return useApiQuery(
+  return useCachedQuery(
+    `operations_${articleId}_${restaurantId}_${page}_${period}_${dateFrom}_${dateTo}`,
     () => dashboardApi.getOperations(articleId, restaurantId, page, period, dateFrom, dateTo),
     [articleId, restaurantId, page, period, customFrom, customTo],
   );

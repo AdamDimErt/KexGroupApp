@@ -75,7 +75,7 @@ Each task was committed atomically:
 
 1. **Task 1: Add biometric DTO, service methods, and controller endpoints** - `c1cfd4f` (feat)
 
-**Plan metadata:** _(to be added)_
+**Plan metadata:** `76cbc5c` (docs: complete plan)
 
 ## Files Created/Modified
 - `apps/auth-service/src/auth/dto/auth.dto.ts` - Added BiometricVerifyDto class

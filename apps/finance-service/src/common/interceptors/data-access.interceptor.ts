@@ -16,12 +16,12 @@ import { Observable } from 'rxjs';
  * on the operations route is not shadowed by the broader match.
  */
 export const ACCESS_MATRIX: Record<string, string[]> = {
-  '/dashboard/article/:id/operations': ['OWNER'],
-  '/dashboard/reports/dds': ['OWNER', 'FINANCE_DIRECTOR'],
-  '/dashboard/reports/company-expenses': ['OWNER', 'FINANCE_DIRECTOR'],
-  '/dashboard/reports/kitchen': ['OWNER', 'FINANCE_DIRECTOR', 'OPERATIONS_DIRECTOR'],
-  '/dashboard/reports/trends': ['OWNER', 'FINANCE_DIRECTOR', 'OPERATIONS_DIRECTOR'],
-  '/dashboard/article/:groupId': ['OWNER', 'FINANCE_DIRECTOR'],
+  '/dashboard/article/:id/operations': ['OWNER', 'ADMIN'],
+  '/dashboard/reports/dds': ['OWNER', 'FINANCE_DIRECTOR', 'ADMIN'],
+  '/dashboard/reports/company-expenses': ['OWNER', 'FINANCE_DIRECTOR', 'ADMIN'],
+  '/dashboard/reports/kitchen': ['OWNER', 'FINANCE_DIRECTOR', 'OPERATIONS_DIRECTOR', 'ADMIN'],
+  '/dashboard/reports/trends': ['OWNER', 'FINANCE_DIRECTOR', 'OPERATIONS_DIRECTOR', 'ADMIN'],
+  '/dashboard/article/:groupId': ['OWNER', 'FINANCE_DIRECTOR', 'ADMIN'],
 };
 
 @Injectable()

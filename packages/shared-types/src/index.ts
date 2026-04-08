@@ -158,6 +158,7 @@ export interface RestaurantDetailDto {
   directExpensesTotal: number;
   distributedExpensesTotal: number;
   financialResult: number;
+  salesCount: number;                    // Количество чеков за период
   cashDiscrepancies: CashDiscrepancyDto[];
   revenueChart: DailyRevenuePointDto[];  // График выручки по дням
 }

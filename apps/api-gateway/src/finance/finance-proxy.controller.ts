@@ -64,7 +64,10 @@ export class FinanceProxyController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const tenantId = req.user?.tenantId ?? '';
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
     const path = this.buildQueryString(`/dashboard/brand/${brandId}`, {
       periodType,
       dateFrom,
@@ -73,6 +76,8 @@ export class FinanceProxyController {
     return this.proxy.forward('GET', path, undefined, {
       authorization: authHeader,
       'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
     });
   }
 
@@ -89,7 +94,10 @@ export class FinanceProxyController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const tenantId = req.user?.tenantId ?? '';
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
     const path = this.buildQueryString(
       `/dashboard/restaurant/${restaurantId}`,
       {
@@ -101,11 +109,13 @@ export class FinanceProxyController {
     return this.proxy.forward('GET', path, undefined, {
       authorization: authHeader,
       'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
     });
   }
 
   @Get('article/:id/operations')
-  @Roles([UserRole.OWNER])
+  @Roles([UserRole.OWNER, UserRole.ADMIN])
   @ApiOperation({ summary: 'Получить операции по статье (только OWNER)' })
   getArticleOperations(
     @Req() req: { user: JwtPayload },
@@ -135,7 +145,7 @@ export class FinanceProxyController {
   }
 
   @Get('article/:id')
-  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR])
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({
     summary: 'Получить детали статьи (OWNER, FINANCE_DIRECTOR только)',
   })
@@ -148,7 +158,10 @@ export class FinanceProxyController {
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
   ) {
-    const tenantId = req.user?.tenantId ?? '';
+    const user = req.user;
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
     const path = this.buildQueryString(`/dashboard/article/${articleId}`, {
       restaurantId,
       periodType,
@@ -158,11 +171,13 @@ export class FinanceProxyController {
     return this.proxy.forward('GET', path, undefined, {
       authorization: authHeader,
       'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
     });
   }
 
   @Get('reports/dds')
-  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR])
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({ summary: 'ДДС отчёт по всем точкам (OWNER, FINANCE_DIRECTOR)' })
   getReportDds(
     @Req() req: { user: JwtPayload },
@@ -189,7 +204,7 @@ export class FinanceProxyController {
   }
 
   @Get('reports/company-expenses')
-  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR])
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({ summary: 'Затраты компании (ГО + Цех) (OWNER, FINANCE_DIRECTOR)' })
   getReportCompanyExpenses(
     @Req() req: { user: JwtPayload },
@@ -216,7 +231,7 @@ export class FinanceProxyController {
   }
 
   @Get('reports/kitchen')
-  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR])
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({ summary: 'Закупки и отгрузки Цеха (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)' })
   getReportKitchen(
     @Req() req: { user: JwtPayload },
@@ -243,7 +258,7 @@ export class FinanceProxyController {
   }
 
   @Get('reports/trends')
-  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR])
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({ summary: 'Аналитика и тренды (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)' })
   getReportTrends(
     @Req() req: { user: JwtPayload },

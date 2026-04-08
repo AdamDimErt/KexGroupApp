@@ -80,18 +80,32 @@ describe('AllocationService', () => {
         },
       ];
 
-      jest.spyOn(prisma.expense, 'findMany').mockResolvedValue(mockExpenses as any);
-      jest.spyOn(prisma.restaurant, 'findMany').mockResolvedValue(mockRestaurants as any);
+      jest
+        .spyOn(prisma.expense, 'findMany')
+        .mockResolvedValue(mockExpenses as any);
+      jest
+        .spyOn(prisma.restaurant, 'findMany')
+        .mockResolvedValue(mockRestaurants as any);
 
       await service.runAllocation(dateFrom, dateTo);
 
       // Each restaurant should receive 50% of the expense (5000 / 10000 = 0.5)
-      expect(prisma.costAllocation.upsert).toHaveBeenCalledTimes(2);
+      const upsertMock = prisma.costAllocation.upsert as jest.Mock;
+      expect(upsertMock).toHaveBeenCalledTimes(2);
 
       // Verify first allocation
-      const firstCall = (prisma.costAllocation.upsert as jest.Mock).mock.calls[0];
-      expect(firstCall[0].create.coefficient.toString()).toEqual('0.5');
-      expect(firstCall[0].create.allocatedAmount.toString()).toEqual('5000');
+      const firstCallArgs = upsertMock.mock.calls[0] as [
+        {
+          create: {
+            coefficient: { toString(): string };
+            allocatedAmount: { toString(): string };
+          };
+        },
+      ];
+      expect(firstCallArgs[0].create.coefficient.toString()).toEqual('0.5');
+      expect(firstCallArgs[0].create.allocatedAmount.toString()).toEqual(
+        '5000',
+      );
     });
 
     it('should handle zero total revenue', async () => {
@@ -116,13 +130,17 @@ describe('AllocationService', () => {
         },
       ];
 
-      jest.spyOn(prisma.expense, 'findMany').mockResolvedValue(mockExpenses as any);
-      jest.spyOn(prisma.restaurant, 'findMany').mockResolvedValue(mockRestaurants as any);
+      jest
+        .spyOn(prisma.expense, 'findMany')
+        .mockResolvedValue(mockExpenses as any);
+      jest
+        .spyOn(prisma.restaurant, 'findMany')
+        .mockResolvedValue(mockRestaurants as any);
 
       await service.runAllocation(dateFrom, dateTo);
 
       // Should log warning and not allocate
-      expect(prisma.costAllocation.upsert).not.toHaveBeenCalled();
+      expect(prisma.costAllocation.upsert as jest.Mock).not.toHaveBeenCalled();
     });
 
     it('should handle no unallocated expenses', async () => {
@@ -134,7 +152,7 @@ describe('AllocationService', () => {
       await service.runAllocation(dateFrom, dateTo);
 
       // Should log that no expenses found
-      expect(prisma.costAllocation.upsert).not.toHaveBeenCalled();
+      expect(prisma.costAllocation.upsert as jest.Mock).not.toHaveBeenCalled();
     });
 
     it('should allocate correctly with multiple restaurants', async () => {
@@ -162,16 +180,27 @@ describe('AllocationService', () => {
         },
       ];
 
-      jest.spyOn(prisma.expense, 'findMany').mockResolvedValue(mockExpenses as any);
-      jest.spyOn(prisma.restaurant, 'findMany').mockResolvedValue(mockRestaurants as any);
+      jest
+        .spyOn(prisma.expense, 'findMany')
+        .mockResolvedValue(mockExpenses as any);
+      jest
+        .spyOn(prisma.restaurant, 'findMany')
+        .mockResolvedValue(mockRestaurants as any);
 
       await service.runAllocation(dateFrom, dateTo);
 
       // Restaurant 1: 7000/10000 = 0.7 -> 700
       // Restaurant 2: 3000/10000 = 0.3 -> 300
-      expect(prisma.costAllocation.upsert).toHaveBeenCalledTimes(2);
+      const upsertMock2 = prisma.costAllocation.upsert as jest.Mock;
+      expect(upsertMock2).toHaveBeenCalledTimes(2);
 
-      const calls = (prisma.costAllocation.upsert as jest.Mock).mock.calls;
+      type UpsertArg = {
+        create: {
+          coefficient: { toString(): string };
+          allocatedAmount: { toString(): string };
+        };
+      };
+      const calls = upsertMock2.mock.calls as [UpsertArg][];
       expect(calls[0][0].create.coefficient.toString()).toEqual('0.7');
       expect(calls[0][0].create.allocatedAmount.toString()).toEqual('700');
       expect(calls[1][0].create.coefficient.toString()).toEqual('0.3');

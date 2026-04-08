@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ─── Lint & Typecheck ──────────────────────────────────
+  quality:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: cd packages/database && npx prisma generate
+        env:
+          POSTGRES_URL: postgresql://dummy:dummy@localhost:5432/dummy
+
+      - name: Lint
+        run: npx turbo lint
+
+      - name: Typecheck
+        run: npx turbo typecheck
+
+  # ─── Unit Tests ────────────────────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: dashboard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: cd packages/database && npx prisma generate
+        env:
+          POSTGRES_URL: postgresql://root:root@localhost:5432/dashboard_test
+
+      - name: Run migrations
+        run: cd packages/database && npx prisma migrate deploy
+        env:
+          POSTGRES_URL: postgresql://root:root@localhost:5432/dashboard_test
+
+      - name: Run tests
+        run: npx turbo test
+        env:
+          POSTGRES_URL: postgresql://root:root@localhost:5432/dashboard_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-secret-key-32-chars-min!!
+          NODE_ENV: test
+
+  # ─── Build ────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [quality, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: cd packages/database && npx prisma generate
+        env:
+          POSTGRES_URL: postgresql://dummy:dummy@localhost:5432/dummy
+
+      - name: Build all services
+        run: npx turbo build
+
+  # ─── Docker Build (main branch only) ──────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        service: [auth-service, api-gateway, finance-service, aggregator-worker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f apps/${{ matrix.service }}/Dockerfile \
+            -t kexgroup/${{ matrix.service }}:${{ github.sha }} \
+            -t kexgroup/${{ matrix.service }}:latest \
+            .
+
+      # Uncomment when container registry is configured:
+      # - name: Push to registry
+      #   run: |
+      #     docker push kexgroup/${{ matrix.service }}:${{ github.sha }}
+      #     docker push kexgroup/${{ matrix.service }}:latest

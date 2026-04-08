@@ -43,6 +43,7 @@ export class AuthService {
     @Inject('PRISMA_CLIENT') private readonly prisma: PrismaClient,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    @Inject('TELEGRAM_GATEWAY_CLIENT') private readonly telegramGateway: any | null,
   ) {}
 
   // ─── Send OTP ─────────────────────────────────────────────────────────────
@@ -69,6 +70,19 @@ export class AuthService {
       };
     }
 
+    // Try Telegram Gateway first
+    const tgResult = await this.sendOtpViaTelegram(phone);
+    if (tgResult.sent) {
+      // Telegram generates the code — no need to store our own OTP in Redis
+      // Verification will use checkVerificationStatus with request_id
+      return {
+        success: true,
+        message: 'Код отправлен через Telegram',
+        retryAfterSec: 60,
+      };
+    }
+
+    // Fallback to SMS
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     await this.redis.set(`otp:${phone}`, code, 'EX', this.OTP_TTL_SEC);
     await this.sendSms(phone, `Ваш код подтверждения: ${code}`);
@@ -96,6 +110,30 @@ export class AuthService {
         'Аккаунт заблокирован на 15 минут.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
+    }
+
+    // Check if OTP was sent via Telegram Gateway
+    const tgRequestId = await this.redis.get(`tg_otp_rid:${phone}`);
+    if (tgRequestId && this.telegramGateway) {
+      try {
+        const status = await this.telegramGateway.checkVerificationStatus(
+          tgRequestId,
+          code,
+        ) as { ok: boolean; result?: { verification_status?: { status?: string } } };
+        if (
+          status.ok &&
+          status.result?.verification_status?.status === 'code_valid'
+        ) {
+          await this.redis.del(`tg_otp_rid:${phone}`);
+          await this.redis.del(attemptsKey);
+          const user = await this.findOrCreateUser(phone);
+          void this.writeAuditLog(user.id, 'LOGIN', ip, userAgent);
+          return this.issueTokens(user);
+        }
+      } catch (e) {
+        this.logger.error('Telegram verification check failed', e);
+      }
+      // If Telegram verification failed, fall through to SMS OTP check
     }
 
     const savedCode = await this.redis.get(`otp:${phone}`);
@@ -281,6 +319,42 @@ export class AuthService {
     } catch (e) {
       // Never let audit log failure break auth flow
       this.logger.error('AuditLog write failed', e);
+    }
+  }
+
+  private async sendOtpViaTelegram(
+    phone: string,
+  ): Promise<{ sent: boolean; requestId?: string }> {
+    if (!this.telegramGateway) {
+      this.logger.warn('Telegram Gateway not configured — using SMS fallback');
+      return { sent: false };
+    }
+    try {
+      const ability = await this.telegramGateway.checkSendAbility(phone) as {
+        ok: boolean;
+      };
+      if (!ability.ok) {
+        this.logger.log(`Phone ${phone} not on Telegram — falling back to SMS`);
+        return { sent: false };
+      }
+      const result = await this.telegramGateway.sendVerificationMessage(
+        phone,
+        { code_length: 6 },
+      ) as { ok: boolean; result?: { request_id?: string } };
+      if (result.ok && result.result?.request_id) {
+        // Store request_id in Redis for verification later
+        await this.redis.set(
+          `tg_otp_rid:${phone}`,
+          result.result.request_id,
+          'EX',
+          this.OTP_TTL_SEC,
+        );
+        return { sent: true, requestId: result.result.request_id };
+      }
+      return { sent: false };
+    } catch (e) {
+      this.logger.error('Telegram Gateway error — falling back to SMS', e);
+      return { sent: false };
     }
   }
 

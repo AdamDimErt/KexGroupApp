@@ -11,9 +11,9 @@ export interface EnrichedRestaurant {
 }
 
 export function useBrandDetail(brandId: string) {
-  const { data: brandData, isLoading, error } = useBrandDetailApi(brandId);
+  const { data: brandData, isLoading, error, refetch, isStale, isOffline, cachedAt } = useBrandDetailApi(brandId);
 
-  return useMemo(() => {
+  const computed = useMemo(() => {
     if (!brandData) {
       return {
         brand: null,
@@ -46,4 +46,6 @@ export function useBrandDetail(brandId: string) {
       error,
     };
   }, [brandId, brandData, isLoading, error]);
+
+  return { ...computed, refetch, isStale, isOffline, cachedAt };
 }

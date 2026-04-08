@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Dimensions } from 'react-native';
 import { useRestaurantDetail } from './useApi';
 import { colors } from '../theme';
-import type { PaymentTypeAmountDto, ExpenseGroupDto, CashDiscrepancyDto, DailyRevenuePointDto } from '../types';
+import type { PaymentTypeAmountDto, ExpenseGroupDto, CashDiscrepancyDto, DailyRevenuePointDto, DistributedExpenseItemDto } from '../types';
 
 const statusLabels: Record<'green' | 'yellow' | 'red', string> = {
   green: 'Норма',
@@ -24,7 +24,7 @@ export interface EnrichedRestaurant {
 }
 
 export function usePointDetail(restaurantId: string | null) {
-  const { data: restaurantDetail, isLoading, error, refetch } = useRestaurantDetail(restaurantId || '');
+  const { data: restaurantDetail, isLoading, error, refetch, isStale, isOffline, cachedAt } = useRestaurantDetail(restaurantId || '');
 
   const computed = useMemo(() => {
     if (!restaurantDetail) {
@@ -44,6 +44,7 @@ export function usePointDetail(restaurantId: string | null) {
         expenseGroups: [] as ExpenseGroupDto[],
         directExpensesTotal: 0,
         distributedExpensesTotal: 0,
+        distributedExpenseItems: [] as DistributedExpenseItemDto[],
         financialResult: 0,
         cashDiscrepancies: [] as CashDiscrepancyDto[],
         revenueChart: [] as DailyRevenuePointDto[],
@@ -119,6 +120,7 @@ export function usePointDetail(restaurantId: string | null) {
       expenseGroups: restaurantDetail.expenseGroups,
       directExpensesTotal: restaurantDetail.directExpensesTotal,
       distributedExpensesTotal: restaurantDetail.distributedExpensesTotal,
+      distributedExpenseItems: restaurantDetail.distributedExpenseItems ?? [],
       financialResult: restaurantDetail.financialResult,
       cashDiscrepancies: restaurantDetail.cashDiscrepancies ?? [],
       revenueChart: restaurantDetail.revenueChart ?? [],
@@ -127,5 +129,5 @@ export function usePointDetail(restaurantId: string | null) {
     };
   }, [restaurantId, restaurantDetail, isLoading, error]);
 
-  return { ...computed, refetch };
+  return { ...computed, refetch, isStale, isOffline, cachedAt };
 }

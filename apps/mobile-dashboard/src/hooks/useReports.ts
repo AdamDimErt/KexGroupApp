@@ -9,7 +9,7 @@ import type {
   ReportTrendsDto,
 } from '../types';
 
-export function useReportDds() {
+export function useReportDds(enabled = true) {
   const period = useDashboardStore(s => s.period);
   const customFrom = useDashboardStore(s => s.customFrom);
   const customTo = useDashboardStore(s => s.customTo);
@@ -18,10 +18,11 @@ export function useReportDds() {
     `report_dds_${period}_${dateFrom}_${dateTo}`,
     () => dashboardApi.getReportDds(period, dateFrom, dateTo),
     [period, customFrom, customTo],
+    { enabled },
   );
 }
 
-export function useReportCompanyExpenses() {
+export function useReportCompanyExpenses(enabled = true) {
   const period = useDashboardStore(s => s.period);
   const customFrom = useDashboardStore(s => s.customFrom);
   const customTo = useDashboardStore(s => s.customTo);
@@ -30,6 +31,7 @@ export function useReportCompanyExpenses() {
     `report_company_${period}_${dateFrom}_${dateTo}`,
     () => dashboardApi.getReportCompanyExpenses(period, dateFrom, dateTo),
     [period, customFrom, customTo],
+    { enabled },
   );
 }
 

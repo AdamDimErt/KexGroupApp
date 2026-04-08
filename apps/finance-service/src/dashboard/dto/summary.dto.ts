@@ -126,6 +126,13 @@ export class DailyRevenuePointDto {
   revenue: number;
 }
 
+export class DistributedExpenseItemDto {
+  name: string;
+  source: string;
+  amount: number;
+  coefficient: number;
+}
+
 export class RestaurantDetailDto {
   id: string;
   name: string;
@@ -135,6 +142,7 @@ export class RestaurantDetailDto {
   expenseGroups: ExpenseGroupDto[];
   directExpensesTotal: number;
   distributedExpensesTotal: number;
+  distributedExpenseItems: DistributedExpenseItemDto[];
   financialResult: number;
   salesCount: number;
   cashDiscrepancies: CashDiscrepancyResponseDto[];

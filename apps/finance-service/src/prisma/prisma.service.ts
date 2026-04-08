@@ -12,7 +12,8 @@ export class PrismaService
 
   constructor() {
     const connectionString =
-      process.env.POSTGRES_URL ?? 'postgresql://root:root@127.0.0.1:5434/dashboard';
+      process.env.POSTGRES_URL ??
+      'postgresql://root:root@127.0.0.1:5434/dashboard';
     const pool = new Pool({ connectionString });
     const adapter = new PrismaPg(pool as any);
     super({ adapter } as any);

@@ -50,10 +50,21 @@
     "rootDir": "src",
     "testRegex": ".*\\.test\\.ts$",
     "transform": {
-      "^.+\\.ts$": ["ts-jest", { "tsconfig": { "strict": true } }]
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "strict": true
+          }
+        }
+      ]
     },
     "testEnvironment": "node",
-    "moduleFileExtensions": ["ts", "js", "json"]
+    "moduleFileExtensions": [
+      "ts",
+      "js",
+      "json"
+    ]
   },
   "private": true
 }

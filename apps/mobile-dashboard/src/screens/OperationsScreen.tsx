@@ -10,6 +10,7 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useOperations } from '../hooks/useApi';
 import { PeriodSelector } from '../components/PeriodSelector';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { colors } from '../theme';
 import { styles } from './OperationsScreen.styles';
 import type { OperationDto } from '../types';
@@ -37,7 +38,7 @@ function fmtDate(iso: string): string {
 
 export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
   const [page, setPage] = useState(1);
-  const { data, isLoading, refetch } = useOperations(
+  const { data, isLoading, refetch, isStale, isOffline, cachedAt } = useOperations(
     articleId || '',
     restaurantId || '',
     page,
@@ -61,9 +62,9 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack}>
-            <Text style={styles.backBtn}>\u2039</Text>
+            <Text style={styles.backBtn}>{'\u2039'}</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...</Text>
+          <Text style={styles.title}>{'Загрузка...'}</Text>
         </View>
         <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
       </View>
@@ -94,12 +95,12 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
                 { color: isIiko ? '#10B981' : '#6366F1' },
               ]}
             >
-              {isIiko ? 'iiko' : '1\u0421'}
+              {isIiko ? 'iiko' : '1C'}
             </Text>
           </View>
           {op.allocationCoefficient != null && (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={styles.coeffLabel}>\u041a\u043e\u044d\u0444\u0444: </Text>
+              <Text style={styles.coeffLabel}>{'Коэфф: '}</Text>
               <Text style={styles.coeffValue}>
                 {(op.allocationCoefficient * 100).toFixed(1)}%
               </Text>
@@ -111,6 +112,8 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
   };
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <OfflineBanner isOffline={isOffline} isStale={isStale} cachedAt={cachedAt} />
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -125,23 +128,21 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack}>
-          <Text style={styles.backBtn}>\u2039</Text>
+          <Text style={styles.backBtn}>{'\u2039'}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>\u041e\u043f\u0435\u0440\u0430\u0446\u0438\u0438</Text>
+        <Text style={styles.title}>{'Операции'}</Text>
       </View>
 
       <PeriodSelector marginTop={12} />
 
       <View style={styles.card}>
         <Text style={styles.totalLabel}>
-          \u0412\u0441\u0435\u0433\u043e \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0439: {total}
+          {'Всего операций: '}{total}
         </Text>
 
         {operations.length === 0 ? (
           <Text style={styles.emptyText}>
-            \u041d\u0435\u0442 \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0439 \u0437\u0430
-            \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u044b\u0439
-            \u043f\u0435\u0440\u0438\u043e\u0434
+            {'Нет операций за выбранный период'}
           </Text>
         ) : (
           operations.map(renderOperation)
@@ -157,8 +158,7 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
               <ActivityIndicator size="small" color={colors.accent} />
             ) : (
               <Text style={styles.loadMoreText}>
-                \u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c
-                \u0435\u0449\u0451
+                {'Загрузить ещё'}
               </Text>
             )}
           </TouchableOpacity>
@@ -167,5 +167,6 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
 
       <View style={{ height: 24 }} />
     </ScrollView>
+    </View>
   );
 }

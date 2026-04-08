@@ -349,6 +349,10 @@ async function main() {
       const halyqRev = Math.floor(totalRev * (0.05 + Math.random() * 0.1));  // 5-15% Halyk
       const yandexRev = Math.floor(totalRev * (0.03 + Math.random() * 0.07)); // 3-10% Yandex
 
+      // Average check ~1200-2500 тенге, so salesCount ≈ revenue / avgCheck
+      const avgCheck = Math.floor(1200 + Math.random() * 1300);
+      const salesCount = Math.floor(totalRev / avgCheck);
+
       await prisma.financialSnapshot.upsert({
         where: {
           restaurantId_date: {
@@ -363,6 +367,7 @@ async function main() {
           revenueHalyk: halyqRev,
           revenueYandex: yandexRev,
           directExpenses: Math.floor(totalRev * (0.25 + Math.random() * 0.15)),
+          salesCount,
         },
         create: {
           restaurantId: rest.id,
@@ -373,6 +378,7 @@ async function main() {
           revenueHalyk: halyqRev,
           revenueYandex: yandexRev,
           directExpenses: Math.floor(totalRev * (0.25 + Math.random() * 0.15)),
+          salesCount,
         },
       });
       snapshotCount++;

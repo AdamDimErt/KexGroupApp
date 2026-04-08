@@ -76,7 +76,8 @@ export class AllocationService {
           const restRevenue = restaurantRevenue.get(restaurant.id) || 0;
 
           // coefficient = restaurant_revenue / total_revenue (Decimal precision 10,6)
-          const coefficient = restRevenue === 0 ? 0 : restRevenue / totalRevenue;
+          const coefficient =
+            restRevenue === 0 ? 0 : restRevenue / totalRevenue;
           // Round coefficient to 6 decimal places (matches Decimal(10,6))
           const coefficientDecimal = new Prisma.Decimal(coefficient.toFixed(6));
 
@@ -116,12 +117,26 @@ export class AllocationService {
       }
 
       const durationMs = Date.now() - startTime;
-      await this.logAllocation(tenantId, 'SUCCESS', allocationCount, durationMs);
-      this.logger.log(`✓ Cost allocation completed: ${allocationCount} records created`);
+      await this.logAllocation(
+        tenantId,
+        'SUCCESS',
+        allocationCount,
+        durationMs,
+      );
+      this.logger.log(
+        `✓ Cost allocation completed: ${allocationCount} records created`,
+      );
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.logAllocation(tenantId, 'ERROR', undefined, durationMs, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await this.logAllocation(
+        tenantId,
+        'ERROR',
+        undefined,
+        durationMs,
+        errorMessage,
+      );
       this.logger.error(`✗ Cost allocation failed: ${errorMessage}`);
       throw error;
     }
@@ -148,7 +163,7 @@ export class AllocationService {
       });
     } catch (error) {
       this.logger.error(
-        `Failed to log allocation: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to log allocation: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

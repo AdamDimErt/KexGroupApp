@@ -17,9 +17,11 @@ export function useCachedQuery<T>(
   cacheKey: string,
   fetcher: () => Promise<T>,
   deps: unknown[] = [],
+  options?: { enabled?: boolean },
 ): CachedResult<T> {
+  const enabled = options?.enabled !== false;
   const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -29,6 +31,14 @@ export function useCachedQuery<T>(
   const refetch = useCallback(() => setRefreshKey(k => k + 1), []);
 
   useEffect(() => {
+    // Skip fetching when disabled (e.g. role-based sections)
+    if (!enabled) {
+      setIsLoading(false);
+      setData(null);
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
     setIsLoading(true);
     setError(null);
@@ -76,7 +86,7 @@ export function useCachedQuery<T>(
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey, cacheKey, ...deps]);
+  }, [refreshKey, cacheKey, enabled, ...deps]);
 
   return { data, isLoading, error, isStale, isOffline, cachedAt, refetch };
 }

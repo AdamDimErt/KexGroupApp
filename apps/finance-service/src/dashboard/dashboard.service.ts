@@ -770,6 +770,7 @@ export class DashboardService {
         expenseGroups: [],
         directExpensesTotal: 0,
         distributedExpensesTotal: 0,
+        distributedExpenseItems: [],
         financialResult: 0,
         salesCount: 0,
         cashDiscrepancies: [],
@@ -883,18 +884,47 @@ export class DashboardService {
       articleCount: data.count,
     }));
 
-    // Distributed expenses total
-    const allocatedAgg = await this.prisma.costAllocation.aggregate({
+    // Distributed expenses with article breakdown
+    const allocations = await this.prisma.costAllocation.findMany({
       where: {
         restaurantId,
         periodStart: { lte: endDate },
         periodEnd: { gte: startDate },
       },
-      _sum: { allocatedAmount: true },
+      include: {
+        expense: {
+          include: {
+            article: true,
+          },
+        },
+      },
     });
-    const distributedExpensesTotal = this.toNumber(
-      allocatedAgg._sum.allocatedAmount,
+
+    const distributedExpensesTotal = allocations.reduce(
+      (sum, a) => sum + this.toNumber(a.allocatedAmount),
+      0,
     );
+
+    // Group by article for breakdown
+    const distByArticle = new Map<string, { name: string; source: string; amount: number; coefficient: number }>();
+    for (const a of allocations) {
+      const articleName = a.expense.article?.name ?? 'Без статьи';
+      const source = a.expense.source;
+      const key = a.expense.articleId ?? 'unknown';
+      const existing = distByArticle.get(key);
+      if (existing) {
+        existing.amount += this.toNumber(a.allocatedAmount);
+      } else {
+        distByArticle.set(key, {
+          name: articleName,
+          source,
+          amount: this.toNumber(a.allocatedAmount),
+          coefficient: this.toNumber(a.coefficient),
+        });
+      }
+    }
+    const distributedExpenseItems = Array.from(distByArticle.values())
+      .sort((a, b) => b.amount - a.amount);
 
     // Cash discrepancies
     const cashDiscs = await this.prisma.cashDiscrepancy.findMany({
@@ -938,6 +968,7 @@ export class DashboardService {
       expenseGroups,
       directExpensesTotal,
       distributedExpensesTotal,
+      distributedExpenseItems,
       financialResult:
         revenueBreakdown.total - directExpensesTotal - distributedExpensesTotal,
       salesCount: this.toNumber(revenueAgg._sum.salesCount),

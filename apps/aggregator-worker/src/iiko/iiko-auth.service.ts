@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { createHash } from 'crypto';
 import Redis from 'ioredis';
 import { firstValueFrom } from 'rxjs';
 
@@ -7,7 +8,8 @@ import { firstValueFrom } from 'rxjs';
 export class IikoAuthService {
   private readonly logger = new Logger(IikoAuthService.name);
   private readonly redis: Redis;
-  private readonly baseUrl = process.env.IIKO_SERVER_URL || 'https://kexbrands-co.iiko.it:443/resto/api';
+  private readonly baseUrl =
+    process.env.IIKO_SERVER_URL || 'https://kexbrands-co.iiko.it:443/resto/api';
   private readonly tokenCacheKey = 'iiko:access_token';
   private readonly tokenCacheTTL = 55 * 60; // 55 minutes
 
@@ -37,7 +39,9 @@ export class IikoAuthService {
     const password = process.env.IIKO_PASSWORD;
 
     if (!login || !password) {
-      throw new Error('IIKO_LOGIN and IIKO_PASSWORD environment variables are required');
+      throw new Error(
+        'IIKO_LOGIN and IIKO_PASSWORD environment variables are required',
+      );
     }
 
     const maxRetries = 3;
@@ -45,38 +49,43 @@ export class IikoAuthService {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const authUrl = `${this.baseUrl}/auth`;
-        const formData = `login=${encodeURIComponent(login)}&pass=${encodeURIComponent(password)}`;
+        // iiko Server API requires SHA1 hash of the password
+        const passHash = createHash('sha1').update(password).digest('hex');
+        const authUrl = `${this.baseUrl}/auth?login=${encodeURIComponent(login)}&pass=${encodeURIComponent(passHash)}`;
         const response = await firstValueFrom(
-          this.httpService.post(authUrl, formData, {
+          this.httpService.get(authUrl, {
             timeout: 30000,
             responseType: 'text',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          })
+          }),
         );
 
         // iiko Server API returns plain text token
-        const token = response.data?.trim();
+        const rawData: unknown = response.data;
+        const token = typeof rawData === 'string' ? rawData.trim() : '';
         if (!token) {
           throw new Error('Empty token response from auth endpoint');
         }
 
-        this.logger.log(`iiko Server API access token obtained (attempt ${attempt + 1})`);
+        this.logger.log(
+          `iiko Server API access token obtained (attempt ${attempt + 1})`,
+        );
         return token;
       } catch (error) {
         lastError = error as Error;
         const backoffMs = Math.pow(2, attempt) * 1000;
         this.logger.warn(
-          `Failed to obtain iiko token (attempt ${attempt + 1}), retrying in ${backoffMs}ms: ${lastError.message}`
+          `Failed to obtain iiko token (attempt ${attempt + 1}), retrying in ${backoffMs}ms: ${lastError.message}`,
         );
 
         if (attempt < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
         }
       }
     }
 
-    throw new Error(`Failed to obtain iiko token after ${maxRetries} attempts: ${lastError?.message}`);
+    throw new Error(
+      `Failed to obtain iiko token after ${maxRetries} attempts: ${lastError?.message}`,
+    );
   }
 
   async onModuleDestroy() {

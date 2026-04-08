@@ -73,6 +73,7 @@ describe('AuthService', () => {
         { provide: 'PRISMA_CLIENT', useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: 'TELEGRAM_GATEWAY_CLIENT', useValue: null },
       ],
     }).compile();
 
@@ -582,6 +583,83 @@ describe('AuthService', () => {
         'EX',
         2592000,
       );
+    });
+  });
+
+  describe('generateOtp - Telegram Gateway', () => {
+    let serviceWithTg: AuthService;
+    let mockTelegramGateway: any;
+
+    beforeEach(async () => {
+      mockTelegramGateway = {
+        checkSendAbility: jest.fn(),
+        sendVerificationMessage: jest.fn(),
+        checkVerificationStatus: jest.fn(),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          AuthService,
+          { provide: 'REDIS_CLIENT', useValue: mockRedis },
+          { provide: 'PRISMA_CLIENT', useValue: mockPrisma },
+          { provide: JwtService, useValue: mockJwtService },
+          { provide: ConfigService, useValue: mockConfigService },
+          { provide: 'TELEGRAM_GATEWAY_CLIENT', useValue: mockTelegramGateway },
+        ],
+      }).compile();
+
+      serviceWithTg = module.get<AuthService>(AuthService);
+      jest.clearAllMocks();
+    });
+
+    it('should send OTP via Telegram when phone is on Telegram', async () => {
+      const phone = '+77771234567';
+      mockRedis.get.mockResolvedValue(null);
+      mockTelegramGateway.checkSendAbility.mockResolvedValue({ ok: true });
+      mockTelegramGateway.sendVerificationMessage.mockResolvedValue({
+        ok: true,
+        result: { request_id: 'tg-req-123' },
+      });
+
+      const result = await serviceWithTg.generateOtp(phone);
+
+      expect(result.message).toContain('Telegram');
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        `tg_otp_rid:${phone}`,
+        'tg-req-123',
+        'EX',
+        300,
+      );
+    });
+
+    it('should fall back to SMS when phone is not on Telegram', async () => {
+      const phone = '+77771234567';
+      mockRedis.get.mockResolvedValue(null);
+      mockTelegramGateway.checkSendAbility.mockResolvedValue({ ok: false });
+
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ code: 0 }),
+      } as any);
+
+      const result = await serviceWithTg.generateOtp(phone);
+
+      expect(result.message).toContain('SMS');
+    });
+
+    it('should fall back to SMS when Telegram Gateway throws error', async () => {
+      const phone = '+77771234567';
+      mockRedis.get.mockResolvedValue(null);
+      mockTelegramGateway.checkSendAbility.mockRejectedValue(new Error('Network'));
+
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ code: 0 }),
+      } as any);
+
+      const result = await serviceWithTg.generateOtp(phone);
+
+      expect(result.message).toContain('SMS');
     });
   });
 });

@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useBrandDetail } from '../hooks/useBrandDetail';
 import { RestaurantCard } from '../components/RestaurantCard';
 import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
+import { OfflineBanner } from '../components/OfflineBanner';
 import { colors } from '../theme';
 import { styles } from './BrandDetailScreen.styles';
 
@@ -19,8 +21,13 @@ export function BrandDetailScreen({
   onNavigateToRestaurant,
   onBack,
 }: BrandDetailScreenProps) {
-  const { totalRevenue, restaurants, isLoading, error } = useBrandDetail(brandId || '');
+  const { totalRevenue, restaurants, isLoading, error, refetch, isStale, isOffline, cachedAt } = useBrandDetail(brandId || '');
   const heroLabel = usePeriodHeroLabel('ВЫРУЧКА');
+
+  const handleRefresh = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    refetch();
+  };
 
   if (!brandId) {
     return (
@@ -39,7 +46,14 @@ export function BrandDetailScreen({
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <OfflineBanner isOffline={isOffline} isStale={isStale} cachedAt={cachedAt} />
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor={colors.accent} />}
+    >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack}>
@@ -95,5 +109,6 @@ export function BrandDetailScreen({
 
       <View style={{ height: 24 }} />
     </ScrollView>
+    </View>
   );
 }
