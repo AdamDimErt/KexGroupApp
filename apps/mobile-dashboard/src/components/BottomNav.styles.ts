@@ -16,8 +16,8 @@ export const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'transparent',
   },
   iconPillActive: {
-    backgroundColor: 'rgba(37,99,235,0.22)',
-    borderColor: 'rgba(59,130,246,0.30)',
+    backgroundColor: colors.accentGlow,
+    borderColor: colors.borderActive,
   },
   badge: {
     position: 'absolute', top: -3, right: -3,

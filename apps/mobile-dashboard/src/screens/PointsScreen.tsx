@@ -7,8 +7,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Search } from 'lucide-react-native';
 import { colors } from '../theme';
 import { RestaurantCard } from '../components/RestaurantCard';
+import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { useRestaurantList } from '../hooks/useRestaurantList';
@@ -36,6 +38,7 @@ function SkeletonCards() {
 }
 
 export function PointsScreen({ onPointSelect }: Props) {
+  const periodLabel = usePeriodHeroLabel('');
   const {
     query,
     setQuery,
@@ -117,12 +120,15 @@ export function PointsScreen({ onPointSelect }: Props) {
         <Text style={styles.total}>
           {isLoading
             ? 'Загрузка...'
-            : `\u20B8${(totalRevenue / 1_000_000).toFixed(2)}M сегодня`}
+            : `\u20B8${(totalRevenue / 1_000_000).toFixed(2)}M ${periodLabel.toLowerCase()}`}
         </Text>
+
+        {/* Period Selector */}
+        <PeriodSelector marginTop={12} />
 
         {/* Search */}
         <View style={styles.searchWrap}>
-          <Text style={styles.searchIcon}>*</Text>
+          <Search size={14} color={colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Поиск по ресторанам..."

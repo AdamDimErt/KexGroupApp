@@ -29,7 +29,12 @@ progress:
 
 ## Current Phase
 
-**Phase 08.1: iiko Server API DDS sync** — COMPLETE. Plan 08.1-01 complete: syncDdsArticles fetches /v2/entities/list and upserts DdsArticle records; syncDdsTransactions fetches /v2/cashshifts/list per restaurant and upserts Expense with dds:{shiftId}:{movId} syncId; resolveGroupCode maps 12 DDS group codes; POST /sync/dds endpoint added; syncAll and syncBackfill include DDS. 54 tests passing.
+**Phase 08.2: Design System Mobile** — COMPLETE. Applied UI/UX Pro Max design system to mobile app:
+- Theme: MASTER.md colors (#020617 bg, #0F172A primary, #22C55E accent), Fira Code/Sans typography, spacing/shadow tokens
+- Dark/Light mode: useThemeStore with Zustand, toggle in ProfileScreen (Moon/Sun icons)
+- Icons: All emojis replaced with Lucide SVG (lucide-react-native): DashboardScreen (Bell, Settings, LogOut, AlertTriangle, RefreshCw), BottomNav (Home, Store, BarChart3, Bell), PointDetailScreen (GROUP_ICONS for 12 DDS categories), RestaurantCard (ChevronRight), ArticleDetailScreen (ChevronRight), ProfileScreen (ArrowLeft, Sun, Moon), PeriodSelector (Calendar)
+- Components: expGroupIconWrap with tinted background, cards use theme bgCard, borders use theme borderSubtle
+- TypeScript compiles cleanly
 
 ## What's Working
 

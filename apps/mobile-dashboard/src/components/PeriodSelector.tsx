@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { ScrollView, TouchableOpacity, Text, View, StyleSheet } from 'react-native';
+import { Calendar } from 'lucide-react-native';
 import { useDashboardStore } from '../store/dashboard';
 import { MonthRangePicker, type MonthYear } from './MonthRangePicker';
 import { colors } from '../theme';
@@ -86,7 +87,7 @@ export function PeriodSelector({ marginTop = 12 }: Props) {
           style={[styles.chip, styles.chipCustom, period === 'custom' && styles.chipActive]}
         >
           <Text style={[styles.chipText, period === 'custom' && styles.chipTextActive]}>
-            {period === 'custom' ? customLabel : '📅 Период'}
+            {period === 'custom' ? customLabel : 'Период'}
           </Text>
         </TouchableOpacity>
       </ScrollView>

@@ -77,9 +77,11 @@ export const styles = StyleSheet.create({
   },
   kpiCard: {
     flex: 1,
-    backgroundColor: '#12122A',
+    backgroundColor: colors.bgCard,
     borderRadius: 12,
     padding: 12,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
   },
   kpiLabel: {
     fontSize: 11,

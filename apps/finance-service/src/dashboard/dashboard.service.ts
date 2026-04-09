@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CompanySummaryDto,
@@ -59,9 +60,9 @@ export class DashboardService {
    * Returns UTC Date representing 00:00:00 Almaty time.
    */
   private parseStartDate(dateStr: string): Date {
-    // dateStr = "2026-01-15"
-    // Almaty midnight = UTC (00:00 - 5h) = previous day 19:00 UTC
-    return new Date(`${dateStr}T00:00:00${TZ_OFFSET}`);
+    // Accept both "2026-01-15" and "2026-01-15T00:00:00Z" formats
+    const dateOnly = dateStr.split('T')[0]; // Extract YYYY-MM-DD
+    return new Date(`${dateOnly}T00:00:00${TZ_OFFSET}`);
   }
 
   /**
@@ -69,7 +70,8 @@ export class DashboardService {
    * Returns UTC Date representing 23:59:59.999 Almaty time.
    */
   private parseEndDate(dateStr: string): Date {
-    return new Date(`${dateStr}T23:59:59.999${TZ_OFFSET}`);
+    const dateOnly = dateStr.split('T')[0];
+    return new Date(`${dateOnly}T23:59:59.999${TZ_OFFSET}`);
   }
 
   /**
@@ -192,22 +194,25 @@ export class DashboardService {
 
     const allRestaurantIds = allRestaurants.map((r) => r.id);
 
-    // Revenue by restaurant (single query)
-    const revenueByRestaurant = await this.prisma.financialSnapshot.groupBy({
-      by: ['restaurantId'],
-      where: {
-        restaurantId: { in: allRestaurantIds },
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: { revenue: true, directExpenses: true },
-    });
+    // Revenue by restaurant (single query) — raw SQL for Prisma 7 driver adapter compat
+    const revenueByRestaurant = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_revenue: number; sum_directExpenses: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId",
+             COALESCE(SUM("revenue"), 0)::float8 AS "sum_revenue",
+             COALESCE(SUM("directExpenses"), 0)::float8 AS "sum_directExpenses"
+      FROM "finance"."FinancialSnapshot"
+      WHERE "restaurantId" = ANY(${allRestaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "restaurantId"
+    `);
 
     const revenueMap = new Map(
       revenueByRestaurant.map((item) => [
         item.restaurantId,
         {
-          revenue: this.toNumber(item._sum.revenue),
-          expenses: this.toNumber(item._sum.directExpenses),
+          revenue: this.toNumber(item.sum_revenue),
+          expenses: this.toNumber(item.sum_directExpenses),
         },
       ]),
     );
@@ -470,69 +475,60 @@ export class DashboardService {
     const restaurantIds = restaurants.map((r) => r.id);
 
     // Get all revenue for all restaurants in one aggregated query (group by restaurantId)
-    const revenueByRestaurant = await this.prisma.financialSnapshot.groupBy({
-      by: ['restaurantId'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      _sum: { revenue: true },
-    });
+    const revenueByRestaurant = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_revenue: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId", COALESCE(SUM("revenue"), 0)::float8 AS "sum_revenue"
+      FROM "finance"."FinancialSnapshot"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "restaurantId"
+    `);
 
     // Get all direct expenses for all restaurants in one aggregated query (group by restaurantId)
-    const directExpensesByRestaurant = await this.prisma.expense.groupBy({
-      by: ['restaurantId'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-        article: {
-          allocationType: 'DIRECT',
-        },
-      },
-      _sum: { amount: true },
-    });
+    const directExpensesByRestaurant = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT e."restaurantId", COALESCE(SUM(e."amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense" e
+      JOIN "finance"."DdsArticle" a ON a."id" = e."articleId"
+      WHERE e."restaurantId" = ANY(${restaurantIds})
+        AND e."date" >= ${startDate} AND e."date" <= ${endDate}
+        AND a."allocationType" = 'DIRECT'
+      GROUP BY e."restaurantId"
+    `);
 
     // Get all allocated expenses for all restaurants in one aggregated query (group by restaurantId)
-    const allocatedExpensesByRestaurant =
-      await this.prisma.costAllocation.groupBy({
-        by: ['restaurantId'],
-        where: {
-          restaurantId: { in: restaurantIds },
-          periodStart: {
-            lte: endDate,
-          },
-          periodEnd: {
-            gte: startDate,
-          },
-        },
-        _sum: { allocatedAmount: true },
-      });
+    const allocatedExpensesByRestaurant = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_allocatedAmount: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId", COALESCE(SUM("allocatedAmount"), 0)::float8 AS "sum_allocatedAmount"
+      FROM "finance"."CostAllocation"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "periodStart" <= ${endDate}
+        AND "periodEnd" >= ${startDate}
+      GROUP BY "restaurantId"
+    `);
 
     // Create maps for quick lookup
     const revenueMap = new Map(
       revenueByRestaurant.map((item) => [
         item.restaurantId,
-        this.toNumber(item._sum.revenue),
+        this.toNumber(item.sum_revenue),
       ]),
     );
 
     const directExpensesMap = new Map(
       directExpensesByRestaurant.map((item) => [
         item.restaurantId,
-        this.toNumber(item._sum.amount),
+        this.toNumber(item.sum_amount),
       ]),
     );
 
     const allocatedExpensesMap = new Map(
       allocatedExpensesByRestaurant.map((item) => [
         item.restaurantId,
-        this.toNumber(item._sum.allocatedAmount),
+        this.toNumber(item.sum_allocatedAmount),
       ]),
     );
 
@@ -569,17 +565,15 @@ export class DashboardService {
     const endDate = this.parseEndDate(dateTo);
 
     // Get all expenses grouped by article
-    const expensesByArticle = await this.prisma.expense.groupBy({
-      by: ['articleId'],
-      where: {
-        restaurantId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      _sum: { amount: true },
-    });
+    const expensesByArticle = await this.prisma.$queryRaw<
+      Array<{ articleId: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT "articleId", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense"
+      WHERE "restaurantId" = ${restaurantId}
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "articleId"
+    `);
 
     // Get article details for all articles
     const articleIds = expensesByArticle.map((item) => item.articleId);
@@ -611,7 +605,7 @@ export class DashboardService {
           code: article.code,
           source: article.source,
           allocationType: article.allocationType,
-          amount: this.toNumber(item._sum.amount),
+          amount: this.toNumber(item.sum_amount),
           coefficient,
         };
       })
@@ -661,39 +655,48 @@ export class DashboardService {
     const restaurantIds = brand.restaurants.map((r) => r.id);
 
     // Revenue breakdown per restaurant (single query, grouped)
-    const snapshots = await this.prisma.financialSnapshot.groupBy({
-      by: ['restaurantId'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: {
-        revenue: true,
-        revenueCash: true,
-        revenueKaspi: true,
-        revenueHalyk: true,
-        revenueYandex: true,
-        directExpenses: true,
-      },
-    });
+    const snapshots = await this.prisma.$queryRaw<
+      Array<{
+        restaurantId: string;
+        sum_revenue: number;
+        sum_revenueCash: number;
+        sum_revenueKaspi: number;
+        sum_revenueHalyk: number;
+        sum_revenueYandex: number;
+        sum_directExpenses: number;
+      }>
+    >(Prisma.sql`
+      SELECT "restaurantId",
+             COALESCE(SUM("revenue"), 0)::float8 AS "sum_revenue",
+             COALESCE(SUM("revenueCash"), 0)::float8 AS "sum_revenueCash",
+             COALESCE(SUM("revenueKaspi"), 0)::float8 AS "sum_revenueKaspi",
+             COALESCE(SUM("revenueHalyk"), 0)::float8 AS "sum_revenueHalyk",
+             COALESCE(SUM("revenueYandex"), 0)::float8 AS "sum_revenueYandex",
+             COALESCE(SUM("directExpenses"), 0)::float8 AS "sum_directExpenses"
+      FROM "finance"."FinancialSnapshot"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "restaurantId"
+    `);
 
     const snapshotMap = new Map(snapshots.map((s) => [s.restaurantId, s]));
 
     // Distributed expenses per restaurant
-    const allocations = await this.prisma.costAllocation.groupBy({
-      by: ['restaurantId'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        periodStart: { lte: endDate },
-        periodEnd: { gte: startDate },
-      },
-      _sum: { allocatedAmount: true },
-    });
+    const allocations = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_allocatedAmount: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId", COALESCE(SUM("allocatedAmount"), 0)::float8 AS "sum_allocatedAmount"
+      FROM "finance"."CostAllocation"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "periodStart" <= ${endDate}
+        AND "periodEnd" >= ${startDate}
+      GROUP BY "restaurantId"
+    `);
 
     const allocationMap = new Map(
       allocations.map((a) => [
         a.restaurantId,
-        this.toNumber(a._sum.allocatedAmount),
+        this.toNumber(a.sum_allocatedAmount),
       ]),
     );
 
@@ -702,12 +705,12 @@ export class DashboardService {
 
     const restaurants: RestaurantIndicatorDto[] = brand.restaurants.map((r) => {
       const snap = snapshotMap.get(r.id);
-      const revenue = this.toNumber(snap?._sum.revenue);
-      const cash = this.toNumber(snap?._sum.revenueCash);
-      const kaspi = this.toNumber(snap?._sum.revenueKaspi);
-      const halyk = this.toNumber(snap?._sum.revenueHalyk);
-      const yandex = this.toNumber(snap?._sum.revenueYandex);
-      const directExp = this.toNumber(snap?._sum.directExpenses);
+      const revenue = this.toNumber(snap?.sum_revenue);
+      const cash = this.toNumber(snap?.sum_revenueCash);
+      const kaspi = this.toNumber(snap?.sum_revenueKaspi);
+      const halyk = this.toNumber(snap?.sum_revenueHalyk);
+      const yandex = this.toNumber(snap?.sum_revenueYandex);
+      const directExp = this.toNumber(snap?.sum_directExpenses);
       const distributedExp = allocationMap.get(r.id) || 0;
       const financialResult = revenue - directExp - distributedExp;
 
@@ -800,11 +803,14 @@ export class DashboardService {
       select: { id: true },
     })).map(s => s.id);
 
-    const paymentsByType = await this.prisma.snapshotPayment.groupBy({
-      by: ['paymentTypeId'],
-      where: { snapshotId: { in: snapshotIds } },
-      _sum: { amount: true },
-    });
+    const paymentsByType = await this.prisma.$queryRaw<
+      Array<{ paymentTypeId: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT "paymentTypeId", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."SnapshotPayment"
+      WHERE "snapshotId" = ANY(${snapshotIds})
+      GROUP BY "paymentTypeId"
+    `);
 
     const paymentTypeIds = paymentsByType.map(p => p.paymentTypeId);
     const paymentTypes = await this.prisma.paymentType.findMany({
@@ -817,7 +823,7 @@ export class DashboardService {
       .map(p => {
         const pt = ptMap.get(p.paymentTypeId);
         if (!pt) return null;
-        return { name: pt.name, iikoCode: pt.iikoCode, amount: this.toNumber(p._sum.amount) };
+        return { name: pt.name, iikoCode: pt.iikoCode, amount: this.toNumber(p.sum_amount) };
       })
       .filter((x): x is PaymentTypeAmountDto => x !== null)
       .sort((a, b) => b.amount - a.amount);
@@ -832,14 +838,15 @@ export class DashboardService {
     };
 
     // Expense groups: expenses grouped by article group
-    const expensesByGroup = await this.prisma.expense.groupBy({
-      by: ['articleId'],
-      where: {
-        restaurantId,
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: { amount: true },
-    });
+    const expensesByGroup = await this.prisma.$queryRaw<
+      Array<{ articleId: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT "articleId", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense"
+      WHERE "restaurantId" = ${restaurantId}
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "articleId"
+    `);
 
     // Get article details with groups
     const articleIds = expensesByGroup.map((e) => e.articleId);
@@ -859,7 +866,7 @@ export class DashboardService {
     for (const exp of expensesByGroup) {
       const article = articleMap.get(exp.articleId);
       if (!article) continue;
-      const amount = this.toNumber(exp._sum.amount);
+      const amount = this.toNumber(exp.sum_amount);
       directExpensesTotal += amount;
 
       const existing = groupTotals.get(article.groupId);
@@ -1031,18 +1038,19 @@ export class DashboardService {
     const articleIds = articlesInGroup.map((a) => a.id);
 
     // Current period expenses by article
-    const currentExpenses = await this.prisma.expense.groupBy({
-      by: ['articleId'],
-      where: {
-        articleId: { in: articleIds },
-        restaurantId,
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: { amount: true },
-    });
+    const currentExpenses = await this.prisma.$queryRaw<
+      Array<{ articleId: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT "articleId", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense"
+      WHERE "articleId" = ANY(${articleIds})
+        AND "restaurantId" = ${restaurantId}
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "articleId"
+    `);
 
     const currentMap = new Map(
-      currentExpenses.map((e) => [e.articleId, this.toNumber(e._sum.amount)]),
+      currentExpenses.map((e) => [e.articleId, this.toNumber(e.sum_amount)]),
     );
 
     // Previous period: calculate same duration before dateFrom
@@ -1050,18 +1058,19 @@ export class DashboardService {
     const prevEnd = new Date(startDate.getTime() - 1); // 1ms before current start
     const prevStart = new Date(prevEnd.getTime() - periodMs);
 
-    const prevExpenses = await this.prisma.expense.groupBy({
-      by: ['articleId'],
-      where: {
-        articleId: { in: articleIds },
-        restaurantId,
-        date: { gte: prevStart, lte: prevEnd },
-      },
-      _sum: { amount: true },
-    });
+    const prevExpenses = await this.prisma.$queryRaw<
+      Array<{ articleId: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT "articleId", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense"
+      WHERE "articleId" = ANY(${articleIds})
+        AND "restaurantId" = ${restaurantId}
+        AND "date" >= ${prevStart} AND "date" <= ${prevEnd}
+      GROUP BY "articleId"
+    `);
 
     const prevMap = new Map(
-      prevExpenses.map((e) => [e.articleId, this.toNumber(e._sum.amount)]),
+      prevExpenses.map((e) => [e.articleId, this.toNumber(e.sum_amount)]),
     );
 
     // Calculate total for share percent
@@ -1202,14 +1211,15 @@ export class DashboardService {
     const restaurantNameMap = new Map(restaurants.map((r) => [r.id, r.name]));
 
     // Group expenses by restaurantId + articleId
-    const expenseRows = await this.prisma.expense.groupBy({
-      by: ['restaurantId', 'articleId'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: { amount: true },
-    });
+    const expenseRows = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string | null; articleId: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId", "articleId", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "restaurantId", "articleId"
+    `);
 
     // Fetch article details with group name
     const articleIds = [...new Set(expenseRows.map((e) => e.articleId))];
@@ -1226,11 +1236,11 @@ export class DashboardService {
     for (const row of expenseRows) {
       if (!row.restaurantId) continue;
       const groupName = articleGroupMap.get(row.articleId) ?? 'Unknown';
-      const amount = this.toNumber(row._sum.amount);
-      if (!restaurantGroupMap.has(row.restaurantId)) {
-        restaurantGroupMap.set(row.restaurantId, new Map());
+      const amount = this.toNumber(row.sum_amount);
+      if (!restaurantGroupMap.has(row.restaurantId!)) {
+        restaurantGroupMap.set(row.restaurantId!, new Map());
       }
-      const groupAmounts = restaurantGroupMap.get(row.restaurantId)!;
+      const groupAmounts = restaurantGroupMap.get(row.restaurantId!)!;
       groupAmounts.set(groupName, (groupAmounts.get(groupName) ?? 0) + amount);
     }
 
@@ -1285,15 +1295,18 @@ export class DashboardService {
 
     // Query unallocated (HQ) expenses — restaurantId is null
     // Filter by tenant via article.group.tenantId
-    const expenseRows = await this.prisma.expense.groupBy({
-      by: ['articleId', 'source'],
-      where: {
-        restaurantId: null,
-        date: { gte: startDate, lte: endDate },
-        article: { group: { tenantId } },
-      },
-      _sum: { amount: true },
-    });
+    const expenseRows = await this.prisma.$queryRaw<
+      Array<{ articleId: string; source: string; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT e."articleId", e."source", COALESCE(SUM(e."amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense" e
+      JOIN "finance"."DdsArticle" a ON a."id" = e."articleId"
+      JOIN "finance"."DdsArticleGroup" g ON g."id" = a."groupId"
+      WHERE e."restaurantId" IS NULL
+        AND e."date" >= ${startDate} AND e."date" <= ${endDate}
+        AND g."tenantId" = ${tenantId}
+      GROUP BY e."articleId", e."source"
+    `);
 
     // Fetch article names
     const articleIds = [...new Set(expenseRows.map((e) => e.articleId))];
@@ -1305,12 +1318,12 @@ export class DashboardService {
 
     // Compute totals
     const totalAmount = expenseRows.reduce(
-      (sum, row) => sum + this.toNumber(row._sum.amount),
+      (sum, row) => sum + this.toNumber(row.sum_amount),
       0,
     );
 
     const categories: CompanyExpenseCategoryDto[] = expenseRows.map((row) => {
-      const amount = this.toNumber(row._sum.amount);
+      const amount = this.toNumber(row.sum_amount);
       return {
         source: row.source as 'ONE_C' | 'IIKO',
         articleName: articleNameMap.get(row.articleId) ?? '',
@@ -1362,20 +1375,22 @@ export class DashboardService {
     const restaurantNameMap = new Map(restaurants.map((r) => [r.id, r.name]));
 
     // Shipments grouped by restaurant
-    const shipmentRows = await this.prisma.kitchenShipment.groupBy({
-      by: ['restaurantId'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: { amount: true },
-      _count: { id: true },
-    });
+    const shipmentRows = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_amount: number; count_id: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId",
+             COALESCE(SUM("amount"), 0)::float8 AS "sum_amount",
+             COUNT("id")::int AS "count_id"
+      FROM "finance"."KitchenShipment"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "restaurantId"
+    `);
 
     const shipments: KitchenShipmentRowDto[] = shipmentRows.map((row) => ({
       restaurantName: restaurantNameMap.get(row.restaurantId) ?? '',
-      totalAmount: this.toNumber(row._sum.amount),
-      items: row._count.id,
+      totalAmount: this.toNumber(row.sum_amount),
+      items: row.count_id,
     }));
 
     const totalPurchases = purchases.reduce((sum, p) => sum + p.amount, 0);
@@ -1409,46 +1424,57 @@ export class DashboardService {
     const restaurantIds = restaurants.map((r) => r.id);
 
     // Daily revenue grouped by date
-    const revenueRows = await this.prisma.financialSnapshot.groupBy({
-      by: ['date'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: { revenue: true },
-      orderBy: { date: 'asc' },
-    });
+    const revenueRows = await this.prisma.$queryRaw<
+      Array<{ date: Date; sum_revenue: number }>
+    >(Prisma.sql`
+      SELECT "date", COALESCE(SUM("revenue"), 0)::float8 AS "sum_revenue"
+      FROM "finance"."FinancialSnapshot"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "date"
+      ORDER BY "date" ASC
+    `);
 
     // Daily expenses grouped by date
-    const expenseRows = await this.prisma.expense.groupBy({
-      by: ['date'],
-      where: {
-        restaurantId: { in: restaurantIds },
-        date: { gte: startDate, lte: endDate },
-      },
-      _sum: { amount: true },
-      orderBy: { date: 'asc' },
-    });
+    const trendExpenseRows = await this.prisma.$queryRaw<
+      Array<{ date: Date; sum_amount: number }>
+    >(Prisma.sql`
+      SELECT "date", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "date"
+      ORDER BY "date" ASC
+    `);
 
-    // Merge by date string (YYYY-MM-DD)
+    // Merge by date string (YYYY-MM-DD) using Almaty timezone (+05:00)
     const dateMap = new Map<string, { revenue: number; expenses: number }>();
 
+    // Convert DB date to Almaty local date string (avoids UTC-5 shift making Apr 1 → Mar 31)
+    const toAlmatyDate = (d: Date | string): string => {
+      const dt = d instanceof Date ? d : new Date(String(d));
+      // Add 5 hours (Almaty UTC+5) then take date portion
+      const almaty = new Date(dt.getTime() + 5 * 3600_000);
+      return almaty.toISOString().slice(0, 10);
+    };
+
     for (const row of revenueRows) {
-      const key = row.date.toISOString().slice(0, 10);
+      const key = toAlmatyDate(row.date);
       const entry = dateMap.get(key) ?? { revenue: 0, expenses: 0 };
-      entry.revenue += this.toNumber(row._sum.revenue);
+      entry.revenue += this.toNumber(row.sum_revenue);
       dateMap.set(key, entry);
     }
 
-    for (const row of expenseRows) {
-      const key = row.date.toISOString().slice(0, 10);
+    for (const row of trendExpenseRows) {
+      const key = toAlmatyDate(row.date);
       const entry = dateMap.get(key) ?? { revenue: 0, expenses: 0 };
-      entry.expenses += this.toNumber(row._sum.amount);
+      entry.expenses += this.toNumber(row.sum_amount);
       dateMap.set(key, entry);
     }
 
-    // Build points sorted by date
+    // Build points sorted by date, filter to requested range only
     const points: TrendPointDto[] = Array.from(dateMap.entries())
+      .filter(([date]) => date >= dateFrom && date <= dateTo)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, data]) => ({
         date,

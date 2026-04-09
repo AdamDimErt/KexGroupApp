@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { colors } from '../theme';
 import { statusColor, type Status } from '../data/restaurants';
 import { styles } from './RestaurantCard.styles';
@@ -31,7 +32,8 @@ function formatRevenue(revenue: number): string {
 }
 
 function formatDev(dev: number): string {
-  return `${dev > 0 ? '+' : ''}${dev}%`;
+  const rounded = Math.abs(dev) >= 100 ? Math.round(dev) : Number(dev.toFixed(1));
+  return `${rounded > 0 ? '+' : ''}${rounded}%`;
 }
 
 function calcMarginPct(revenue: number): number {
@@ -58,7 +60,7 @@ export function RestaurantCard({ name, city, revenue, transactions, dev, status,
             <Text style={[styles.devText, { color: devColor }]}>{formatDev(dev)}</Text>
           </View>
         </View>
-        <Text style={styles.chevron}>›</Text>
+        <ChevronRight size={16} color={colors.textTertiary} />
       </View>
 
       <View style={styles.progressBg}>

@@ -528,14 +528,14 @@ Plans:
 ---
 
 ## Phase 8: Push-уведомления
-**Статус: 🔄 ~25% готово**
+**Статус: ✅ 100% готово**
 **Срок по ТЗ: Этап 3 (3-4 недели)**
 **Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 08-01-PLAN.md — Fix role targeting, NotificationPreference model, prefs endpoints, internal trigger
-- [ ] 08-02-PLAN.md — AlertService in aggregator-worker (sync health, revenue, expenses thresholds)
-- [ ] 08-03-PLAN.md — Mobile: fix push token, wire usePushNotifications, ProfileScreen with settings
+- [x] 08-01-PLAN.md — Fix role targeting, NotificationPreference model, prefs endpoints, internal trigger
+- [x] 08-02-PLAN.md — AlertService in aggregator-worker (sync health, revenue, expenses thresholds)
+- [x] 08-03-PLAN.md — Mobile: fix push token, wire usePushNotifications, ProfileScreen with settings
 
 - [ ] Firebase Cloud Messaging (FCM) — серверная часть
 - [x] `expo-notifications` установлен (v0.31.0) + usePushNotifications хук
@@ -560,8 +560,23 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 08.1-01-PLAN.md — Backend: syncDdsArticles + syncDdsTransactions + cron wiring + tests
-- [ ] 08.1-02-PLAN.md — Mobile: color-coded expense groups on PointDetailScreen + expandable DDS summary on ReportsScreen
+- [x] 08.1-01-PLAN.md — Backend: syncDdsArticles + syncDdsTransactions + cron wiring + tests
+- [x] 08.1-02-PLAN.md — Mobile: color-coded expense groups on PointDetailScreen + expandable DDS summary on ReportsScreen
+
+### Phase 08.2: Применить дизайн-систему к мобильному приложению (INSERTED)
+**Статус: ✅ 100% готово**
+
+**Goal:** Применить дизайн-систему UI/UX Pro Max: заменить эмодзи на SVG иконки (Lucide), обновить тему (цвета, тени, скругления по MASTER.md), стандартизировать компоненты, light/dark mode.
+**Design System:** `design-system/kex-group/MASTER.md`
+**Requirements**: [DS-01: SVG icons, DS-02: Theme, DS-03: Components, DS-04: Dark mode]
+**Depends on:** Phase 8.1
+**Plans:** 4/4 plans complete
+
+Plans:
+- [x] 08.2-01 — Theme system: colors/typography/spacing from MASTER.md + dark/light toggle (useThemeStore)
+- [x] 08.2-02 — Replace all emoji icons with Lucide SVG (lucide-react-native)
+- [x] 08.2-03 — Standardize components: cards, buttons, icon wrappers per MASTER.md
+- [x] 08.2-04 — Apply theme to all screens (Dashboard, PointDetail, Reports, Article, Profile, BottomNav)
 
 ## Phase 9: Деплой и Релиз
 **Статус: ❌ Не начат**

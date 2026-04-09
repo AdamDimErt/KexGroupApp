@@ -81,8 +81,11 @@ export function getPeriodDates(
     case 'today':
       return { dateFrom: toDate, dateTo: toDate };
     case 'thisWeek': {
+      // Monday-based week (Kazakhstan standard)
+      const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+      const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sun→6, Mon→0, Tue→1, etc.
       const weekStart = new Date(today);
-      weekStart.setDate(d - today.getDay());
+      weekStart.setDate(d - mondayOffset);
       return {
         dateFrom: isoDate(weekStart.getFullYear(), weekStart.getMonth() + 1, weekStart.getDate()),
         dateTo: toDate,

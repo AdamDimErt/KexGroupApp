@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Dimensions, type DimensionValue } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { ArrowLeft, ChevronRight, Package } from 'lucide-react-native';
 import { usePointDetail } from '../hooks/usePointDetail';
 import { PeriodSelector, PERIOD_OPTIONS } from '../components/PeriodSelector';
 import { useDashboardStore } from '../store/dashboard';
 import { useAuthStore } from '../store/auth';
 import { OfflineBanner } from '../components/OfflineBanner';
-import { colors } from '../theme';
+import { colors, GROUP_ICONS, GROUP_ICON_COLORS, DEFAULT_GROUP_ICON } from '../theme';
 import { styles } from './PointDetailScreen.styles';
 
 function fmtRevenue(v: number): string {
@@ -175,20 +176,7 @@ const GROUP_COLORS: Record<string, string> = {
   'Комиссии банков': '#3B82F6',      // blue
   'Цех (производство)': '#14B8A6',   // teal
 };
-const GROUP_EMOJI: Record<string, string> = {
-  'Продукты питания': '🍔',
-  'Аренда помещений': '🏠',
-  'Заработная плата': '👥',
-  'Коммунальные услуги': '💡',
-  'Маркетинг и реклама': '📣',
-  'IT и связь': '💻',
-  'Транспорт и доставка': '🚛',
-  'Оборудование и ремонт': '🔧',
-  'Налоги и сборы': '📋',
-  'Прочие расходы': '📦',
-  'Комиссии банков': '🏦',
-  'Цех (производство)': '🏭',
-};
+// GROUP_EMOJI removed — now using Lucide SVG icons from theme/icons.ts
 
 // Color palette for dynamic payment types — known iiko codes get fixed colors,
 // unknown types cycle through the fallback palette
@@ -341,12 +329,15 @@ export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props)
         </View>
         {sortedExpenseGroups.map((group) => {
           const groupColor = GROUP_COLORS[group.groupName] ?? '#94A3B8';
-          const groupEmoji = GROUP_EMOJI[group.groupName] ?? '📦';
+          const GroupIcon = GROUP_ICONS[group.groupName] ?? DEFAULT_GROUP_ICON;
+          const iconColor = GROUP_ICON_COLORS[group.groupName] ?? groupColor;
           const pct = totalExpenses > 0 ? ((group.totalAmount / totalExpenses) * 100).toFixed(1) : '0.0';
           const barFillPct = maxExpense > 0 ? (group.totalAmount / maxExpense) * 100 : 0;
           const rowContent = (
             <View style={[styles.expGroupRow, { borderLeftColor: groupColor }]}>
-              <Text style={styles.expGroupIcon}>{groupEmoji}</Text>
+              <View style={[styles.expGroupIconWrap, { backgroundColor: iconColor + '18' }]}>
+                <GroupIcon size={16} color={iconColor} />
+              </View>
               <View style={styles.expGroupInfo}>
                 <Text style={styles.expGroupName}>{group.groupName}</Text>
                 <View style={[styles.expGroupBar, { width: `${barFillPct}%` as DimensionValue, backgroundColor: groupColor }]} />
@@ -355,7 +346,7 @@ export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props)
                 <Text style={styles.expGroupAmount}>{fmtAmount(group.totalAmount)}</Text>
                 <Text style={styles.expGroupPct}>{pct}%</Text>
               </View>
-              {canDrillToLevel3 && <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.3)', marginLeft: 8 }}>›</Text>}
+              {canDrillToLevel3 && <ChevronRight size={16} color="rgba(255,255,255,0.3)" style={{ marginLeft: 8 }} />}
             </View>
           );
           if (canDrillToLevel3 && onNavigateArticle) {

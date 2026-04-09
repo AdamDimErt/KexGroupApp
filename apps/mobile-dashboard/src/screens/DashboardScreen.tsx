@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Bell, Settings, LogOut, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { colors } from '../theme';
 import { RestaurantCard } from '../components/RestaurantCard';
 import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
@@ -89,13 +89,13 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Feather name="alert-circle" size={48} color={colors.red} />
+        <AlertTriangle size={48} color={colors.red} />
         <Text style={styles.errorTitle}>Ошибка загрузки</Text>
         <Text style={styles.errorMessage}>
           {typeof error === 'string' ? error : (typeof error === 'object' && error !== null && 'message' in error ? (error as Error).message : 'Неизвестная ошибка')}
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={() => refetch()} activeOpacity={0.7}>
-          <Feather name="refresh-cw" size={16} color="#FFF" />
+          <RefreshCw size={16} color="#FFF" />
           <Text style={styles.retryButtonText}>Повторить</Text>
         </TouchableOpacity>
       </View>
@@ -122,21 +122,21 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{greeting} 👋</Text>
+          <Text style={styles.greeting}>{greeting}</Text>
           <Text style={styles.title}>Kex Group</Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity onPress={onNavigateNotifications} style={styles.bellBtn}>
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Bell size={20} color={colors.textSecondary} />
             <View style={styles.bellBadge} />
           </TouchableOpacity>
           {onNavigateProfile && (
             <TouchableOpacity onPress={onNavigateProfile} style={styles.logoutBtn}>
-              <Feather name="settings" size={18} color={colors.textTertiary} />
+              <Settings size={18} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={confirmLogout} style={styles.logoutBtn}>
-            <Feather name="log-out" size={18} color={colors.textTertiary} />
+            <LogOut size={18} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
       </View>

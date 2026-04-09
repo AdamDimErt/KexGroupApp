@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Home, Store, BarChart3, Bell, type LucideIcon } from 'lucide-react-native';
 import { colors } from '../theme';
 import type { Screen } from '../types';
 import { styles } from './BottomNav.styles';
@@ -11,11 +11,11 @@ interface BottomNavProps {
   hasAlerts: boolean;
 }
 
-const tabs: { id: Screen; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { id: 'dashboard', label: 'Главная', icon: 'home' },
-  { id: 'points', label: 'Рестораны', icon: 'shopping-bag' },
-  { id: 'reports', label: 'Аналитика', icon: 'bar-chart-2' },
-  { id: 'notifications', label: 'Уведомления', icon: 'bell' },
+const tabs: { id: Screen; label: string; Icon: LucideIcon }[] = [
+  { id: 'dashboard', label: 'Главная', Icon: Home },
+  { id: 'points', label: 'Рестораны', Icon: Store },
+  { id: 'reports', label: 'Аналитика', Icon: BarChart3 },
+  { id: 'notifications', label: 'Уведомления', Icon: Bell },
 ];
 
 function isTabActive(current: Screen, tabId: Screen): boolean {
@@ -30,8 +30,7 @@ export function BottomNav({ current, onNavigate, hasAlerts }: BottomNavProps) {
         return (
           <TouchableOpacity key={tab.id} style={styles.tab} onPress={() => onNavigate(tab.id)} activeOpacity={0.7}>
             <View style={[styles.iconPill, isActive && styles.iconPillActive]}>
-              <Feather
-                name={tab.icon}
+              <tab.Icon
                 size={18}
                 color={isActive ? colors.accentLight : colors.textTertiary}
               />

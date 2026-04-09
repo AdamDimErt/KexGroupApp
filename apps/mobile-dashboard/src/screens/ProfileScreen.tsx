@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { ArrowLeft, Sun, Moon } from 'lucide-react-native';
+import { colors, useThemeStore } from '../theme';
 import { useNotificationPrefs } from '../hooks/useNotificationPrefs';
 
 interface ProfileScreenProps {
@@ -42,6 +42,7 @@ const NOTIF_ROWS: NotifRowDef[] = [
 
 export function ProfileScreen({ onBack }: ProfileScreenProps) {
   const { prefs, loading, toggle } = useNotificationPrefs();
+  const { isDark, toggle: toggleTheme } = useThemeStore();
 
   const isEnabled = (type: string): boolean => {
     const pref = prefs.find(p => p.type === type);
@@ -54,7 +55,7 @@ export function ProfileScreen({ onBack }: ProfileScreenProps) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
-          <Feather name="arrow-left" size={22} color={colors.textPrimary} />
+          <ArrowLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Уведомления</Text>
         <View style={styles.headerRight} />
@@ -91,6 +92,26 @@ export function ProfileScreen({ onBack }: ProfileScreenProps) {
                 {index < NOTIF_ROWS.length - 1 && <View style={styles.divider} />}
               </View>
             ))}
+          </View>
+
+          <Text style={styles.sectionLabel}>ВНЕШНИЙ ВИД</Text>
+
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <View style={styles.rowText}>
+                <Text style={styles.rowTitle}>Тёмная тема</Text>
+                <Text style={styles.rowDesc}>
+                  {isDark ? 'Включена — экономит заряд на OLED' : 'Выключена — светлый режим'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={toggleTheme} activeOpacity={0.7} style={{ padding: 4 }}>
+                {isDark ? (
+                  <Moon size={22} color={colors.accent} />
+                ) : (
+                  <Sun size={22} color={colors.accent} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={styles.footnote}>

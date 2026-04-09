@@ -189,11 +189,32 @@ export const dashboardApi = {
   },
 
   // Reports — DDS summary across all restaurants
-  getReportDds: (periodType: string, dateFrom?: string, dateTo?: string) => {
+  // Backend returns { restaurants: [{ groups: [...] }] }, we aggregate into { groups, grandTotal }
+  getReportDds: async (periodType: string, dateFrom?: string, dateTo?: string): Promise<ReportDdsDto> => {
     const params = new URLSearchParams({ periodType });
     if (dateFrom) params.append('dateFrom', dateFrom);
     if (dateTo) params.append('dateTo', dateTo);
-    return api.request<ReportDdsDto>(`/api/finance/reports/dds?${params.toString()}`);
+    const raw = await api.request<any>(`/api/finance/reports/dds?${params.toString()}`);
+
+    // If backend already returns { groups }, pass through
+    if (raw.groups) return raw as ReportDdsDto;
+
+    // Transform: aggregate restaurants[].groups[] into flat groups[]
+    const groupMap = new Map<string, { groupName: string; groupId: string; totalAmount: number; restaurants: { restaurantId: string; restaurantName: string; amount: number }[] }>();
+    for (const rest of (raw.restaurants ?? [])) {
+      for (const g of (rest.groups ?? [])) {
+        const key = g.groupName;
+        if (!groupMap.has(key)) {
+          groupMap.set(key, { groupName: g.groupName, groupId: g.groupName, totalAmount: 0, restaurants: [] });
+        }
+        const entry = groupMap.get(key)!;
+        entry.totalAmount += g.amount ?? 0;
+        entry.restaurants.push({ restaurantId: rest.restaurantId, restaurantName: rest.restaurantName, amount: g.amount ?? 0 });
+      }
+    }
+    const groups = [...groupMap.values()].sort((a, b) => b.totalAmount - a.totalAmount);
+    const grandTotal = groups.reduce((s, g) => s + g.totalAmount, 0);
+    return { groups, grandTotal, period: raw.period ?? { from: dateFrom ?? '', to: dateTo ?? '' } } as ReportDdsDto;
   },
 
   // Reports — Company expenses (HQ + Kitchen)
@@ -213,11 +234,17 @@ export const dashboardApi = {
   },
 
   // Reports — Trends (revenue + expenses over time)
-  getReportTrends: (periodType: string, dateFrom?: string, dateTo?: string) => {
+  // Backend returns { points } without avgRevenue/avgExpenses — compute on client
+  getReportTrends: async (periodType: string, dateFrom?: string, dateTo?: string): Promise<ReportTrendsDto> => {
     const params = new URLSearchParams({ periodType });
     if (dateFrom) params.append('dateFrom', dateFrom);
     if (dateTo) params.append('dateTo', dateTo);
-    return api.request<ReportTrendsDto>(`/api/finance/reports/trends?${params.toString()}`);
+    const raw = await api.request<any>(`/api/finance/reports/trends?${params.toString()}`);
+    const points = raw.points ?? [];
+    const count = points.length || 1;
+    const avgRevenue = raw.avgRevenue ?? points.reduce((s: number, p: any) => s + (p.revenue ?? 0), 0) / count;
+    const avgExpenses = raw.avgExpenses ?? points.reduce((s: number, p: any) => s + (p.expenses ?? 0), 0) / count;
+    return { points, avgRevenue, avgExpenses, period: raw.period ?? { from: dateFrom ?? '', to: dateTo ?? '' } } as ReportTrendsDto;
   },
 };
 

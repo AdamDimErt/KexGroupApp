@@ -36,8 +36,8 @@ function mapRestaurant(r: RestaurantIndicatorDto, brandName: string): Restaurant
     city: brandName,
     type: 'Restaurant',
     transactions: 0,
-    dev: r.financialResult,
-    planPct: revValue,
+    dev: r.changePercent ?? 0,
+    planPct: Math.min(100, Math.max(0, revValue > 0 ? 65 : 0)), // placeholder until real plan data
   };
 }
 

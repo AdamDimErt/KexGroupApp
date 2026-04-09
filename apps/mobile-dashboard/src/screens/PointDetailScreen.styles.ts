@@ -111,9 +111,13 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  expGroupIcon: {
-    fontSize: 18,
-    marginRight: 8,
+  expGroupIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
   expGroupInfo: {
     flex: 1,
@@ -144,8 +148,10 @@ export const styles = StyleSheet.create({
   },
   // Revenue chart (daily bar chart)
   revenueChartCard: {
-    backgroundColor: '#12122A',
+    backgroundColor: colors.bgCard,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginHorizontal: 16,
     marginTop: 16,
     padding: 16,
@@ -170,8 +176,8 @@ export const styles = StyleSheet.create({
   },
   revenueChartBar: {
     width: '80%',
-    backgroundColor: '#6C5CE7',
-    borderRadius: 2,
+    backgroundColor: colors.accent,
+    borderRadius: 4,
     minHeight: 2,
   },
   revenueChartLabel: {

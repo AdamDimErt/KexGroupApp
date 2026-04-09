@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { ChevronRight } from 'lucide-react-native';
 import { useArticleDetail } from '../hooks/useApi';
 import { PeriodSelector } from '../components/PeriodSelector';
 import { OfflineBanner } from '../components/OfflineBanner';
@@ -105,7 +106,7 @@ export function ArticleDetailScreen({
         <Text style={styles.articleShare}>
           {article.sharePercent.toFixed(1)}%
         </Text>
-        {canDrillToLevel4 && <Text style={styles.chevron}>{'\u203A'}</Text>}
+        {canDrillToLevel4 && <ChevronRight size={16} color="rgba(255,255,255,0.3)" />}
       </View>
     );
 
