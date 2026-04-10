@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type PeriodType = 'today' | 'thisWeek' | 'thisMonth' | 'lastMonth' | 'custom';
+export type PeriodType = 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'lastMonth' | 'custom';
 
 interface DashboardState {
   period: PeriodType;

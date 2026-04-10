@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Dimensions, type DimensionValue } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, ChevronRight, Package } from 'lucide-react-native';
+import { ArrowLeft, Package } from 'lucide-react-native';
 import { usePointDetail } from '../hooks/usePointDetail';
 import { PeriodSelector, PERIOD_OPTIONS } from '../components/PeriodSelector';
 import { useDashboardStore } from '../store/dashboard';
-import { useAuthStore } from '../store/auth';
 import { OfflineBanner } from '../components/OfflineBanner';
-import { colors, GROUP_ICONS, GROUP_ICON_COLORS, DEFAULT_GROUP_ICON } from '../theme';
+import { colors } from '../theme';
 import { styles } from './PointDetailScreen.styles';
 
 function fmtRevenue(v: number): string {
@@ -139,7 +138,6 @@ function DailyRevenueChart({ data, periodLabel }: { data: { date: string; revenu
 interface Props {
   pointId: string | null;
   onBack: () => void;
-  onNavigateArticle?: (groupId: string) => void;
 }
 
 // ─── Форматирование (отделено от JSX) ─────────────────────────────────────
@@ -160,24 +158,6 @@ function expenseBarPct(amount: number, maxAmount: number): DimensionValue {
   return `${(amount / maxAmount) * 100}%` as DimensionValue;
 }
 
-// ─── DDS expense group colors and emoji icons ─────────────────────────────
-// NOTE: User requested emoji icons for visual distinction ("красиво") — emoji allowed here
-const GROUP_COLORS: Record<string, string> = {
-  'Продукты питания': '#10B981',     // green
-  'Аренда помещений': '#6366F1',     // indigo
-  'Заработная плата': '#F59E0B',     // amber
-  'Коммунальные услуги': '#06B6D4',  // cyan
-  'Маркетинг и реклама': '#EC4899',  // pink
-  'IT и связь': '#8B5CF6',           // violet
-  'Транспорт и доставка': '#F97316', // orange
-  'Оборудование и ремонт': '#64748B',// slate
-  'Налоги и сборы': '#EF4444',       // red
-  'Прочие расходы': '#94A3B8',       // gray
-  'Комиссии банков': '#3B82F6',      // blue
-  'Цех (производство)': '#14B8A6',   // teal
-};
-// GROUP_EMOJI removed — now using Lucide SVG icons from theme/icons.ts
-
 // Color palette for dynamic payment types — known iiko codes get fixed colors,
 // unknown types cycle through the fallback palette
 const KNOWN_PAYMENT_COLORS: Record<string, string> = {
@@ -197,22 +177,16 @@ function paymentColor(iikoCode: string, index: number): string {
 
 // ─── Компонент (только разметка + стили) ──────────────────────────────────
 
-export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props) {
+export function PointDetailScreen({ pointId, onBack }: Props) {
   const {
     restaurant: r, statusColor: col, statusLabel, profit, profitColor,
     hourlyData, planLine, maxBar, barW, expenseItems, isLoading,
-    expenseGroups, directExpensesTotal, distributedExpensesTotal, distributedExpenseItems,
+    directExpensesTotal, distributedExpensesTotal, distributedExpenseItems,
     financialResult, cashDiscrepancies, revenueChart, refetch,
     isStale, isOffline, cachedAt,
   } = usePointDetail(pointId);
   const period = useDashboardStore(s => s.period);
   const periodLabel = PERIOD_OPTIONS.find(p => p.key === period)?.label ?? 'Сегодня';
-  const role = useAuthStore(s => s.user?.role);
-  const canDrillToLevel3 = role === 'OWNER' || role === 'FINANCE_DIRECTOR' || role === 'ADMIN';
-
-  const sortedExpenseGroups = [...expenseGroups].sort((a, b) => b.totalAmount - a.totalAmount);
-  const totalExpenses = expenseGroups.reduce((sum, g) => sum + g.totalAmount, 0);
-  const maxExpense = sortedExpenseGroups.length > 0 ? sortedExpenseGroups[0].totalAmount : 0;
 
   const handleRefresh = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -313,52 +287,6 @@ export function PointDetailScreen({ pointId, onBack, onNavigateArticle }: Props)
 
       {/* График выручки по дням (за период) — с кликабельными столбцами */}
       {revenueChart.length > 1 && <DailyRevenueChart data={revenueChart} periodLabel={periodLabel} />}
-
-      {/* Расходы по группам статей ДДС */}
-      <View style={styles.expCard}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4 }}>
-          <Text style={styles.expTitle}>Расходы по группам</Text>
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
-            {sortedExpenseGroups.length} {sortedExpenseGroups.length === 1 ? 'категория' : sortedExpenseGroups.length <= 4 ? 'категории' : 'категорий'}
-          </Text>
-          <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '600' }}>
-            Всего: {fmtAmount(totalExpenses)}
-          </Text>
-        </View>
-        {sortedExpenseGroups.map((group) => {
-          const groupColor = GROUP_COLORS[group.groupName] ?? '#94A3B8';
-          const GroupIcon = GROUP_ICONS[group.groupName] ?? DEFAULT_GROUP_ICON;
-          const iconColor = GROUP_ICON_COLORS[group.groupName] ?? groupColor;
-          const pct = totalExpenses > 0 ? ((group.totalAmount / totalExpenses) * 100).toFixed(1) : '0.0';
-          const barFillPct = maxExpense > 0 ? (group.totalAmount / maxExpense) * 100 : 0;
-          const rowContent = (
-            <View style={[styles.expGroupRow, { borderLeftColor: groupColor }]}>
-              <View style={[styles.expGroupIconWrap, { backgroundColor: iconColor + '18' }]}>
-                <GroupIcon size={16} color={iconColor} />
-              </View>
-              <View style={styles.expGroupInfo}>
-                <Text style={styles.expGroupName}>{group.groupName}</Text>
-                <View style={[styles.expGroupBar, { width: `${barFillPct}%` as DimensionValue, backgroundColor: groupColor }]} />
-              </View>
-              <View style={styles.expGroupRight}>
-                <Text style={styles.expGroupAmount}>{fmtAmount(group.totalAmount)}</Text>
-                <Text style={styles.expGroupPct}>{pct}%</Text>
-              </View>
-              {canDrillToLevel3 && <ChevronRight size={16} color="rgba(255,255,255,0.3)" style={{ marginLeft: 8 }} />}
-            </View>
-          );
-          if (canDrillToLevel3 && onNavigateArticle) {
-            return (
-              <TouchableOpacity key={group.groupId} onPress={() => onNavigateArticle(group.groupId)} activeOpacity={0.7}>
-                {rowContent}
-              </TouchableOpacity>
-            );
-          }
-          return <View key={group.groupId}>{rowContent}</View>;
-        })}
-      </View>
 
       {/* Финансовый результат */}
       <View style={styles.expCard}>

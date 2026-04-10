@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { ScrollView, TouchableOpacity, Text, View, StyleSheet } from 'react-native';
-import { Calendar } from 'lucide-react-native';
+import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useDashboardStore } from '../store/dashboard';
-import { MonthRangePicker, type MonthYear } from './MonthRangePicker';
+import { DayRangePicker } from './DayRangePicker';
 import { colors } from '../theme';
 
-type PeriodKey = 'today' | 'thisWeek' | 'thisMonth' | 'lastMonth';
+type PeriodKey = 'today' | 'yesterday' | 'thisWeek' | 'thisMonth' | 'lastMonth';
 
 export const PERIOD_OPTIONS: { key: PeriodKey; label: string; heroLabel: string }[] = [
   { key: 'today',     label: 'Сегодня',      heroLabel: 'СЕГОДНЯ'          },
+  { key: 'yesterday', label: 'Вчера',        heroLabel: 'ЗА ВЧЕРА'         },
   { key: 'thisWeek',  label: 'Неделя',       heroLabel: 'ЗА НЕДЕЛЮ'       },
   { key: 'thisMonth', label: 'Месяц',        heroLabel: 'ЗА МЕСЯЦ'        },
   { key: 'lastMonth', label: 'Прошлый мес.', heroLabel: 'ЗА ПРОШЛЫЙ МЕС.' },
@@ -18,14 +18,14 @@ const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн'
 
 function formatCustomLabel(customFrom: string | null, customTo: string | null): string {
   if (!customFrom || !customTo) return 'Период';
-  const [fy, fm] = customFrom.split('-').map(Number);
-  const [ty, tm] = customTo.split('-').map(Number);
-  if (!fy || !fm || !ty || !tm) return 'Период';
-  const fromLabel = `${MONTHS_SHORT[fm - 1]} ${fy}`;
-  const toLabel = `${MONTHS_SHORT[tm - 1]} ${ty}`;
-  if (fy === ty && fm === tm) return fromLabel;
-  if (fy === ty) return `${MONTHS_SHORT[fm - 1]}–${MONTHS_SHORT[tm - 1]} ${ty}`;
-  return `${fromLabel} – ${toLabel}`;
+  const [fy, fm, fd] = customFrom.split('-').map(Number);
+  const [ty, tm, td] = customTo.split('-').map(Number);
+  if (!fy || !fm || !fd || !ty || !tm || !td) return 'Период';
+  const sameDay = fy === ty && fm === tm && fd === td;
+  if (sameDay) return `${fd} ${MONTHS_SHORT[fm - 1]} ${fy}`;
+  if (fy === ty && fm === tm) return `${fd}–${td} ${MONTHS_SHORT[fm - 1]} ${fy}`;
+  if (fy === ty) return `${fd} ${MONTHS_SHORT[fm - 1]} – ${td} ${MONTHS_SHORT[tm - 1]} ${fy}`;
+  return `${fd} ${MONTHS_SHORT[fm - 1]} ${fy} – ${td} ${MONTHS_SHORT[tm - 1]} ${ty}`;
 }
 
 interface Props {
@@ -44,19 +44,7 @@ export function PeriodSelector({ marginTop = 12 }: Props) {
 
   const customLabel = formatCustomLabel(customFrom, customTo);
 
-  // Parse stored YYYY-MM-DD back to MonthYear for picker initial values
-  const parseStored = (iso: string | null): MonthYear | null => {
-    if (!iso) return null;
-    const parts = iso.split('-').map(Number);
-    if (parts.length < 2 || !parts[0] || !parts[1]) return null;
-    return { year: parts[0], month: parts[1] };
-  };
-
-  const handleApply = (from: MonthYear, to: MonthYear) => {
-    // from → first day of the month; to → last day of the month
-    const lastDay = new Date(to.year, to.month, 0).getDate();
-    const fromStr = `${from.year}-${String(from.month).padStart(2, '0')}-01`;
-    const toStr = `${to.year}-${String(to.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  const handleApply = (fromStr: string, toStr: string) => {
     setCustomPeriod(fromStr, toStr);
     setPickerVisible(false);
   };
@@ -92,10 +80,10 @@ export function PeriodSelector({ marginTop = 12 }: Props) {
         </TouchableOpacity>
       </ScrollView>
 
-      <MonthRangePicker
+      <DayRangePicker
         visible={pickerVisible}
-        initialFrom={parseStored(customFrom)}
-        initialTo={parseStored(customTo)}
+        initialFrom={customFrom}
+        initialTo={customTo}
         onApply={handleApply}
         onClose={() => setPickerVisible(false)}
       />

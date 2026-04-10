@@ -91,10 +91,25 @@ export function usePointDetail(restaurantId: string | null) {
       : revenueObj.total;
 
     // Extract dynamic payment types from byType array (sorted by amount desc)
-    const paymentTypes: PaymentTypeAmountDto[] =
+    let paymentTypes: PaymentTypeAmountDto[] =
       typeof revenueObj === 'object' && revenueObj !== null && Array.isArray(revenueObj.byType)
         ? revenueObj.byType.filter(pt => pt.amount > 0)
         : [];
+
+    // Fallback: if SnapshotPayment breakdown is missing or incomplete (sum < 80% of revenue),
+    // build from legacy revenueCash/Kaspi/Halyk/Yandex columns + "Прочее" remainder
+    const byTypeSum = paymentTypes.reduce((s, p) => s + p.amount, 0);
+    if (revenue > 0 && byTypeSum < revenue * 0.8 && typeof revenueObj === 'object' && revenueObj !== null) {
+      const fallback: PaymentTypeAmountDto[] = [];
+      if (revenueObj.cash > 0) fallback.push({ name: 'Наличные', iikoCode: 'Cash', amount: revenueObj.cash });
+      if (revenueObj.kaspi > 0) fallback.push({ name: 'Каспи банк', iikoCode: 'Kaspi', amount: revenueObj.kaspi });
+      if (revenueObj.halyk > 0) fallback.push({ name: 'Халык банк', iikoCode: 'Halyk', amount: revenueObj.halyk });
+      if (revenueObj.yandex > 0) fallback.push({ name: 'Яндекс', iikoCode: 'Yandex_food', amount: revenueObj.yandex });
+      const known = fallback.reduce((s, p) => s + p.amount, 0);
+      const other = revenue - known;
+      if (other > revenue * 0.01) fallback.push({ name: 'Прочее', iikoCode: 'Other', amount: other });
+      paymentTypes = fallback.sort((a, b) => b.amount - a.amount);
+    }
 
     const enrichedRestaurant: EnrichedRestaurant = {
       name: restaurantDetail.name,

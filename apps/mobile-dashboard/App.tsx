@@ -293,9 +293,6 @@ function App() {
             onBack={() => {
               setScreen(brandId ? 'brand-details' : 'dashboard');
             }}
-            onNavigateArticle={(groupId: string) => {
-              if (pointId) handleArticleGroupSelect(groupId, pointId);
-            }}
           />
         );
       case 'article-detail':

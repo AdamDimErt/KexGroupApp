@@ -80,6 +80,12 @@ export function getPeriodDates(
   switch (periodType) {
     case 'today':
       return { dateFrom: toDate, dateTo: toDate };
+    case 'yesterday': {
+      const y2 = new Date(today);
+      y2.setDate(d - 1);
+      const yStr = isoDate(y2.getFullYear(), y2.getMonth() + 1, y2.getDate());
+      return { dateFrom: yStr, dateTo: yStr };
+    }
     case 'thisWeek': {
       // Monday-based week (Kazakhstan standard)
       const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
