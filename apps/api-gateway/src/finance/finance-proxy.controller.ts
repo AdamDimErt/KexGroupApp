@@ -6,6 +6,7 @@ import {
   UseGuards,
   Query,
   Req,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { FinanceProxyService } from './finance-proxy.service';
@@ -20,9 +21,41 @@ import { JwtPayload } from '../interfaces/jwt-payload.interface';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class FinanceProxyController {
+  private readonly logger = new Logger(FinanceProxyController.name);
+
   constructor(private readonly proxy: FinanceProxyService) {}
 
+  // ─── Defense-in-depth helpers (bug_007) ───────────────────────────────────
+
+  private isOpsDirectorWithNoScope(user: JwtPayload): boolean {
+    return (
+      user?.role === UserRole.OPERATIONS_DIRECTOR &&
+      (user.restaurantIds?.length ?? 0) === 0
+    );
+  }
+
+  private emptyDashboardResponse(
+    tenantId: string,
+    query: { periodType?: string; dateFrom?: string; dateTo?: string },
+  ) {
+    return {
+      tenantId,
+      period: {
+        type: query.periodType ?? 'today',
+        from: query.dateFrom ?? '',
+        to: query.dateTo ?? '',
+      },
+      totalRevenue: 0,
+      totalExpenses: 0,
+      financialResult: 0,
+      brands: [],
+    };
+  }
+
+  // ─── Endpoints ────────────────────────────────────────────────────────────
+
   @Get('dashboard')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({
     summary:
       'Получить главный экран финансов (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
@@ -35,6 +68,16 @@ export class FinanceProxyController {
     @Query('dateTo') dateTo?: string,
   ) {
     const user = req.user;
+    if (this.isOpsDirectorWithNoScope(user)) {
+      this.logger.warn(
+        `OPS_DIRECTOR ${user.sub} called /finance/dashboard with empty scope`,
+      );
+      return this.emptyDashboardResponse(user.tenantId ?? '', {
+        periodType,
+        dateFrom,
+        dateTo,
+      });
+    }
     const tenantId = user?.tenantId ?? '';
     const userRole = user?.role ?? '';
     const restaurantIds = (user?.restaurantIds ?? []).join(',');
@@ -51,7 +94,48 @@ export class FinanceProxyController {
     });
   }
 
+  @Get('dashboard/revenue-aggregated')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
+  @ApiOperation({
+    summary:
+      'Получить агрегированную выручку компании (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
+  })
+  getRevenueAggregated(
+    @Req() req: { user: JwtPayload },
+    @Headers('authorization') authHeader: string,
+    @Query('periodType') periodType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const user = req.user;
+    if (this.isOpsDirectorWithNoScope(user)) {
+      this.logger.warn(
+        `OPS_DIRECTOR ${user.sub} called /finance/dashboard/revenue-aggregated with empty scope`,
+      );
+      return this.emptyDashboardResponse(user.tenantId ?? '', {
+        periodType,
+        dateFrom,
+        dateTo,
+      });
+    }
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
+    const path = this.buildQueryString('/dashboard/revenue-aggregated', {
+      periodType,
+      dateFrom,
+      dateTo,
+    });
+    return this.proxy.forward('GET', path, undefined, {
+      authorization: authHeader,
+      'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
+    });
+  }
+
   @Get('brand/:id')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({
     summary:
       'Получить детали бренда (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
@@ -65,6 +149,16 @@ export class FinanceProxyController {
     @Query('dateTo') dateTo?: string,
   ) {
     const user = req.user;
+    if (this.isOpsDirectorWithNoScope(user)) {
+      this.logger.warn(
+        `OPS_DIRECTOR ${user.sub} called /finance/brand/${brandId} with empty scope`,
+      );
+      return this.emptyDashboardResponse(user.tenantId ?? '', {
+        periodType,
+        dateFrom,
+        dateTo,
+      });
+    }
     const tenantId = user?.tenantId ?? '';
     const userRole = user?.role ?? '';
     const restaurantIds = (user?.restaurantIds ?? []).join(',');
@@ -82,6 +176,7 @@ export class FinanceProxyController {
   }
 
   @Get('restaurant/:id')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({
     summary:
       'Получить детали ресторана (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
@@ -95,6 +190,16 @@ export class FinanceProxyController {
     @Query('dateTo') dateTo?: string,
   ) {
     const user = req.user;
+    if (this.isOpsDirectorWithNoScope(user)) {
+      this.logger.warn(
+        `OPS_DIRECTOR ${user.sub} called /finance/restaurant/${restaurantId} with empty scope`,
+      );
+      return this.emptyDashboardResponse(user.tenantId ?? '', {
+        periodType,
+        dateFrom,
+        dateTo,
+      });
+    }
     const tenantId = user?.tenantId ?? '';
     const userRole = user?.role ?? '';
     const restaurantIds = (user?.restaurantIds ?? []).join(',');

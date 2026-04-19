@@ -67,12 +67,48 @@ describe('FinanceProxyController — new routes', () => {
       );
     });
 
-    it('has @Roles([OWNER]) metadata', () => {
+    it('has @Roles([OWNER, ADMIN]) metadata', () => {
       const roles = reflector.get<UserRole[]>(
         'roles',
         controller.getArticleOperations,
       );
-      expect(roles).toEqual([UserRole.OWNER]);
+      expect(roles).toEqual([UserRole.OWNER, UserRole.ADMIN]);
+    });
+  });
+
+  describe('getRevenueAggregated', () => {
+    it('calls proxy.forward with /dashboard/revenue-aggregated path', async () => {
+      await controller.getRevenueAggregated(
+        mockReq as { user: JwtPayload },
+        authHeader,
+        'month',
+        '2026-04-01',
+        '2026-04-30',
+      );
+      expect(mockForward).toHaveBeenCalledWith(
+        'GET',
+        expect.stringContaining('/dashboard/revenue-aggregated'),
+        undefined,
+        expect.objectContaining({
+          authorization: authHeader,
+          'x-tenant-id': 'tenant-1',
+          'x-user-role': UserRole.OWNER,
+          'x-user-restaurant-ids': 'r1,r2',
+        }),
+      );
+    });
+
+    it('has @Roles([OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR, ADMIN]) metadata', () => {
+      const roles = reflector.get<UserRole[]>(
+        'roles',
+        controller.getRevenueAggregated,
+      );
+      expect(roles).toEqual([
+        UserRole.OWNER,
+        UserRole.FINANCE_DIRECTOR,
+        UserRole.OPERATIONS_DIRECTOR,
+        UserRole.ADMIN,
+      ]);
     });
   });
 
@@ -87,9 +123,9 @@ describe('FinanceProxyController — new routes', () => {
       );
     });
 
-    it('has @Roles([OWNER, FINANCE_DIRECTOR]) metadata', () => {
+    it('has @Roles([OWNER, FINANCE_DIRECTOR, ADMIN]) metadata', () => {
       const roles = reflector.get<UserRole[]>('roles', controller.getReportDds);
-      expect(roles).toEqual([UserRole.OWNER, UserRole.FINANCE_DIRECTOR]);
+      expect(roles).toEqual([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.ADMIN]);
     });
   });
 
@@ -151,6 +187,114 @@ describe('FinanceProxyController — new routes', () => {
         controller.getReportTrends,
       );
       expect(roles).toContain(UserRole.OPERATIONS_DIRECTOR);
+    });
+  });
+
+  // ─── bug_007: defense-in-depth for OPS_DIRECTOR with empty scope ──────────
+
+  describe('bug_007 — OPS_DIRECTOR empty scope short-circuit', () => {
+    const opsUserNoScope: JwtPayload = {
+      sub: 'ops-user-1',
+      role: UserRole.OPERATIONS_DIRECTOR,
+      tenantId: 'tenant-1',
+      restaurantIds: [],
+    };
+
+    const opsUserWithScope: JwtPayload = {
+      sub: 'ops-user-2',
+      role: UserRole.OPERATIONS_DIRECTOR,
+      tenantId: 'tenant-1',
+      restaurantIds: ['r1'],
+    };
+
+    it('getDashboard — OPS_DIRECTOR with empty restaurantIds returns empty payload without calling proxy.forward', async () => {
+      const result = await controller.getDashboard(
+        { user: opsUserNoScope },
+        authHeader,
+        'today',
+        '2026-04-20',
+        '2026-04-20',
+      );
+      expect(mockForward).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        tenantId: 'tenant-1',
+        totalRevenue: 0,
+        totalExpenses: 0,
+        financialResult: 0,
+        brands: [],
+      });
+    });
+
+    it('getDashboard — OPS_DIRECTOR with restaurantIds forwards normally', async () => {
+      await controller.getDashboard(
+        { user: opsUserWithScope },
+        authHeader,
+        'today',
+      );
+      expect(mockForward).toHaveBeenCalledTimes(1);
+      expect(mockForward).toHaveBeenCalledWith(
+        'GET',
+        expect.stringContaining('/dashboard'),
+        undefined,
+        expect.objectContaining({
+          'x-user-restaurant-ids': 'r1',
+        }),
+      );
+    });
+
+    it('getDashboard — OWNER always forwards regardless of restaurantIds', async () => {
+      const ownerNoScope: JwtPayload = {
+        sub: 'owner-1',
+        role: UserRole.OWNER,
+        tenantId: 'tenant-1',
+        restaurantIds: [],
+      };
+      await controller.getDashboard({ user: ownerNoScope }, authHeader);
+      expect(mockForward).toHaveBeenCalledTimes(1);
+    });
+
+    it('getRevenueAggregated — OPS_DIRECTOR with empty restaurantIds returns empty payload without calling proxy.forward', async () => {
+      const result = await controller.getRevenueAggregated(
+        { user: opsUserNoScope },
+        authHeader,
+        'today',
+      );
+      expect(mockForward).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        tenantId: 'tenant-1',
+        totalRevenue: 0,
+        brands: [],
+      });
+    });
+
+    it('getBrandDetail — OPS_DIRECTOR with empty restaurantIds returns empty payload without calling proxy.forward', async () => {
+      const result = await controller.getBrandDetail(
+        { user: opsUserNoScope },
+        'brand-1',
+        authHeader,
+        'today',
+      );
+      expect(mockForward).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        tenantId: 'tenant-1',
+        totalRevenue: 0,
+        brands: [],
+      });
+    });
+
+    it('getRestaurantDetail — OPS_DIRECTOR with empty restaurantIds returns empty payload without calling proxy.forward', async () => {
+      const result = await controller.getRestaurantDetail(
+        { user: opsUserNoScope },
+        'rest-1',
+        authHeader,
+        'today',
+      );
+      expect(mockForward).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        tenantId: 'tenant-1',
+        totalRevenue: 0,
+        brands: [],
+      });
     });
   });
 });
