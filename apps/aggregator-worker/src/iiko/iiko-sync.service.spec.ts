@@ -20,6 +20,10 @@ describe('IikoSyncService', () => {
   let iikoAuth: IikoAuthService;
 
   beforeEach(async () => {
+    // IikoSyncService reads IIKO_SERVER_URL in its class field initializer;
+    // must be set before the module compiles (i.e. before the constructor runs).
+    process.env.IIKO_SERVER_URL = 'http://test.iiko.local/api';
+
     const module: TestingModule = await Test.createTestingModule({
       imports: [HttpModule],
       providers: [
@@ -435,6 +439,45 @@ describe('IikoSyncService', () => {
         }),
       );
       expect(Sentry.captureException).toHaveBeenCalledWith(authError);
+    });
+  });
+
+  describe('parseDate / parseIikoDate — Asia/Almaty midnight semantics', () => {
+    // 31 March 2026 00:00 Almaty (UTC+5) = 30 March 2026 19:00 UTC
+    const ALMATY_31_MAR = '2026-03-30T19:00:00.000Z';
+
+    it('parseDate("31.03.2026") returns 2026-03-30T19:00:00.000Z', () => {
+      const result = (service as any).parseDate('31.03.2026');
+      expect(result.toISOString()).toBe(ALMATY_31_MAR);
+    });
+
+    it('parseDate is the inverse of formatDate (round-trip)', () => {
+      const dates = ['01.01.2026', '31.03.2026', '15.07.2026', '31.12.2025'];
+      for (const d of dates) {
+        const parsed = (service as any).parseDate(d);
+        const formatted = (service as any).formatDate(parsed);
+        expect(formatted).toBe(d);
+      }
+    });
+
+    it('parseIikoDate("31.03.2026") — dot format — returns Almaty midnight', () => {
+      const result = (service as any).parseIikoDate('31.03.2026');
+      expect(result!.toISOString()).toBe(ALMATY_31_MAR);
+    });
+
+    it('parseIikoDate("2026-03-31") — dash date-only format — returns same Almaty midnight', () => {
+      const result = (service as any).parseIikoDate('2026-03-31');
+      expect(result!.toISOString()).toBe(ALMATY_31_MAR);
+    });
+
+    it('parseIikoDate dot and dash formats return the same instant for the same calendar date', () => {
+      const dot = (service as any).parseIikoDate('31.03.2026') as Date;
+      const dash = (service as any).parseIikoDate('2026-03-31') as Date;
+      expect(dot.toISOString()).toBe(dash.toISOString());
+    });
+
+    it('parseIikoDate returns null for an unrecognised string', () => {
+      expect((service as any).parseIikoDate('not-a-date-at-all')).toBeNull();
     });
   });
 

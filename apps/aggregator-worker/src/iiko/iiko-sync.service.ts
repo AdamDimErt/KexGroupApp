@@ -5,6 +5,7 @@ import { IikoAuthService } from './iiko-auth.service';
 import { firstValueFrom } from 'rxjs';
 import { XMLParser } from 'fast-xml-parser';
 import * as Sentry from '@sentry/node';
+import { startOfBusinessDay } from '../utils/date';
 // Decimal type is handled by Prisma internally, use type coercion
 
 interface CircuitBreakerState {
@@ -43,11 +44,23 @@ type PaymentTypeField =
 @Injectable()
 export class IikoSyncService {
   private readonly logger = new Logger(IikoSyncService.name);
-  private readonly baseUrl =
-    process.env.IIKO_SERVER_URL || 'https://kexbrands-co.iiko.it:443/resto/api';
-  private readonly httpTimeout = 30000;
-  private readonly maxFailures = 3;
-  private readonly circuitBreakerResetMs = 15 * 60 * 1000; // 15 minutes
+  private readonly baseUrl = (() => {
+    const url = process.env.IIKO_SERVER_URL;
+    if (!url) {
+      throw new Error(
+        'IIKO_SERVER_URL env is required (e.g. https://your-org.iiko.it/resto/api)',
+      );
+    }
+    return url;
+  })();
+  private readonly httpTimeout = Number(
+    process.env.IIKO_REQUEST_TIMEOUT_MS ?? '30000',
+  );
+  private readonly maxFailures = Number(
+    process.env.IIKO_CIRCUIT_BREAKER_MAX_FAILURES ?? '3',
+  );
+  private readonly circuitBreakerResetMs =
+    Number(process.env.IIKO_CIRCUIT_BREAKER_RESET_MINUTES ?? '15') * 60 * 1000;
   private readonly xmlParser = new XMLParser();
 
   private circuitBreakerStates = new Map<string, CircuitBreakerState>();
@@ -98,10 +111,23 @@ export class IikoSyncService {
     return `${day}.${month}.${year}`;
   }
 
+  /**
+   * Parse dd.MM.yyyy to the UTC instant that represents midnight of that
+   * calendar day in Asia/Almaty (UTC+5).
+   *
+   * Symmetric with formatDate: formatDate(parseDate(x)) === x for any
+   * valid dd.MM.yyyy string, regardless of the host process TZ.
+   *
+   * Uses startOfBusinessDay so the Almaty offset lives in one place
+   * (utils/date.ts) rather than being duplicated here.
+   */
   private parseDate(dateStr: string): Date {
-    // Parse dd.MM.yyyy format
     const [day, month, year] = dateStr.split('.');
-    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    // Construct a UTC noon anchor for that calendar date, then snap to
+    // Almaty midnight. Using noon avoids any DST edge-cases if the
+    // region ever introduces them; Almaty has none today (UTC+5, no DST).
+    const utcAnchor = new Date(Date.UTC(+year, +month - 1, +day));
+    return startOfBusinessDay(utcAnchor);
   }
 
   /**
@@ -708,8 +734,13 @@ export class IikoSyncService {
   }
 
   /**
-   * Parse iiko date format (dd.MM.yyyy) to Date object.
-   * Also handles yyyy-MM-dd format.
+   * Parse iiko date string to the UTC instant for midnight of that calendar
+   * day in Asia/Almaty (UTC+5). Supports two formats:
+   *   - dd.MM.yyyy  (iiko Server XML / DDS shifts)
+   *   - yyyy-MM-dd  (iiko Cloud OLAP / JSON responses)
+   *
+   * Both branches produce the same UTC instant as parseDate/startOfBusinessDay
+   * so composite upsert keys are consistent regardless of host process TZ.
    */
   private parseIikoDate(dateStr: string): Date | null {
     try {
@@ -718,12 +749,23 @@ export class IikoSyncService {
       // dd.MM.yyyy format
       if (trimmed.includes('.')) {
         const [day, month, year] = trimmed.split('.');
-        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return startOfBusinessDay(
+          new Date(Date.UTC(+year, +month - 1, +day)),
+        );
       }
 
-      // yyyy-MM-dd format
-      if (trimmed.includes('-')) {
-        return new Date(trimmed);
+      // yyyy-MM-dd format (no time component — treat as Almaty calendar date)
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        const [year, month, day] = trimmed.split('-');
+        return startOfBusinessDay(
+          new Date(Date.UTC(+year, +month - 1, +day)),
+        );
+      }
+
+      // yyyy-MM-ddTHH:mm:ss… — has an explicit time component, keep as-is
+      if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+        const d = new Date(trimmed);
+        return isNaN(d.getTime()) ? null : d;
       }
 
       return null;
