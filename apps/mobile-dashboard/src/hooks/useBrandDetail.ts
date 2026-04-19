@@ -1,13 +1,29 @@
 import { useMemo } from 'react';
 import { useBrandDetail as useBrandDetailApi } from './useApi';
-import { colors } from '../theme';
+import {
+  resolveBrand,
+  mapLegacyStatus,
+  computeMarginPct,
+  computePlanAttainment,
+  formatPeriodLabel,
+} from '../utils/brand';
 
 export interface EnrichedRestaurant {
   id: string;
   name: string;
   revenue: number;
-  trend: number; // changePercent
-  status: 'green' | 'yellow' | 'red';
+  trend: number; // changePercent (legacy, kept for backward-compat)
+  // NEW fields (required by RestaurantCard v2)
+  brand: 'BNA' | 'DNA';
+  cuisine: 'Burger' | 'Doner';
+  plannedRevenue: number; // STUB: revenue * 1.05 — Phase 11: real plan from finance-service API
+  marginPct: number | null;
+  deltaPct: number | null;
+  planAttainmentPct: number;
+  planMarkPct: number;
+  periodLabel: string;
+  transactions: number | null; // STUB: null — RestaurantIndicatorDto lacks salesCount (only RestaurantDetailDto)
+  status: 'above' | 'onplan' | 'below' | 'offline' | 'loading';
 }
 
 export function useBrandDetail(brandId: string) {
@@ -25,14 +41,29 @@ export function useBrandDetail(brandId: string) {
       };
     }
 
-    // Transform restaurants to match the component's expected format
-    const restaurants: EnrichedRestaurant[] = brandData.restaurants.map(r => ({
-      id: r.id,
-      name: r.name,
-      revenue: r.revenue.total,
-      trend: r.changePercent,
-      status: r.status,
-    }));
+    const periodLabel = formatPeriodLabel(brandData.period?.from, brandData.period?.to);
+    const { code: brandCode, cuisine: brandCuisine } = resolveBrand(brandData.name);
+
+    const restaurants: EnrichedRestaurant[] = brandData.restaurants.map(r => {
+      const revValue = typeof r.revenue === 'number' ? r.revenue : r.revenue.total;
+      const plannedRevenue = revValue * 1.05; // STUB — Phase 11: real plan from finance-service API
+      return {
+        id: r.id,
+        name: r.name,
+        revenue: revValue,
+        trend: r.changePercent,
+        brand: brandCode,
+        cuisine: brandCuisine,
+        plannedRevenue,
+        marginPct: computeMarginPct(revValue, r.financialResult),
+        deltaPct: r.changePercent,
+        planAttainmentPct: computePlanAttainment(revValue, plannedRevenue),
+        planMarkPct: 100,
+        periodLabel,
+        transactions: null, // STUB: salesCount not in RestaurantIndicatorDto — Phase 11: add to API
+        status: mapLegacyStatus(r.status),
+      };
+    });
 
     return {
       brand: {

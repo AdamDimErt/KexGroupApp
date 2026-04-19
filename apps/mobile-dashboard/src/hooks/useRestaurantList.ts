@@ -1,6 +1,13 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useBrandDetail, useDashboardSummary } from './useApi';
 import type { RestaurantIndicatorDto } from '../types';
+import {
+  resolveBrand,
+  mapLegacyStatus,
+  computeMarginPct,
+  computePlanAttainment,
+  formatPeriodLabel,
+} from '../utils/brand';
 
 export interface RestaurantListItem {
   id: string;
@@ -12,16 +19,28 @@ export interface RestaurantListItem {
   distributedExpenses: number;
   financialResult: number;
   changePercent: number;
-  status: 'green' | 'yellow' | 'red';
+  // NEW fields (required by RestaurantCard v2)
+  brand: 'BNA' | 'DNA';
+  cuisine: 'Burger' | 'Doner';
+  plannedRevenue: number; // STUB: revenue * 1.05 — Phase 11: real plan from finance-service API
+  marginPct: number | null;
+  deltaPct: number | null;
+  planAttainmentPct: number;
+  planMarkPct: number;
+  periodLabel: string;
+  transactions: number | null; // STUB: null — RestaurantIndicatorDto lacks salesCount (only RestaurantDetailDto)
+  status: 'above' | 'onplan' | 'below' | 'offline' | 'loading';
   city: string;
-  type: string;
-  transactions: number;
-  dev: number;
-  planPct: number;
+  // Keep legacy for backward-compat during transition
+  type?: string;
+  dev?: number;
+  planPct?: number;
 }
 
 function mapRestaurant(r: RestaurantIndicatorDto, brandName: string): RestaurantListItem {
   const revValue = typeof r.revenue === 'number' ? r.revenue : r.revenue.total;
+  const { code, cuisine } = resolveBrand(brandName);
+  const plannedRevenue = revValue * 1.05; // STUB — Phase 11: real plan from finance-service API
   return {
     id: r.id,
     name: r.name,
@@ -32,12 +51,21 @@ function mapRestaurant(r: RestaurantIndicatorDto, brandName: string): Restaurant
     distributedExpenses: r.distributedExpenses,
     financialResult: r.financialResult,
     changePercent: r.changePercent,
-    status: r.status,
+    brand: code,
+    cuisine,
+    plannedRevenue,
+    marginPct: computeMarginPct(revValue, r.financialResult),
+    deltaPct: r.changePercent,
+    planAttainmentPct: computePlanAttainment(revValue, plannedRevenue),
+    planMarkPct: 100,
+    periodLabel: formatPeriodLabel(),
+    transactions: null, // STUB: salesCount not in RestaurantIndicatorDto — Phase 11: add to API
+    status: mapLegacyStatus(r.status),
     city: brandName,
+    // Legacy backward-compat fields
     type: 'Restaurant',
-    transactions: 0,
     dev: r.changePercent ?? 0,
-    planPct: Math.min(100, Math.max(0, revValue > 0 ? 65 : 0)), // placeholder until real plan data
+    planPct: Math.min(100, Math.max(0, revValue > 0 ? 65 : 0)),
   };
 }
 

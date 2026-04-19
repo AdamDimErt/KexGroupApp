@@ -207,27 +207,21 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
       </View>
 
       {restaurantItems.map(r => (
-        // TODO: Wave 4 — sync with finance-service API
         <RestaurantCard
           key={r.id}
           name={r.name}
           city={r.city ?? '—'}
-          brand={(r as any).brand || 'BNA'}
-          cuisine={(r as any).cuisine || 'Burger'}
+          brand={r.brand}
+          cuisine={r.cuisine}
           revenue={r.revenue}
-          plannedRevenue={(r as any).plannedRevenue ?? 0}
-          marginPct={(r as any).marginPct ?? null}
-          deltaPct={(r as any).deltaPct ?? r.dev ?? null}
-          planAttainmentPct={(r as any).planAttainmentPct ?? 0}
-          planMarkPct={(r as any).planMarkPct ?? 100}
-          periodLabel={(r as any).periodLabel || '—'}
-          transactions={(r as any).transactions ?? null}
-          status={
-            r.status === 'green' ? 'above' :
-            r.status === 'red' ? 'below' :
-            r.status === 'yellow' ? 'onplan' :
-            (r.status as 'above' | 'onplan' | 'below' | 'offline' | 'loading') ?? 'onplan'
-          }
+          plannedRevenue={r.plannedRevenue}
+          marginPct={r.marginPct}
+          deltaPct={r.deltaPct}
+          planAttainmentPct={r.planAttainmentPct}
+          planMarkPct={r.planMarkPct}
+          periodLabel={r.periodLabel}
+          transactions={r.transactions}
+          status={r.status}
           onPress={() => onNavigateBrand ? onNavigateBrand(r.id, r.name) : onPointSelect(r.id)}
         />
       ))}
