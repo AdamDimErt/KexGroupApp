@@ -5,6 +5,7 @@ import {
   Query,
   Headers,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { DashboardQueryDto } from './dto/dashboard-query.dto';
@@ -14,6 +15,7 @@ import {
   RestaurantDetailDto,
   ArticleGroupDetailDto,
 } from './dto/summary.dto';
+import { CompanyRevenueAggregatedDto } from './dto/revenue-aggregated.dto';
 import { OperationsQueryDto, ArticleOperationsDto } from './dto/operations.dto';
 import {
   DdsReportDto,
@@ -24,6 +26,8 @@ import {
 
 @Controller('dashboard')
 export class DashboardController {
+  private readonly logger = new Logger(DashboardController.name);
+
   constructor(private readonly dashboardService: DashboardService) {}
 
   /**
@@ -44,16 +48,57 @@ export class DashboardController {
       throw new BadRequestException('Missing x-tenant-id header');
     }
 
-    // OPS_DIRECTOR: filter to assigned restaurants only
+    // OPS_DIRECTOR: always build an explicit array (fail-closed).
+    // An empty x-user-restaurant-ids header must yield [] not undefined,
+    // so Prisma receives { id: { in: [] } } and returns nothing (not everything).
     const restaurantFilter =
-      userRole === 'OPERATIONS_DIRECTOR' && userRestaurantIds
-        ? userRestaurantIds
-            .split(',')
-            .map((id) => id.trim())
-            .filter(Boolean)
+      userRole === 'OPERATIONS_DIRECTOR'
+        ? (userRestaurantIds ?? '').split(',').map((id) => id.trim()).filter(Boolean)
         : undefined;
 
+    if (userRole === 'OPERATIONS_DIRECTOR' && restaurantFilter!.length === 0) {
+      this.logger.warn('OPS_DIRECTOR request with empty restaurant scope — returning empty results');
+    }
+
     return this.dashboardService.getDashboardSummary(
+      tenantId,
+      query.periodType || 'today',
+      query.dateFrom,
+      query.dateTo,
+      restaurantFilter,
+    );
+  }
+
+  /**
+   * GET /dashboard/revenue-aggregated?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD&periodType=today
+   * Company-wide aggregated revenue for the "Выручка детально" mobile screen.
+   * Returns totalRevenue, paymentBreakdown, dailyRevenue chart, expenses breakdown, top-10 restaurants.
+   *
+   * RBAC: OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR (all roles).
+   * OPERATIONS_DIRECTOR is filtered to assigned restaurants via x-user-restaurant-ids.
+   */
+  @Get('revenue-aggregated')
+  async getCompanyRevenueAggregated(
+    @Query() query: DashboardQueryDto,
+    @Headers('x-tenant-id') tenantId?: string,
+    @Headers('x-user-role') userRole?: string,
+    @Headers('x-user-restaurant-ids') userRestaurantIds?: string,
+  ): Promise<CompanyRevenueAggregatedDto> {
+    if (!tenantId) {
+      throw new BadRequestException('Missing x-tenant-id header');
+    }
+
+    // OPS_DIRECTOR: always build an explicit array (fail-closed). See getDashboardSummary above.
+    const restaurantFilter =
+      userRole === 'OPERATIONS_DIRECTOR'
+        ? (userRestaurantIds ?? '').split(',').map((id) => id.trim()).filter(Boolean)
+        : undefined;
+
+    if (userRole === 'OPERATIONS_DIRECTOR' && restaurantFilter!.length === 0) {
+      this.logger.warn('OPS_DIRECTOR request with empty restaurant scope — returning empty results');
+    }
+
+    return this.dashboardService.getCompanyRevenueAggregated(
       tenantId,
       query.periodType || 'today',
       query.dateFrom,

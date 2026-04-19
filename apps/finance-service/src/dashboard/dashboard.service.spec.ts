@@ -7,6 +7,7 @@ describe('DashboardService', () => {
   let service: DashboardService;
 
   const mockPrismaService = {
+    $queryRaw: jest.fn(),
     company: {
       findMany: jest.fn(),
     },
@@ -32,6 +33,7 @@ describe('DashboardService', () => {
     costAllocation: {
       aggregate: jest.fn(),
       groupBy: jest.fn(),
+      findMany: jest.fn(),
     },
     ddsArticle: {
       findMany: jest.fn(),
@@ -50,6 +52,9 @@ describe('DashboardService', () => {
     },
     kitchenShipment: {
       groupBy: jest.fn(),
+    },
+    paymentType: {
+      findMany: jest.fn(),
     },
   };
 
@@ -195,24 +200,11 @@ describe('DashboardService', () => {
       ];
 
       mockPrismaService.restaurant.findMany.mockResolvedValue(mockRestaurants);
-      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([
-        {
-          restaurantId: 'restaurant-1',
-          _sum: { revenue: 2500 },
-        },
-      ]);
-      mockPrismaService.expense.groupBy.mockResolvedValue([
-        {
-          restaurantId: 'restaurant-1',
-          _sum: { amount: 400 },
-        },
-      ]);
-      mockPrismaService.costAllocation.groupBy.mockResolvedValue([
-        {
-          restaurantId: 'restaurant-1',
-          _sum: { allocatedAmount: 250 },
-        },
-      ]);
+      // getRestaurantSummary uses $queryRaw 3 times: revenue, directExpenses, allocatedExpenses
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([{ restaurantId: 'restaurant-1', sum_revenue: 2500 }])
+        .mockResolvedValueOnce([{ restaurantId: 'restaurant-1', sum_amount: 400 }])
+        .mockResolvedValueOnce([{ restaurantId: 'restaurant-1', sum_allocatedAmount: 250 }]);
 
       const result = await service.getRestaurantSummary(
         brandId,
@@ -238,11 +230,9 @@ describe('DashboardService', () => {
       const dateFrom = '2026-01-01';
       const dateTo = '2026-01-31';
 
-      mockPrismaService.expense.groupBy.mockResolvedValue([
-        {
-          articleId: 'article-1',
-          _sum: { amount: 500 },
-        },
+      // getArticleSummary uses $queryRaw for expenses grouped by articleId
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([
+        { articleId: 'article-1', sum_amount: 500 },
       ]);
 
       mockPrismaService.ddsArticle.findMany.mockResolvedValue([
@@ -322,7 +312,8 @@ describe('DashboardService', () => {
 
       mockPrismaService.restaurant.findMany.mockResolvedValue([]);
       mockPrismaService.brand.findMany.mockResolvedValue([{ id: 'brand-1', name: 'BNA', slug: 'bna', _count: { restaurants: 0 } }]);
-      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([]);
+      // getDashboardSummary uses $queryRaw for revenueByRestaurant
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
       mockPrismaService.syncLog.aggregate.mockResolvedValue({
         _max: { createdAt: syncDate },
       });
@@ -344,7 +335,8 @@ describe('DashboardService', () => {
 
       mockPrismaService.restaurant.findMany.mockResolvedValue([]);
       mockPrismaService.brand.findMany.mockResolvedValue([]);
-      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([]);
+      // getDashboardSummary uses $queryRaw for revenueByRestaurant
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
       mockPrismaService.syncLog.aggregate.mockResolvedValue({
         _max: { createdAt: null },
       });
@@ -440,9 +432,10 @@ describe('DashboardService', () => {
         { id: 'r-1', name: 'BNA Besagash' },
       ]);
 
-      mockPrismaService.expense.groupBy.mockResolvedValue([
-        { restaurantId: 'r-1', articleId: 'a-1', _sum: { amount: { toString: () => '1000.00' } } },
-        { restaurantId: 'r-1', articleId: 'a-2', _sum: { amount: { toString: () => '500.00' } } },
+      // getReportDds uses $queryRaw for expenseRows grouped by restaurantId + articleId
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([
+        { restaurantId: 'r-1', articleId: 'a-1', sum_amount: 1000 },
+        { restaurantId: 'r-1', articleId: 'a-2', sum_amount: 500 },
       ]);
 
       mockPrismaService.ddsArticle.findMany.mockResolvedValue([
@@ -465,9 +458,10 @@ describe('DashboardService', () => {
     it('should return HQ expenses with source and share percentage', async () => {
       const tenantId = 'tenant-1';
 
-      mockPrismaService.expense.groupBy.mockResolvedValue([
-        { articleId: 'a-1', source: 'ONE_C', _sum: { amount: { toString: () => '3000.00' } } },
-        { articleId: 'a-2', source: 'IIKO', _sum: { amount: { toString: () => '1000.00' } } },
+      // getReportCompanyExpenses uses $queryRaw for HQ expenses
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([
+        { articleId: 'a-1', source: 'ONE_C', sum_amount: 3000 },
+        { articleId: 'a-2', source: 'IIKO', sum_amount: 1000 },
       ]);
 
       mockPrismaService.ddsArticle.findMany.mockResolvedValue([
@@ -497,8 +491,9 @@ describe('DashboardService', () => {
         { id: 'r-1', name: 'BNA Besagash' },
       ]);
 
-      mockPrismaService.kitchenShipment.groupBy.mockResolvedValue([
-        { restaurantId: 'r-1', _sum: { amount: { toString: () => '3000.00' } }, _count: { id: 2 } },
+      // getReportKitchen uses $queryRaw for shipments grouped by restaurantId
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([
+        { restaurantId: 'r-1', sum_amount: 3000, count_id: 2 },
       ]);
 
       const result = await service.getReportKitchen(tenantId, '2026-04-01', '2026-04-30');
@@ -522,15 +517,16 @@ describe('DashboardService', () => {
         { id: 'r-1', name: 'BNA Besagash' },
       ]);
 
-      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([
-        { date: new Date('2026-04-01'), _sum: { revenue: { toString: () => '10000.00' } } },
-        { date: new Date('2026-04-02'), _sum: { revenue: { toString: () => '12000.00' } } },
-      ]);
-
-      mockPrismaService.expense.groupBy.mockResolvedValue([
-        { date: new Date('2026-04-01'), _sum: { amount: { toString: () => '4000.00' } } },
-        { date: new Date('2026-04-02'), _sum: { amount: { toString: () => '5000.00' } } },
-      ]);
+      // getReportTrends uses $queryRaw twice: revenue rows and expense rows
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          { date: new Date('2026-04-01T00:00:00+05:00'), sum_revenue: 10000 },
+          { date: new Date('2026-04-02T00:00:00+05:00'), sum_revenue: 12000 },
+        ])
+        .mockResolvedValueOnce([
+          { date: new Date('2026-04-01T00:00:00+05:00'), sum_amount: 4000 },
+          { date: new Date('2026-04-02T00:00:00+05:00'), sum_amount: 5000 },
+        ]);
 
       const result = await service.getReportTrends(tenantId, '2026-04-01', '2026-04-02');
 
@@ -554,8 +550,10 @@ describe('DashboardService', () => {
       const tenantId = 'tenant-1';
 
       mockPrismaService.restaurant.findMany.mockResolvedValue([]);
-      mockPrismaService.financialSnapshot.groupBy.mockResolvedValue([]);
-      mockPrismaService.expense.groupBy.mockResolvedValue([]);
+      // getReportTrends uses $queryRaw twice even with empty restaurants
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
 
       const result = await service.getReportTrends(tenantId, '2026-04-01', '2026-04-02');
 
@@ -563,6 +561,254 @@ describe('DashboardService', () => {
       expect(result.summary.avgDailyRevenue).toBe(0);
       expect(result.summary.avgDailyExpenses).toBe(0);
       expect(result.summary.totalNetProfit).toBe(0);
+    });
+  });
+
+  describe('getCompanyRevenueAggregated', () => {
+    const tenantId = 'tenant-1';
+    const dateFrom = '2026-04-01';
+    const dateTo = '2026-04-02';
+    const periodType = 'custom';
+
+    it('happy path — returns aggregated revenue, payment breakdown, daily chart, top restaurants', async () => {
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', name: 'BNA Besagash' },
+        { id: 'r-2', name: 'BNA Aksay' },
+      ]);
+
+      // $queryRaw call sequence:
+      // 1. snapshotRows (per restaurant per day)
+      // 2. snapshotIdRows (IDs for SnapshotPayment join)
+      // 3. paymentRows (SnapshotPayment grouped by paymentTypeId)
+      // 4. directExpensesAgg
+      // 5. distributedAgg
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          { restaurantId: 'r-1', date: new Date('2026-04-01T00:00:00+05:00'), sum_revenue: 10000, sum_directExpenses: 0, sum_salesCount: 50 },
+          { restaurantId: 'r-2', date: new Date('2026-04-01T00:00:00+05:00'), sum_revenue: 5000,  sum_directExpenses: 0, sum_salesCount: 30 },
+          { restaurantId: 'r-1', date: new Date('2026-04-02T00:00:00+05:00'), sum_revenue: 12000, sum_directExpenses: 0, sum_salesCount: 60 },
+        ])
+        .mockResolvedValueOnce([{ id: 'snap-1' }, { id: 'snap-2' }, { id: 'snap-3' }])
+        .mockResolvedValueOnce([
+          { paymentTypeId: 'pt-1', sum_amount: 20000 },
+          { paymentTypeId: 'pt-2', sum_amount: 7000 },
+        ])
+        .mockResolvedValueOnce([{ sum_amount: 3000 }])
+        .mockResolvedValueOnce([{ sum_amount: 1500 }]);
+
+      mockPrismaService.paymentType.findMany.mockResolvedValue([
+        { id: 'pt-1', name: 'Наличные', iikoCode: 'CASH' },
+        { id: 'pt-2', name: 'Каспи банк', iikoCode: 'KASPI' },
+      ]);
+
+      const result = await service.getCompanyRevenueAggregated(
+        tenantId, periodType, dateFrom, dateTo,
+      );
+
+      expect(result.tenantId).toBe(tenantId);
+      expect(result.totalRevenue).toBe(27000); // 10000 + 5000 + 12000
+      expect(result.totalDirectExpenses).toBe(3000);
+      expect(result.totalDistributedExpenses).toBe(1500);
+      expect(result.totalExpenses).toBe(4500);
+      expect(result.financialResult).toBe(22500); // 27000 - 4500
+
+      // Payment breakdown sorted by amount desc
+      expect(result.paymentBreakdown).toHaveLength(2);
+      expect(result.paymentBreakdown[0].iikoCode).toBe('CASH');
+      expect(result.paymentBreakdown[0].amount).toBe(20000);
+      expect(result.paymentBreakdown[0].percent).toBeCloseTo(74.07, 1);
+      expect(result.paymentBreakdown[1].iikoCode).toBe('KASPI');
+
+      // Daily revenue chart: 2 days (Apr 1 and Apr 2)
+      expect(result.dailyRevenue).toHaveLength(2);
+      expect(result.dailyRevenue[0].date).toBe('2026-04-01');
+      expect(result.dailyRevenue[0].revenue).toBe(15000); // 10000 + 5000
+      expect(result.dailyRevenue[0].transactions).toBe(80); // 50 + 30
+      expect(result.dailyRevenue[1].date).toBe('2026-04-02');
+      expect(result.dailyRevenue[1].revenue).toBe(12000);
+
+      // Top restaurants: r-1 has 22000, r-2 has 5000
+      expect(result.topRestaurants).toHaveLength(2);
+      expect(result.topRestaurants[0].id).toBe('r-1');
+      expect(result.topRestaurants[0].revenue).toBe(22000);
+      expect(result.topRestaurants[0].name).toBe('BNA Besagash');
+      expect(result.topRestaurants[0].share).toBeCloseTo(81.48, 1);
+    });
+
+    it('empty data — returns zeroes and empty arrays when no restaurants found', async () => {
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+
+      const result = await service.getCompanyRevenueAggregated(
+        tenantId, periodType, dateFrom, dateTo,
+      );
+
+      expect(result.totalRevenue).toBe(0);
+      expect(result.totalExpenses).toBe(0);
+      expect(result.financialResult).toBe(0);
+      expect(result.paymentBreakdown).toHaveLength(0);
+      expect(result.dailyRevenue).toHaveLength(0);
+      expect(result.topRestaurants).toHaveLength(0);
+    });
+
+    it('OPERATIONS_DIRECTOR filtering — passes restaurantFilter to restaurant query', async () => {
+      const assignedIds = ['r-1'];
+
+      // Return only the assigned restaurant
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', name: 'BNA Besagash' },
+      ]);
+
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          { restaurantId: 'r-1', date: new Date('2026-04-01T00:00:00+05:00'), sum_revenue: 8000, sum_directExpenses: 0, sum_salesCount: 40 },
+        ])
+        .mockResolvedValueOnce([{ id: 'snap-1' }])
+        .mockResolvedValueOnce([]) // no SnapshotPayment rows
+        .mockResolvedValueOnce([{ sum_amount: 1000 }])
+        .mockResolvedValueOnce([{ sum_amount: 500 }]);
+
+      const result = await service.getCompanyRevenueAggregated(
+        tenantId, periodType, dateFrom, dateTo, assignedIds,
+      );
+
+      // Confirm restaurant.findMany was called with id filter
+      expect(mockPrismaService.restaurant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: { in: assignedIds },
+          }),
+        }),
+      );
+
+      expect(result.totalRevenue).toBe(8000);
+      expect(result.topRestaurants).toHaveLength(1);
+      expect(result.topRestaurants[0].id).toBe('r-1');
+      expect(result.topRestaurants[0].share).toBe(100);
+    });
+
+    // ── bug_007 RBAC fail-closed tests ─────────────────────────────────────
+
+    it('bug_007: OPS_DIRECTOR with empty restaurantFilter ([]) — Prisma called with id:{in:[]} and returns empty', async () => {
+      // Empty array = no assigned restaurants. Service must call findMany with { id: { in: [] } }
+      // which causes the early-return path (restaurantRows.length === 0 → zeroed DTO).
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+
+      const result = await service.getCompanyRevenueAggregated(
+        tenantId, periodType, dateFrom, dateTo,
+        [], // explicit empty restaurantFilter
+      );
+
+      // Prisma must have received the id filter with an empty array
+      expect(mockPrismaService.restaurant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: { in: [] },
+          }),
+        }),
+      );
+
+      // Fail-closed: everything is zero, no data leaked
+      expect(result.totalRevenue).toBe(0);
+      expect(result.totalExpenses).toBe(0);
+      expect(result.financialResult).toBe(0);
+      expect(result.paymentBreakdown).toHaveLength(0);
+      expect(result.dailyRevenue).toHaveLength(0);
+      expect(result.topRestaurants).toHaveLength(0);
+    });
+
+    it('bug_007: OPS_DIRECTOR with 2 assigned restaurants — Prisma called with { id: { in: [r1, r2] } }', async () => {
+      const assignedIds = ['r-1', 'r-2'];
+
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', name: 'BNA Besagash' },
+        { id: 'r-2', name: 'BNA Aksay' },
+      ]);
+
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          { restaurantId: 'r-1', date: new Date('2026-04-01T00:00:00+05:00'), sum_revenue: 6000, sum_directExpenses: 0, sum_salesCount: 30 },
+          { restaurantId: 'r-2', date: new Date('2026-04-01T00:00:00+05:00'), sum_revenue: 4000, sum_directExpenses: 0, sum_salesCount: 20 },
+        ])
+        .mockResolvedValueOnce([{ id: 'snap-1' }, { id: 'snap-2' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ sum_amount: 500 }])
+        .mockResolvedValueOnce([{ sum_amount: 200 }]);
+
+      const result = await service.getCompanyRevenueAggregated(
+        tenantId, periodType, dateFrom, dateTo, assignedIds,
+      );
+
+      expect(mockPrismaService.restaurant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: { in: ['r-1', 'r-2'] },
+          }),
+        }),
+      );
+
+      expect(result.totalRevenue).toBe(10000);
+      expect(result.topRestaurants).toHaveLength(2);
+    });
+
+    it('bug_007: OWNER (restaurantFilter=undefined) — Prisma called WITHOUT id filter', async () => {
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', name: 'BNA Besagash' },
+      ]);
+
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          { restaurantId: 'r-1', date: new Date('2026-04-01T00:00:00+05:00'), sum_revenue: 9000, sum_directExpenses: 0, sum_salesCount: 45 },
+        ])
+        .mockResolvedValueOnce([{ id: 'snap-1' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ sum_amount: 0 }])
+        .mockResolvedValueOnce([{ sum_amount: 0 }]);
+
+      await service.getCompanyRevenueAggregated(
+        tenantId, periodType, dateFrom, dateTo,
+        undefined, // OWNER: no filter
+      );
+
+      // restaurant.findMany must NOT contain an id filter
+      const call = mockPrismaService.restaurant.findMany.mock.calls[0][0] as { where: Record<string, unknown> };
+      expect(call.where).not.toHaveProperty('id');
+    });
+  });
+
+  // ── bug_007: getDashboardSummary RBAC fail-closed ──────────────────────────
+
+  describe('getDashboardSummary — bug_007 RBAC fail-closed', () => {
+    const tenantId = 'tenant-1';
+    const dateFrom = '2026-04-01';
+    const dateTo = '2026-04-01';
+
+    it('OPS_DIRECTOR with empty restaurantFilter ([]) — restaurant.findMany called with id:{in:[]}', async () => {
+      mockPrismaService.brand.findMany.mockResolvedValue([]);
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
+      mockPrismaService.syncLog.aggregate.mockResolvedValue({ _max: { createdAt: null } });
+
+      await service.getDashboardSummary(tenantId, 'today', dateFrom, dateTo, []);
+
+      expect(mockPrismaService.restaurant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: { in: [] },
+          }),
+        }),
+      );
+    });
+
+    it('OWNER (restaurantFilter=undefined) — restaurant.findMany called WITHOUT id filter', async () => {
+      mockPrismaService.brand.findMany.mockResolvedValue([]);
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
+      mockPrismaService.syncLog.aggregate.mockResolvedValue({ _max: { createdAt: null } });
+
+      await service.getDashboardSummary(tenantId, 'today', dateFrom, dateTo, undefined);
+
+      const call = mockPrismaService.restaurant.findMany.mock.calls[0][0] as { where: Record<string, unknown> };
+      expect(call.where).not.toHaveProperty('id');
     });
   });
 });
