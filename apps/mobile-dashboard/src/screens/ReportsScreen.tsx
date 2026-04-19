@@ -60,7 +60,7 @@ export function ReportsScreen() {
         style={styles.container}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={refetchAll} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={refetchAll} tintColor={colors.accentDefault} />}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Аналитика</Text>
@@ -73,7 +73,7 @@ export function ReportsScreen() {
           <View style={styles.reportCard}>
             <Text style={styles.reportTitle}>Затраты компании</Text>
             {company.isLoading ? (
-              <ActivityIndicator size="small" color={colors.accent} />
+              <ActivityIndicator size="small" color={colors.accentDefault} />
             ) : company.error ? (
               <Text style={styles.reportError}>{company.error}</Text>
             ) : (company.data?.items ?? []).length === 0 ? (
@@ -99,7 +99,7 @@ export function ReportsScreen() {
         <View style={styles.reportCard}>
           <Text style={styles.reportTitle}>Цех</Text>
           {kitchen.isLoading ? (
-            <ActivityIndicator size="small" color={colors.accent} />
+            <ActivityIndicator size="small" color={colors.accentDefault} />
           ) : kitchen.error ? (
             <Text style={styles.reportError}>{kitchen.error}</Text>
           ) : (
@@ -126,7 +126,7 @@ export function ReportsScreen() {
         <View style={styles.reportCard}>
           <Text style={styles.reportTitle}>Тренды</Text>
           {trends.isLoading ? (
-            <ActivityIndicator size="small" color={colors.accent} />
+            <ActivityIndicator size="small" color={colors.accentDefault} />
           ) : trends.error ? (
             <Text style={styles.reportError}>{trends.error}</Text>
           ) : (trends.data?.points ?? []).length === 0 && !trends.data?.avgRevenue && !trends.data?.avgExpenses ? (
@@ -154,12 +154,12 @@ export function ReportsScreen() {
                   <View style={{ marginTop: 12 }}>
                     {/* Tooltip */}
                     {selected && (
-                      <View style={{ backgroundColor: 'rgba(30,41,59,0.95)', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.accent + '40' }}>
+                      <View style={{ backgroundColor: 'rgba(30,41,59,0.95)', borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.accentDefault + '40' }}>
                         <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: '600' }}>
                           {new Date(selected.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                         </Text>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                          <Text style={{ color: colors.accent, fontSize: 13 }}>Выручка: {fmtAmount(selected.revenue)}</Text>
+                          <Text style={{ color: colors.accentDefault, fontSize: 13 }}>Выручка: {fmtAmount(selected.revenue)}</Text>
                           {selected.expenses > 0 && <Text style={{ color: '#EF4444', fontSize: 13 }}>Расходы: {fmtAmount(selected.expenses)}</Text>}
                         </View>
                         {avgRev > 0 && (
@@ -186,7 +186,7 @@ export function ReportsScreen() {
                               <View style={{
                                 width: barW - 6,
                                 height: h,
-                                backgroundColor: isSelected ? colors.accentLight : colors.accent,
+                                backgroundColor: isSelected ? colors.accentLight : colors.accentDefault,
                                 borderRadius: 4,
                                 opacity: isSelected ? 1 : 0.65,
                               }} />
@@ -210,7 +210,7 @@ export function ReportsScreen() {
               {topRestaurants.length > 0 && (
                 <View style={{ marginTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                    <Trophy size={16} color={colors.accent} />
+                    <Trophy size={16} color={colors.accentDefault} />
                     <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: '700', marginLeft: 8 }}>Лучшие точки</Text>
                   </View>
                   {topRestaurants.map((r, i) => {

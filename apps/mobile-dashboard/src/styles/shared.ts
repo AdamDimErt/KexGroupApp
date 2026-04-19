@@ -16,7 +16,7 @@ export const shared = StyleSheet.create({
   card: {
     backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
     borderRadius: 16,
     padding: 16,
   },

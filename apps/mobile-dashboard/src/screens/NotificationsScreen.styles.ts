@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
   card: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     backgroundColor: colors.bgCard,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1, borderColor: colors.borderColor,
     borderRadius: 14, padding: 14, marginHorizontal: 20, marginTop: 8,
   },
   cardUnread: { borderColor: 'rgba(59,130,246,0.2)' },
@@ -26,6 +26,6 @@ export const styles = StyleSheet.create({
   bodyText: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
   unreadDot: {
     width: 6, height: 6, borderRadius: 3,
-    backgroundColor: colors.accent, marginTop: 5,
+    backgroundColor: colors.accentDefault, marginTop: 5,
   },
 });

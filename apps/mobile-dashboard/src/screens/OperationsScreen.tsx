@@ -66,7 +66,7 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
           </TouchableOpacity>
           <Text style={styles.title}>{'Загрузка...'}</Text>
         </View>
-        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={colors.accentDefault} style={{ marginTop: 40 }} />
       </View>
     );
   }
@@ -122,7 +122,7 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
         <RefreshControl
           refreshing={false}
           onRefresh={handleRefresh}
-          tintColor={colors.accent}
+          tintColor={colors.accentDefault}
         />
       }
     >
@@ -155,7 +155,7 @@ export function OperationsScreen({ articleId, restaurantId, onBack }: Props) {
             activeOpacity={0.7}
           >
             {isLoading ? (
-              <ActivityIndicator size="small" color={colors.accent} />
+              <ActivityIndicator size="small" color={colors.accentDefault} />
             ) : (
               <Text style={styles.loadMoreText}>
                 {'Загрузить ещё'}

@@ -111,7 +111,7 @@ export const styles = StyleSheet.create({
   },
   trendBarFill: {
     width: '80%',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     borderRadius: 2,
     minHeight: 2,
   },

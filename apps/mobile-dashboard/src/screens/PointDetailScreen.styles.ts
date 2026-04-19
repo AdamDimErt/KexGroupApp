@@ -20,11 +20,11 @@ export const styles = StyleSheet.create({
   },
   kpiCard: {
     width: '48%', backgroundColor: colors.bgCard,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1, borderColor: colors.borderColor,
     borderRadius: 14, padding: 16,
   },
   kpiBlue: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     borderColor: 'rgba(59,130,246,0.4)',
   },
   kpiTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -34,7 +34,7 @@ export const styles = StyleSheet.create({
   srcText: { color: colors.accentLight, fontSize: 10, fontWeight: '600' },
   // Chart
   chartCard: {
-    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderColor,
     borderRadius: 16, padding: 20, marginHorizontal: 20, marginTop: 12,
   },
   chartHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
@@ -49,11 +49,11 @@ export const styles = StyleSheet.create({
   planText: { color: colors.textTertiary, fontSize: 10, marginTop: -12 },
   barsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 140, paddingTop: 20 },
   barCol: { alignItems: 'center', gap: 6 },
-  bar: { backgroundColor: colors.accent, borderRadius: 4 },
+  bar: { backgroundColor: colors.accentDefault, borderRadius: 4 },
   barLabel: { color: colors.textTertiary, fontSize: 10 },
   // Expenses
   expCard: {
-    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderColor,
     borderRadius: 16, padding: 20, marginHorizontal: 20, marginTop: 12,
   },
   expTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: 16 },
@@ -151,7 +151,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
     marginHorizontal: 16,
     marginTop: 16,
     padding: 16,
@@ -176,7 +176,7 @@ export const styles = StyleSheet.create({
   },
   revenueChartBar: {
     width: '80%',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     borderRadius: 4,
     minHeight: 2,
   },

@@ -13,8 +13,8 @@ export const styles = StyleSheet.create({
   },
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.bgInput,
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgInput as string,
+    borderWidth: 1, borderColor: colors.borderColor,
     borderRadius: 14, marginTop: 12, paddingHorizontal: 14,
   },
   searchIcon: { fontSize: 14, marginRight: 8 },

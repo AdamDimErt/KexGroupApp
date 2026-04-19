@@ -63,7 +63,7 @@ export function ProfileScreen({ onBack }: ProfileScreenProps) {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
+          <ActivityIndicator size="large" color={colors.accentDefault} />
         </View>
       ) : (
         <ScrollView
@@ -84,9 +84,9 @@ export function ProfileScreen({ onBack }: ProfileScreenProps) {
                   <Switch
                     value={isEnabled(row.type)}
                     onValueChange={(val) => void toggle(row.type, val)}
-                    trackColor={{ false: colors.border, true: colors.accent }}
+                    trackColor={{ false: colors.borderColor, true: colors.accentDefault }}
                     thumbColor={colors.white}
-                    ios_backgroundColor={colors.border}
+                    ios_backgroundColor={colors.borderColor}
                   />
                 </View>
                 {index < NOTIF_ROWS.length - 1 && <View style={styles.divider} />}
@@ -106,9 +106,9 @@ export function ProfileScreen({ onBack }: ProfileScreenProps) {
               </View>
               <TouchableOpacity onPress={toggleTheme} activeOpacity={0.7} style={{ padding: 4 }}>
                 {isDark ? (
-                  <Moon size={22} color={colors.accent} />
+                  <Moon size={22} color={colors.accentDefault} />
                 ) : (
-                  <Sun size={22} color={colors.accent} />
+                  <Sun size={22} color={colors.accentDefault} />
                 )}
               </TouchableOpacity>
             </View>
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderColor,
   },
   backBtn: {
     width: 40,
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
     overflow: 'hidden',
   },
   row: {
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: colors.borderColor,
     marginHorizontal: 16,
   },
   footnote: {

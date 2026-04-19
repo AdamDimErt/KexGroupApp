@@ -57,7 +57,7 @@ export function ArticleDetailScreen({
           </TouchableOpacity>
           <Text style={styles.title}>{'Loading...'}</Text>
         </View>
-        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={colors.accentDefault} style={{ marginTop: 40 }} />
       </View>
     );
   }
@@ -135,7 +135,7 @@ export function ArticleDetailScreen({
         <RefreshControl
           refreshing={false}
           onRefresh={handleRefresh}
-          tintColor={colors.accent}
+          tintColor={colors.accentDefault}
         />
       }
     >

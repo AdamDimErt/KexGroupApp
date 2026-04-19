@@ -1,4 +1,6 @@
 // Lucide icon mapping for DDS expense groups
+// Source: colors-categories.html (source of truth for GROUP_ICON_COLORS)
+//         icons-lucide.html (icon component selection, pinned lucide-react-native)
 // Replaces emoji icons per MASTER.md anti-pattern rule: "No emojis as icons"
 
 export {
@@ -14,6 +16,9 @@ export {
   ChevronDown,
   ChevronUp,
   ArrowLeft,
+  ArrowRight,
+  ArrowDown,
+  ArrowUp,
 
   // Finance
   TrendingUp,
@@ -27,13 +32,13 @@ export {
   // DDS expense group icons
   Utensils,        // Продукты питания
   Building2,       // Аренда помещений
-  Users,           // Заработная плата
+  // Wallet exported above — used for Заработная плата
   Zap,             // Коммунальные услуги
   Megaphone,       // Маркетинг и реклама
-  Monitor,         // IT и связь
+  // Wifi exported in Status — used for IT и связь
   Truck,           // Транспортные расходы
   Wrench,          // Оборудование и ремонт
-  FileText,        // Налоги и сборы
+  Landmark,        // Налоги и сборы (spec: Landmark, not FileText)
   Package,         // Прочие расходы
   Shield,          // Охрана и безопасность
   GraduationCap,   // Обучение персонала
@@ -47,9 +52,13 @@ export {
   Eye,
   EyeOff,
   Check,
+  CheckCircle2,
   X,
+  XCircle,
   AlertTriangle,
   Info,
+  Link2,
+  MessageSquare,
 
   // Status
   Wifi,
@@ -75,13 +84,13 @@ import type { LucideIcon } from 'lucide-react-native';
 import {
   Utensils,
   Building2,
-  Users,
+  Wallet,
   Zap,
   Megaphone,
-  Monitor,
+  Wifi,
   Truck,
   Wrench,
-  FileText,
+  Landmark,
   Package,
   Shield,
   GraduationCap,
@@ -89,35 +98,38 @@ import {
 
 /** Maps DDS expense group names to Lucide icon components */
 export const GROUP_ICONS: Record<string, LucideIcon> = {
-  'Продукты питания': Utensils,
-  'Аренда помещений': Building2,
-  'Заработная плата': Users,
-  'Коммунальные услуги': Zap,
-  'Маркетинг и реклама': Megaphone,
-  'IT и связь': Monitor,
-  'Транспортные расходы': Truck,
+  'Продукты питания':      Utensils,
+  'Аренда помещений':      Building2,
+  'Заработная плата':      Wallet,       // spec: Wallet (not Users)
+  'Коммунальные услуги':   Zap,
+  'Маркетинг и реклама':   Megaphone,
+  'IT и связь':            Wifi,         // spec: Wifi (not Monitor)
+  'Транспортные расходы':  Truck,
   'Оборудование и ремонт': Wrench,
-  'Налоги и сборы': FileText,
-  'Прочие расходы': Package,
+  'Налоги и сборы':        Landmark,     // spec: Landmark (not FileText)
+  'Прочие расходы':        Package,
   'Охрана и безопасность': Shield,
-  'Обучение персонала': GraduationCap,
+  'Обучение персонала':    GraduationCap,
 };
 
 /** Default icon for unknown expense groups */
 export const DEFAULT_GROUP_ICON = Package;
 
-/** DDS group color palette (muted for dark backgrounds) */
+/**
+ * DDS group color palette — source of truth: colors-categories.html
+ * RULE: never derive from icons-lucide.html (stale decorative colors)
+ */
 export const GROUP_ICON_COLORS: Record<string, string> = {
-  'Продукты питания': '#F97316',     // orange-500
-  'Аренда помещений': '#3B82F6',     // blue-500
-  'Заработная плата': '#8B5CF6',     // violet-500
-  'Коммунальные услуги': '#F59E0B',  // amber-500
-  'Маркетинг и реклама': '#EC4899',  // pink-500
-  'IT и связь': '#06B6D4',           // cyan-500
-  'Транспортные расходы': '#10B981',  // emerald-500
-  'Оборудование и ремонт': '#6366F1', // indigo-500
-  'Налоги и сборы': '#EF4444',       // red-500
-  'Прочие расходы': '#64748B',       // slate-500
-  'Охрана и безопасность': '#14B8A6', // teal-500
-  'Обучение персонала': '#A855F7',   // purple-500
+  'Продукты питания':      '#8B5CF6', // violet-500
+  'Аренда помещений':      '#1E40AF', // blue-800
+  'Заработная плата':      '#A855F7', // purple-500
+  'Коммунальные услуги':   '#CA8A04', // yellow-600
+  'Маркетинг и реклама':   '#EC4899', // pink-500
+  'IT и связь':            '#06B6D4', // cyan-500
+  'Транспортные расходы':  '#0D9488', // teal-700
+  'Оборудование и ремонт': '#78716C', // stone-500
+  'Налоги и сборы':        '#B91C1C', // red-700
+  'Прочие расходы':        '#64748B', // slate-500
+  'Охрана и безопасность': '#475569', // slate-600
+  'Обучение персонала':    '#84CC16', // lime-500
 };

@@ -25,12 +25,12 @@ export const styles = StyleSheet.create({
   periodChip: {
     paddingHorizontal: 14, paddingVertical: 7,
     borderRadius: 20, borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
     backgroundColor: colors.bgCard,
   },
   periodChipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
+    borderColor: colors.accentDefault,
+    backgroundColor: colors.accentDefault,
   },
   periodChipText: { color: colors.textTertiary, fontSize: 13, fontWeight: '500' },
   periodChipTextActive: { color: '#FFF' },
@@ -38,7 +38,7 @@ export const styles = StyleSheet.create({
   heroCard: {
     marginHorizontal: 20, marginTop: 16,
     borderRadius: 20, padding: 22, overflow: 'hidden',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     borderWidth: 1, borderColor: colors.borderActive,
   },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -62,7 +62,7 @@ export const styles = StyleSheet.create({
   balancesRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20 },
   balanceCard: {
     flex: 1, backgroundColor: colors.bgCard,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1, borderColor: colors.borderColor,
     borderRadius: 12, padding: 14,
   },
   balanceBank: { color: colors.textTertiary, fontSize: 11 },
@@ -81,7 +81,7 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderColor: colors.borderSubtle,  // flat alias added in Wave 5
   },
   kpiLabel: {
     fontSize: 11,
@@ -150,7 +150,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,

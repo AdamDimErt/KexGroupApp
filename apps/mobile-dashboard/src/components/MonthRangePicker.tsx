@@ -237,7 +237,7 @@ const s = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderColor,
   },
   handle: {
     width: 36,
@@ -275,12 +275,12 @@ const s = StyleSheet.create({
     backgroundColor: colors.bgCard,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
     paddingVertical: 10,
     paddingHorizontal: 14,
   },
   stepPillActive: {
-    borderColor: colors.accent,
+    borderColor: colors.accentDefault,
     backgroundColor: 'rgba(37,99,235,0.10)',
   },
   stepLabel: {
@@ -341,7 +341,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
     backgroundColor: colors.bgCard,
   },
   cellGradient: {
@@ -395,7 +395,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
   },
   applyTextDisabled: { color: colors.textTertiary, fontSize: 15, fontWeight: '500' },
 });

@@ -112,15 +112,15 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderColor,
     backgroundColor: colors.bgCard,
   },
   chipCustom: {
     borderStyle: 'dashed',
   },
   chipActive: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
+    borderColor: colors.accentDefault,
+    backgroundColor: colors.accentDefault,
     borderStyle: 'solid',
   },
   chipText: { color: colors.textTertiary, fontSize: 13, fontWeight: '500' },

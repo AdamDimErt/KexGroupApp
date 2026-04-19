@@ -9,6 +9,19 @@ Sentry.init({
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Alert, Animated, PanResponder } from 'react-native';
+import { useFonts } from 'expo-font';
+import {
+  FiraSans_400Regular,
+  FiraSans_500Medium,
+  FiraSans_600SemiBold,
+  FiraSans_700Bold,
+} from '@expo-google-fonts/fira-sans';
+import {
+  FiraCode_400Regular,
+  FiraCode_500Medium,
+  FiraCode_600SemiBold,
+  FiraCode_700Bold,
+} from '@expo-google-fonts/fira-code';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { getStoredTokens, clearTokens } from './src/services/auth';
 import {
@@ -49,6 +62,18 @@ function App() {
   const [currentRestaurantId, setCurrentRestaurantId] = useState<string | null>(null);
   const [user, setUser]         = useState<User | null>(null);
   const [biometricType, setBiometricType] = useState<BiometricType>(null);
+
+  // ─── Загрузка шрифтов Fira ────────────────────────────────────────────────
+  const [fontsLoaded] = useFonts({
+    'FiraSans-Regular':   FiraSans_400Regular,
+    'FiraSans-Medium':    FiraSans_500Medium,
+    'FiraSans-SemiBold':  FiraSans_600SemiBold,
+    'FiraSans-Bold':      FiraSans_700Bold,
+    'FiraCode-Regular':   FiraCode_400Regular,
+    'FiraCode-Medium':    FiraCode_500Medium,
+    'FiraCode-SemiBold':  FiraCode_600SemiBold,
+    'FiraCode-Bold':      FiraCode_700Bold,
+  });
 
   // ─── Запуск: проверка токена + биометрия ─────────────────────────────────
   useEffect(() => {
@@ -218,11 +243,20 @@ function App() {
   ).current;
 
   // ─── Рендер ───────────────────────────────────────────────────────────────
+  if (!fontsLoaded) {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
+        <ActivityIndicator size="small" color={colors.accentDefault} />
+      </View>
+    );
+  }
+
   if (appState === 'bootstrapping') {
     return (
       <View style={[styles.root, styles.center]}>
         <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-        <ActivityIndicator size="large" color={colors.accent} />
+        <ActivityIndicator size="large" color={colors.accentDefault} />
       </View>
     );
   }
@@ -513,7 +547,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
@@ -564,7 +598,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
   },
   bpIconCircle: {
     width: 96,
@@ -618,7 +652,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   bpSetupBtn: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     borderRadius: 14,
     paddingVertical: 16,
     width: '100%',

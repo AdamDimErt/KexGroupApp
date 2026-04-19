@@ -273,7 +273,7 @@ const s = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingBottom: 16,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderColor,
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,
@@ -291,10 +291,10 @@ const s = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginTop: 16, gap: 8 },
   stepPill: {
     flex: 1, backgroundColor: colors.bgCard, borderRadius: 14,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1, borderColor: colors.borderColor,
     paddingVertical: 10, paddingHorizontal: 14,
   },
-  stepPillActive: { borderColor: colors.accent, backgroundColor: 'rgba(37,99,235,0.10)' },
+  stepPillActive: { borderColor: colors.accentDefault, backgroundColor: 'rgba(37,99,235,0.10)' },
   stepLabel: {
     color: colors.textTertiary, fontSize: 10, fontWeight: '600',
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2,
@@ -354,7 +354,7 @@ const s = StyleSheet.create({
   applyText: { color: '#FFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
   applyBtnDisabled: {
     borderRadius: 16, paddingVertical: 15, alignItems: 'center',
-    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderColor,
   },
   applyTextDisabled: { color: colors.textTertiary, fontSize: 15, fontWeight: '500' },
 });

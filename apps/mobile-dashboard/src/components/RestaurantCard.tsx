@@ -1,73 +1,253 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
-import { colors } from '../theme';
-import { statusColor, type Status } from '../data/restaurants';
+import { ChevronRight, TrendingUp, TrendingDown, WifiOff, AlertCircle } from 'lucide-react-native';
+import { colors, restaurantStatusColors, deltaVariants } from '../theme';
 import { styles } from './RestaurantCard.styles';
 
-interface Props {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface RestaurantCardProps {
+  brand: 'BNA' | 'DNA';
   name: string;
   city: string;
-  type: string;
-  revenue: number;
-  transactions: number;
-  dev: number;
-  status: Status;
-  planPct: number;
-  onPress: () => void;
+  cuisine: 'Burger' | 'Doner';
+  transactions: number | null;
+  revenue: number | null;
+  plannedRevenue: number;
+  marginPct: number | null;
+  deltaPct: number | null;        // e.g. 0.10 = "+10%"
+  planAttainmentPct: number;      // 0..100
+  planMarkPct: number;            // where ПЛАН marker sits (usually 100)
+  periodLabel: string;            // "за 1–19 апр 2026"
+  status: 'above' | 'onplan' | 'below' | 'offline' | 'loading';
+  showPlanLabel?: boolean;        // show "ПЛАН" text above marker (first card only)
+  onPress?: () => void;
 }
 
-// ─── Логика вычислений (отделена от JSX) ──────────────────────────────────
+// ─── Formatters ───────────────────────────────────────────────────────────────
 
-function getCardColors(status: Status, dev: number) {
-  const col = statusColor[status];
-  const isRed = status === 'red';
-  const devBg = dev >= 0 ? colors.greenBg : (isRed ? colors.redBg : colors.yellowBg);
-  const devColor = dev >= 0 ? colors.green : (isRed ? colors.red : colors.yellow);
-  return { col, isRed, devBg, devColor };
+function formatRevenue(v: number | null): string {
+  if (v === null) return '—';
+  if (v >= 1_000_000) return `₸${(v / 1_000_000).toFixed(2)}М`;
+  if (v >= 1_000) return `₸${(v / 1_000).toFixed(0)}К`;
+  return `₸${v}`;
 }
 
-function formatRevenue(revenue: number): string {
-  return `₸${(revenue / 1000000).toFixed(2)}M`;
+function formatPlanned(v: number): string {
+  if (v >= 1_000_000) return `₸${(v / 1_000_000).toFixed(2)}М`;
+  if (v >= 1_000) return `₸${(v / 1_000).toFixed(0)}К`;
+  return `₸${v}`;
 }
 
-function formatDev(dev: number): string {
-  const rounded = Math.abs(dev) >= 100 ? Math.round(dev) : Number(dev.toFixed(1));
-  return `${rounded > 0 ? '+' : ''}${rounded}%`;
+function formatDelta(v: number | null): string {
+  if (v === null) return '—';
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${(v * 100).toFixed(1)}%`;
 }
 
-function calcMarginPct(revenue: number): number {
-  if (revenue === 0) return 0;
-  return Math.round((revenue - (revenue * 0.65)) / revenue * 100);
+function formatMargin(v: number | null): string {
+  if (v === null) return '—';
+  return `${Math.round(v * 100)}%`;
 }
 
-// ─── Компонент (только разметка + стили) ──────────────────────────────────
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
 
-export function RestaurantCard({ name, city, revenue, transactions, dev, status, planPct, onPress }: Props) {
-  const { col, isRed, devBg, devColor } = getCardColors(status, dev);
-
+function LoadingSkeleton({ showPlanLabel }: { showPlanLabel?: boolean }) {
   return (
-    <TouchableOpacity style={[styles.card, isRed && styles.cardRed]} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.row}>
-        <View style={[styles.dot, { backgroundColor: col }]} />
-        <View style={styles.info}>
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.meta}>{city} · {transactions} точек</Text>
-        </View>
-        <View style={styles.right}>
-          <Text style={styles.revenue}>{formatRevenue(revenue)}</Text>
-          <View style={[styles.devBadge, { backgroundColor: devBg }]}>
-            <Text style={[styles.devText, { color: devColor }]}>{formatDev(dev)}</Text>
+    <View style={[styles.card, { borderLeftColor: colors.border.default }]}>
+      <View style={styles.headerRow}>
+        <View style={styles.leftCluster}>
+          <View style={[styles.dot, { backgroundColor: '#334155' }]} />
+          <View style={styles.metaColumn}>
+            <View style={styles.nameLine}>
+              <View style={[styles.skBlock, styles.skBadge]} />
+              <View style={[styles.skBlock, styles.skName]} />
+            </View>
+            <View style={[styles.skBlock, styles.skSub]} />
           </View>
         </View>
-        <ChevronRight size={16} color={colors.textTertiary} />
+        <View style={styles.rightCluster}>
+          <View style={[styles.skBlock, styles.skRevenue]} />
+          <View style={[styles.skBlock, styles.skDelta]} />
+        </View>
       </View>
 
-      <View style={styles.progressBg}>
-        <View style={[styles.progressFill, { width: `${planPct}%`, backgroundColor: col }]} />
+      <View style={styles.barWrap}>
+        <View style={[styles.skBlock, { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 9999 }]} />
       </View>
 
-      <Text style={styles.margin}>Маржа: {calcMarginPct(revenue)}%</Text>
-    </TouchableOpacity>
+      <View style={styles.footerRow}>
+        <View style={[styles.skBlock, styles.skFooterL]} />
+        <View style={[styles.skBlock, styles.skFooterR]} />
+      </View>
+    </View>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function RestaurantCard({
+  brand,
+  name,
+  city,
+  cuisine,
+  transactions,
+  revenue,
+  plannedRevenue,
+  marginPct,
+  deltaPct,
+  planAttainmentPct,
+  planMarkPct,
+  periodLabel,
+  status,
+  showPlanLabel,
+  onPress,
+}: RestaurantCardProps) {
+
+  if (status === 'loading') {
+    return <LoadingSkeleton showPlanLabel={showPlanLabel} />;
+  }
+
+  // Semantic color resolution
+  const semanticColors = status === 'offline'
+    ? restaurantStatusColors.offline
+    : restaurantStatusColors[status as keyof typeof restaurantStatusColors];
+
+  // Delta pill
+  const isOffline = status === 'offline';
+  const deltaKey = isOffline
+    ? 'muted'
+    : deltaPct === null
+      ? 'muted'
+      : deltaPct > 0 ? 'up' : deltaPct < 0 ? 'down' : 'flat';
+  const deltaToken = deltaVariants[deltaKey];
+
+  // Status label text
+  const statusLabel = (() => {
+    if (status === 'offline') return null; // rendered differently
+    if (status === 'above')  return `Выше плана · ${formatDelta(deltaPct)}`;
+    if (status === 'onplan') return `В плане · ${formatDelta(deltaPct)}`;
+    if (status === 'below')  return `Ниже плана · ${formatDelta(deltaPct)}`;
+    return null;
+  })();
+
+  // clamp plan bar to 0..100
+  const fillWidth = Math.min(Math.max(planAttainmentPct, 0), 100);
+  const markLeft  = Math.min(Math.max(planMarkPct, 0), 100);
+
+  const CardWrapper = (onPress && status !== 'offline')
+    ? TouchableOpacity
+    : View;
+  const wrapperProps = (onPress && status !== 'offline')
+    ? { activeOpacity: 0.85, onPress }
+    : {};
+
+  return (
+    <CardWrapper
+      {...(wrapperProps as any)}
+      style={[styles.card, { borderLeftColor: semanticColors.borderLeft }]}
+    >
+      {/* Row 1: header */}
+      <View style={styles.headerRow}>
+
+        {/* Left: dot + meta */}
+        <View style={styles.leftCluster}>
+          <View style={[styles.dot, { backgroundColor: semanticColors.dot }]} />
+          <View style={styles.metaColumn}>
+            {/* name line: brand badge + name */}
+            <View style={styles.nameLine}>
+              <View style={[styles.brandBadge, brand === 'DNA' && styles.brandBadgeDna]}>
+                <Text style={[styles.brandBadgeText, brand === 'DNA' && styles.brandBadgeTextDna]}>
+                  {brand}
+                </Text>
+              </View>
+              <Text style={styles.restaurantName} numberOfLines={1}>{name}</Text>
+            </View>
+            {/* sub line */}
+            <Text style={styles.subLine}>
+              {city} · {cuisine}{' '}
+              {transactions !== null
+                ? `· ${transactions} чеков · `
+                : '· '}
+              <Text style={styles.subDim}>{periodLabel}</Text>
+            </Text>
+          </View>
+        </View>
+
+        {/* Right: revenue + delta + chevron */}
+        <View style={styles.rightCluster}>
+          <View style={styles.chevronRow}>
+            <Text style={[styles.revenueText, revenue === null && styles.revenueEmpty]}>
+              {formatRevenue(revenue)}
+            </Text>
+            {status !== 'offline' && onPress && (
+              <ChevronRight size={16} strokeWidth={2} color={colors.text.tertiary} />
+            )}
+          </View>
+          {/* delta pill */}
+          <View style={[styles.deltaPill, { backgroundColor: deltaToken.bg }]}>
+            {deltaKey === 'up' && (
+              <TrendingUp size={11} strokeWidth={2} color={deltaToken.text} />
+            )}
+            {deltaKey === 'down' && (
+              <TrendingDown size={11} strokeWidth={2} color={deltaToken.text} />
+            )}
+            {isOffline && (
+              <WifiOff size={11} strokeWidth={2} color={deltaToken.text} />
+            )}
+            <Text style={[styles.deltaPillText, { color: deltaToken.text }]}>
+              {isOffline ? 'Нет данных' : formatDelta(deltaPct)}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Row 2: plan progress bar */}
+      <View style={styles.barWrap}>
+        {/* fill */}
+        <View
+          style={[
+            styles.barFill,
+            {
+              width: `${fillWidth}%`,
+              backgroundColor: isOffline
+                ? 'rgba(100,116,139,0.4)' // offline: muted 40%
+                : semanticColors.fill,
+            },
+          ]}
+        />
+        {/* plan marker */}
+        <View style={[styles.planMark, { left: `${markLeft}%` as any }]}>
+          {showPlanLabel && (
+            <Text style={styles.planLabel}>ПЛАН</Text>
+          )}
+        </View>
+      </View>
+
+      {/* Row 3: footer */}
+      <View style={styles.footerRow}>
+        {/* left: plan + margin */}
+        <Text style={styles.footerLeft}>
+          {'План '}
+          <Text style={styles.footerValue}>{formatPlanned(plannedRevenue)}</Text>
+          {' · Маржа '}
+          <Text style={styles.footerValue}>{formatMargin(marginPct)}</Text>
+        </Text>
+
+        {/* right: status text or offline row */}
+        {status === 'offline' ? (
+          <View style={styles.offlineRow}>
+            <AlertCircle size={12} strokeWidth={2} color={semanticColors.text} />
+            <Text style={[styles.statusText, { color: semanticColors.text }]}>
+              Нет данных
+            </Text>
+          </View>
+        ) : (
+          <Text style={[styles.statusText, { color: semanticColors.text }]}>
+            {statusLabel}
+          </Text>
+        )}
+      </View>
+    </CardWrapper>
   );
 }

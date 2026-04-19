@@ -66,7 +66,7 @@ export const styles = StyleSheet.create({
   coeffLabel: { fontSize: 11, color: colors.textTertiary },
   coeffValue: {
     fontSize: 11,
-    color: colors.accent,
+    color: colors.accentDefault,
     fontWeight: '600',
   },
   loadMoreBtn: {
@@ -75,7 +75,7 @@ export const styles = StyleSheet.create({
   },
   loadMoreText: {
     fontSize: 14,
-    color: colors.accent,
+    color: colors.accentDefault,
     fontWeight: '600',
   },
   emptyText: {

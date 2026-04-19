@@ -213,7 +213,7 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor={colors.accent} />}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor={colors.accentDefault} />}
     >
       {/* Header */}
       <View style={styles.header}>

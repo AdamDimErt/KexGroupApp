@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
   heroCard: {
     marginHorizontal: 20, marginTop: 16,
     borderRadius: 20, padding: 22, overflow: 'hidden',
-    backgroundColor: colors.accent,
+    backgroundColor: colors.accentDefault,
     borderWidth: 1, borderColor: colors.borderActive,
   },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -24,7 +24,7 @@ export const styles = StyleSheet.create({
   heroBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '500' },
   heroAmount: { color: '#FFF', fontSize: 36, fontWeight: '500', letterSpacing: -1.5, marginTop: 6 },
   heroSubRow: { flexDirection: 'row', gap: 12, marginTop: 4, alignItems: 'center' },
-  heroGreen: { color: colors.sparkGreen, fontSize: 12 },
+  heroGreen: { color: colors.sparkGreen as string, fontSize: 12 },
   heroGray: { color: 'rgba(255,255,255,0.55)', fontSize: 12 },
   // List
   listHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 20, marginBottom: 10 },
