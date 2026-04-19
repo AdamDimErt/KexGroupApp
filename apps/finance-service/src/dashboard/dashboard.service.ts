@@ -32,6 +32,12 @@ import {
   TrendsReportDto,
   TrendPointDto,
 } from './dto/reports.dto';
+import {
+  CompanyRevenueAggregatedDto,
+  PaymentBreakdownItemDto,
+  DailyRevenuePointAggDto,
+  TopRestaurantDto,
+} from './dto/revenue-aggregated.dto';
 
 /**
  * Asia/Almaty = UTC+5 (no DST)
@@ -120,24 +126,43 @@ export class DashboardService {
     });
 
     // Get all restaurants' revenue for the same period
-    // First, get all restaurants in the same brand
+    // Denominator must be company-wide (all active restaurants in the tenant),
+    // NOT brand-local — matches aggregator-worker/allocation.service.ts formula:
+    //   coefficient = restaurant.revenue / sum(all_active_restaurants.revenue)
+    // TODO (variant B): read persisted coefficient from CostAllocation table instead
+    //   of recalculating, to guarantee dashboard/worker consistency when worker has
+    //   already run for the period.
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { brandId: true },
+      select: {
+        brand: {
+          select: {
+            company: {
+              select: { tenantId: true },
+            },
+          },
+        },
+      },
     });
 
     if (!restaurant) {
       return 0;
     }
 
-    const allRestaurantsInBrand = await this.prisma.restaurant.findMany({
-      where: { brandId: restaurant.brandId },
+    const tenantId = restaurant.brand.company.tenantId;
+
+    // Fetch all active restaurants belonging to this tenant (company-wide scope)
+    const allRestaurantsInTenant = await this.prisma.restaurant.findMany({
+      where: {
+        isActive: true,
+        brand: { company: { tenantId } },
+      },
       select: { id: true },
     });
 
     const totalRevenue = await this.prisma.financialSnapshot.aggregate({
       where: {
-        restaurantId: { in: allRestaurantsInBrand.map((r) => r.id) },
+        restaurantId: { in: allRestaurantsInTenant.map((r) => r.id) },
         date: {
           gte: startDate,
           lte: endDate,
@@ -1508,6 +1533,230 @@ export class DashboardService {
         totalNetProfit: totalRevenue - totalExpenses,
       },
       period: { from: dateFrom, to: dateTo },
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMPANY REVENUE AGGREGATED
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get company-wide aggregated revenue for the "Выручка детально" mobile screen.
+   * Aggregates FinancialSnapshot + SnapshotPayment + Expense + CostAllocation
+   * across all restaurants of a tenant for the given period.
+   *
+   * RBAC: OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR.
+   * For OPERATIONS_DIRECTOR pass restaurantFilter (assigned restaurant IDs).
+   *
+   * GET /dashboard/revenue-aggregated?dateFrom&dateTo&periodType
+   */
+  async getCompanyRevenueAggregated(
+    tenantId: string,
+    periodType: string,
+    dateFrom: string,
+    dateTo: string,
+    restaurantFilter?: string[],
+  ): Promise<CompanyRevenueAggregatedDto> {
+    const startDate = this.parseStartDate(dateFrom);
+    const endDate = this.parseEndDate(dateTo);
+
+    // ── 1. Resolve active restaurant IDs for this tenant (+ OPS_DIRECTOR filter) ──
+    const restaurantRows = await this.prisma.restaurant.findMany({
+      where: {
+        brand: { company: { tenantId } },
+        isActive: true,
+        ...(restaurantFilter ? { id: { in: restaurantFilter } } : {}),
+      },
+      select: { id: true, name: true },
+    });
+
+    if (restaurantRows.length === 0) {
+      return {
+        tenantId,
+        period: { type: periodType, from: dateFrom, to: dateTo },
+        totalRevenue: 0,
+        totalDirectExpenses: 0,
+        totalDistributedExpenses: 0,
+        totalExpenses: 0,
+        financialResult: 0,
+        paymentBreakdown: [],
+        dailyRevenue: [],
+        topRestaurants: [],
+      };
+    }
+
+    const restaurantIds = restaurantRows.map((r) => r.id);
+    const restaurantNameMap = new Map(restaurantRows.map((r) => [r.id, r.name]));
+
+    // ── 2. Revenue aggregated per restaurant + per day ──
+    const snapshotRows = await this.prisma.$queryRaw<
+      Array<{
+        restaurantId: string;
+        date: Date;
+        sum_revenue: number;
+        sum_directExpenses: number;
+        sum_salesCount: number;
+      }>
+    >(Prisma.sql`
+      SELECT "restaurantId",
+             "date",
+             COALESCE(SUM("revenue"), 0)::float8          AS "sum_revenue",
+             COALESCE(SUM("directExpenses"), 0)::float8   AS "sum_directExpenses",
+             COALESCE(SUM("salesCount"), 0)::float8       AS "sum_salesCount"
+      FROM "finance"."FinancialSnapshot"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "restaurantId", "date"
+      ORDER BY "date" ASC
+    `);
+
+    // Convert DB date to Asia/Almaty YYYY-MM-DD string (UTC+5 shift)
+    const toAlmatyDate = (d: Date | string): string => {
+      const dt = d instanceof Date ? d : new Date(String(d));
+      const almaty = new Date(dt.getTime() + 5 * 3_600_000);
+      return almaty.toISOString().slice(0, 10);
+    };
+
+    // ── 3. Daily revenue chart (aggregated by date across all restaurants) ──
+    const dailyMap = new Map<string, { revenue: number; transactions: number }>();
+    // ── 4. Per-restaurant totals for topRestaurants ──
+    const restaurantRevMap = new Map<string, number>();
+
+    for (const row of snapshotRows) {
+      const dateKey = toAlmatyDate(row.date);
+      const revenue = this.toNumber(row.sum_revenue);
+      const transactions = this.toNumber(row.sum_salesCount);
+
+      // Accumulate daily
+      const dayEntry = dailyMap.get(dateKey) ?? { revenue: 0, transactions: 0 };
+      dayEntry.revenue += revenue;
+      dayEntry.transactions += transactions;
+      dailyMap.set(dateKey, dayEntry);
+
+      // Accumulate per restaurant
+      restaurantRevMap.set(
+        row.restaurantId,
+        (restaurantRevMap.get(row.restaurantId) ?? 0) + revenue,
+      );
+    }
+
+    const dailyRevenue: DailyRevenuePointAggDto[] = Array.from(dailyMap.entries())
+      .filter(([date]) => date >= dateFrom && date <= dateTo)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({
+        date,
+        revenue: data.revenue,
+        transactions: data.transactions,
+      }));
+
+    // Total revenue = sum across all daily points
+    const totalRevenue = dailyRevenue.reduce((s, p) => s + p.revenue, 0);
+
+    // ── 5. Payment breakdown across all restaurants ──
+    // Resolve snapshot IDs for the period+restaurants
+    const snapshotIdRows = await this.prisma.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`
+        SELECT "id"
+        FROM "finance"."FinancialSnapshot"
+        WHERE "restaurantId" = ANY(${restaurantIds})
+          AND "date" >= ${startDate} AND "date" <= ${endDate}
+      `,
+    );
+    const snapshotIds = snapshotIdRows.map((r) => r.id);
+
+    let paymentBreakdown: PaymentBreakdownItemDto[] = [];
+
+    if (snapshotIds.length > 0) {
+      const paymentRows = await this.prisma.$queryRaw<
+        Array<{ paymentTypeId: string; sum_amount: number }>
+      >(Prisma.sql`
+        SELECT "paymentTypeId", COALESCE(SUM("amount"), 0)::float8 AS "sum_amount"
+        FROM "finance"."SnapshotPayment"
+        WHERE "snapshotId" = ANY(${snapshotIds})
+        GROUP BY "paymentTypeId"
+      `);
+
+      if (paymentRows.length > 0) {
+        const ptIds = paymentRows.map((p) => p.paymentTypeId);
+        const paymentTypes = await this.prisma.paymentType.findMany({
+          where: { id: { in: ptIds } },
+          select: { id: true, name: true, iikoCode: true },
+        });
+        const ptMap = new Map(paymentTypes.map((pt) => [pt.id, pt]));
+
+        paymentBreakdown = paymentRows
+          .map((p) => {
+            const pt = ptMap.get(p.paymentTypeId);
+            if (!pt) return null;
+            const amount = this.toNumber(p.sum_amount);
+            return {
+              name: pt.name,
+              iikoCode: pt.iikoCode,
+              amount,
+              percent:
+                totalRevenue > 0
+                  ? Math.round((amount / totalRevenue) * 10000) / 100
+                  : 0,
+            };
+          })
+          .filter((x): x is PaymentBreakdownItemDto => x !== null)
+          .sort((a, b) => b.amount - a.amount);
+      }
+    }
+
+    // ── 6. Direct expenses total ──
+    const directExpensesAgg = await this.prisma.$queryRaw<
+      Array<{ sum_amount: number }>
+    >(Prisma.sql`
+      SELECT COALESCE(SUM(e."amount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."Expense" e
+      JOIN "finance"."DdsArticle" a ON a."id" = e."articleId"
+      WHERE e."restaurantId" = ANY(${restaurantIds})
+        AND e."date" >= ${startDate} AND e."date" <= ${endDate}
+        AND a."allocationType" = 'DIRECT'
+    `);
+    const totalDirectExpenses = this.toNumber(directExpensesAgg[0]?.sum_amount);
+
+    // ── 7. Distributed expenses total (CostAllocation) ──
+    const distributedAgg = await this.prisma.$queryRaw<
+      Array<{ sum_amount: number }>
+    >(Prisma.sql`
+      SELECT COALESCE(SUM("allocatedAmount"), 0)::float8 AS "sum_amount"
+      FROM "finance"."CostAllocation"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "periodStart" <= ${endDate}
+        AND "periodEnd" >= ${startDate}
+    `);
+    const totalDistributedExpenses = this.toNumber(distributedAgg[0]?.sum_amount);
+
+    const totalExpenses = totalDirectExpenses + totalDistributedExpenses;
+    const financialResult = totalRevenue - totalExpenses;
+
+    // ── 8. Top restaurants by revenue (max 10) ──
+    const topRestaurants: TopRestaurantDto[] = Array.from(restaurantRevMap.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([id, revenue]) => ({
+        id,
+        name: restaurantNameMap.get(id) ?? '',
+        revenue,
+        share:
+          totalRevenue > 0
+            ? Math.round((revenue / totalRevenue) * 10000) / 100
+            : 0,
+      }));
+
+    return {
+      tenantId,
+      period: { type: periodType, from: dateFrom, to: dateTo },
+      totalRevenue,
+      totalDirectExpenses,
+      totalDistributedExpenses,
+      totalExpenses,
+      financialResult,
+      paymentBreakdown,
+      dailyRevenue,
+      topRestaurants,
     };
   }
 }

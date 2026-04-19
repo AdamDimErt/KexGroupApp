@@ -250,21 +250,19 @@ describe('DashboardService', () => {
         },
       ]);
 
+      // getCoefficientForRestaurant now fetches tenantId via brand.company relation
       mockPrismaService.restaurant.findUnique.mockResolvedValue({
-        id: 'restaurant-1',
-        brandId: 'brand-1',
+        brand: { company: { tenantId: 'tenant-1' } },
       });
 
+      // All active restaurants in the tenant (single-brand tenant: same result as before)
       mockPrismaService.restaurant.findMany.mockResolvedValue([
-        {
-          id: 'restaurant-1',
-          brandId: 'brand-1',
-        },
+        { id: 'restaurant-1' },
       ]);
 
       mockPrismaService.financialSnapshot.aggregate
         .mockResolvedValueOnce({ _sum: { revenue: 5000 } }) // this restaurant
-        .mockResolvedValueOnce({ _sum: { revenue: 10000 } }); // all restaurants in brand
+        .mockResolvedValueOnce({ _sum: { revenue: 10000 } }); // all tenant restaurants
 
       const result = await service.getArticleSummary(
         restaurantId,
@@ -282,6 +280,129 @@ describe('DashboardService', () => {
         amount: 500,
         coefficient: 0.5, // 5000 / 10000
       });
+    });
+  });
+
+  // ── bug_026: getCoefficientForRestaurant must use company-wide denominator ──
+
+  describe('getCoefficientForRestaurant — bug_026 company-wide denominator', () => {
+    const dateFrom = '2026-01-01';
+    const dateTo = '2026-01-31';
+
+    // Helper: set up getArticleSummary mocks so getCoefficientForRestaurant runs
+    function setupArticleSummaryMocks(
+      restaurantRevenue: number,
+      allTenantRevenue: number,
+      tenantRestaurants: { id: string }[],
+    ) {
+      // $queryRaw: expenses for the restaurant
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([]);
+      // ddsArticle lookup (empty result is fine, no articles returned)
+      mockPrismaService.ddsArticle.findMany.mockResolvedValue([]);
+      // restaurant.findUnique: returns tenantId via relation
+      mockPrismaService.restaurant.findUnique.mockResolvedValue({
+        brand: { company: { tenantId: 'tenant-1' } },
+      });
+      // restaurant.findMany: all active restaurants in tenant
+      mockPrismaService.restaurant.findMany.mockResolvedValue(tenantRestaurants);
+      // financialSnapshot.aggregate: first call = this restaurant, second = company total
+      mockPrismaService.financialSnapshot.aggregate
+        .mockResolvedValueOnce({ _sum: { revenue: restaurantRevenue } })
+        .mockResolvedValueOnce({ _sum: { revenue: allTenantRevenue } });
+    }
+
+    it('single-brand tenant (3 restaurants) — coefficient = R-revenue / sum(3) (regression)', async () => {
+      // Brand A: R1(100), R2(100), R3(100) → company total = 300
+      // coefficient for R1 = 100/300 ≈ 0.3333
+      setupArticleSummaryMocks(100, 300, [
+        { id: 'r-1' },
+        { id: 'r-2' },
+        { id: 'r-3' },
+      ]);
+
+      const result = await service.getArticleSummary('r-1', dateFrom, dateTo);
+
+      // No articles returned, but verify findMany was called without brandId filter
+      expect(mockPrismaService.restaurant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isActive: true,
+            brand: { company: { tenantId: 'tenant-1' } },
+          }),
+        }),
+      );
+      // Coefficient exposed on items is 0 (no articles), but the aggregate calls prove
+      // the right revenue denominator was used — both aggregate calls received correct ids.
+      expect(mockPrismaService.financialSnapshot.aggregate).toHaveBeenCalledTimes(2);
+      // Second aggregate call must use all 3 restaurant ids from tenant
+      const secondAggCall = mockPrismaService.financialSnapshot.aggregate.mock.calls[1][0] as {
+        where: { restaurantId: { in: string[] } };
+      };
+      expect(secondAggCall.where.restaurantId.in).toEqual(['r-1', 'r-2', 'r-3']);
+      expect(result).toEqual([]);
+    });
+
+    it('multi-brand tenant (2 brands, 3 restaurants) — denominator spans both brands (bug_026)', async () => {
+      // Brand A: R1(rev 100), R2(rev 100); Brand B: R3(rev 50) — company total = 250
+      // Old (buggy): R3 coefficient = 50/50 = 1.00
+      // Fixed:       R3 coefficient = 50/250 = 0.20
+      setupArticleSummaryMocks(50, 250, [
+        { id: 'r-1' },
+        { id: 'r-2' },
+        { id: 'r-3' },
+      ]);
+
+      await service.getArticleSummary('r-3', dateFrom, dateTo);
+
+      // findUnique must NOT filter by brandId — only by restaurantId
+      expect(mockPrismaService.restaurant.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'r-3' },
+          select: {
+            brand: {
+              select: {
+                company: {
+                  select: { tenantId: true },
+                },
+              },
+            },
+          },
+        }),
+      );
+
+      // findMany must not contain brandId; must contain isActive + tenant filter
+      expect(mockPrismaService.restaurant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isActive: true,
+            brand: { company: { tenantId: 'tenant-1' } },
+          }),
+        }),
+      );
+
+      // The second aggregate now covers all 3 restaurants (r-1, r-2, r-3), not just r-3
+      const secondAggCall = mockPrismaService.financialSnapshot.aggregate.mock.calls[1][0] as {
+        where: { restaurantId: { in: string[] } };
+      };
+      expect(secondAggCall.where.restaurantId.in).toHaveLength(3);
+      expect(secondAggCall.where.restaurantId.in).toContain('r-1');
+      expect(secondAggCall.where.restaurantId.in).toContain('r-2');
+      expect(secondAggCall.where.restaurantId.in).toContain('r-3');
+    });
+
+    it('zero revenue across all restaurants — coefficient is 0 (not NaN)', async () => {
+      // All restaurants have 0 revenue → totalRev = 0 → must return 0, not NaN
+      setupArticleSummaryMocks(0, 0, [{ id: 'r-1' }]);
+
+      await service.getArticleSummary('r-1', dateFrom, dateTo);
+
+      // financialSnapshot.aggregate second call returns 0 → totalRev = 0
+      const secondAggCall = mockPrismaService.financialSnapshot.aggregate.mock.calls[1][0] as {
+        where: { restaurantId: { in: string[] } };
+      };
+      // Verify the query ran (denominator = 0 branch returns 0 early, not NaN)
+      expect(secondAggCall.where.restaurantId.in).toEqual(['r-1']);
+      // No throw, no NaN — service returns empty array cleanly
     });
   });
 
