@@ -47,6 +47,7 @@ import { useInactivityLogout } from './src/hooks/useInactivityLogout';
 import { useAuthStore } from './src/store/auth';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { RevenueDetailScreen } from './src/screens/RevenueDetailScreen';
 
 type AppState = 'bootstrapping' | 'biometric-prompt' | 'login' | 'biometric-setup' | 'app';
 type BiometricType = 'faceid' | 'fingerprint' | 'iris' | null;
@@ -111,21 +112,34 @@ function App() {
   };
 
   // ─── Биометрический вход ──────────────────────────────────────────────────
-  const handleBiometricLogin = async () => {
-    const type = biometricType ?? await getBiometricType();
-    const msg = type === 'faceid' ? 'Войти через Face ID' : 'Войти по отпечатку пальца';
-    const result = await authenticateWithBiometric(msg);
+  // Guard against double-invoke (bug_034): setTimeout auto-trigger and
+  // TouchableOpacity onPress can fire concurrently within the 400 ms window.
+  // A second in-flight call would get error='cancel' from the OS (prompt already
+  // open) and route through handleBiometricFallbackToLogin -> clearTokens,
+  // logging the user out despite a successful first authentication.
+  const biometricInFlight = useRef(false);
 
-    if (result.success) {
-      setAppState('app');
-    } else if (result.error === 'cancel') {
-      // Пользователь отменил — предложим ввести код вручную
-      handleBiometricFallbackToLogin();
-    } else if (result.error === 'lockout') {
-      Alert.alert('Биометрия заблокирована', 'Слишком много попыток. Войдите через код.');
-      handleBiometricFallbackToLogin();
-    } else {
-      Alert.alert('Ошибка', 'Не удалось войти. Попробуйте снова или войдите через код.');
+  const handleBiometricLogin = async () => {
+    if (biometricInFlight.current) return; // already in progress — ignore
+    biometricInFlight.current = true;
+    try {
+      const type = biometricType ?? await getBiometricType();
+      const msg = type === 'faceid' ? 'Войти через Face ID' : 'Войти по отпечатку пальца';
+      const result = await authenticateWithBiometric(msg);
+
+      if (result.success) {
+        setAppState('app');
+      } else if (result.error === 'cancel') {
+        // Пользователь отменил — silent, повторный тап снова запустит вход
+        // (ref сбрасывается в finally, поэтому retry работает корректно)
+      } else if (result.error === 'lockout') {
+        Alert.alert('Биометрия заблокирована', 'Слишком много попыток. Войдите через код.');
+        handleBiometricFallbackToLogin();
+      } else {
+        Alert.alert('Ошибка', 'Не удалось войти. Попробуйте снова или войдите через код.');
+      }
+    } finally {
+      biometricInFlight.current = false;
     }
   };
 
@@ -176,6 +190,11 @@ function App() {
   usePushNotifications(appState === 'app' ? accessToken : null);
 
   // ─── Навигация ────────────────────────────────────────────────────────────
+  const handleNavigateRevenueDetail = async () => {
+    await (await import('expo-haptics')).selectionAsync();
+    setScreen('revenue-detail');
+  };
+
   const handleBrandSelect = (id: string, name: string) => {
     setBrandId(id);
     setBrandName(name);
@@ -221,13 +240,16 @@ function App() {
       case 'profile':
         setScreen('dashboard');
         break;
+      case 'revenue-detail':
+        setScreen('dashboard');
+        break;
       default:
         break;
     }
   }, [screen, brandId]);
 
   // Свайп слева направо для "назад"
-  const canGoBack = !['dashboard', 'points', 'reports', 'notifications'].includes(screen);
+  const canGoBack = !['dashboard', 'points', 'reports', 'notifications'].includes(screen as string);
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gestureState) => {
@@ -307,6 +329,14 @@ function App() {
             onNavigateNotifications={() => setScreen('notifications')}
             onNavigateProfile={() => setScreen('profile')}
             onLogout={handleLogout}
+            onNavigateRevenueDetail={handleNavigateRevenueDetail}
+          />
+        );
+      case 'revenue-detail':
+        return (
+          <RevenueDetailScreen
+            onBack={() => setScreen('dashboard')}
+            onNavigateRestaurant={handlePointSelect}
           />
         );
       case 'brand-details':
@@ -362,6 +392,7 @@ function App() {
             onNavigateNotifications={() => setScreen('notifications')}
             onNavigateProfile={() => setScreen('profile')}
             onLogout={handleLogout}
+            onNavigateRevenueDetail={handleNavigateRevenueDetail}
           />
         );
     }
