@@ -775,6 +775,143 @@ describe('DashboardService', () => {
     });
   });
 
+  // ── bug_021: CostAllocation aggregation — day-boundary rows ───────────────
+  // After worker truncate fix each (restaurant, expense, day) has exactly one
+  // CostAllocation row: periodStart = startOfDay(Almaty), periodEnd = endOfDay(Almaty).
+  // The existing overlap filter (periodStart <= endDate AND periodEnd >= startDate)
+  // correctly matches day-boundary rows for calendar-day queries.
+
+  describe('CostAllocation aggregation — bug_021 day-boundary rows', () => {
+    describe('getCompanySummary — 1-day period', () => {
+      it('sums exactly one row per (restaurant, expense) for a single calendar day', async () => {
+        const tenantId = 'tenant-bug021';
+        const dateFrom = '2026-04-15';
+        const dateTo = '2026-04-15';
+
+        mockPrismaService.company.findMany.mockResolvedValue([
+          { id: 'c-1', name: 'TOO Burger na Abaya', tenantId },
+        ]);
+        mockPrismaService.restaurant.findMany.mockResolvedValue([
+          { id: 'r-1', brandId: 'b-1', brand: { id: 'b-1', companyId: 'c-1' } },
+        ]);
+        mockPrismaService.financialSnapshot.aggregate.mockResolvedValue({
+          _sum: { revenue: 10000 },
+        });
+        mockPrismaService.expense.aggregate.mockResolvedValue({
+          _sum: { amount: 1000 },
+        });
+        // One row per (restaurant, expense) after worker truncate fix → X = 500
+        mockPrismaService.costAllocation.aggregate.mockResolvedValue({
+          _sum: { allocatedAmount: 500 },
+        });
+
+        const result = await service.getCompanySummary(tenantId, dateFrom, dateTo);
+
+        expect(result[0].allocatedExpenses).toBe(500);
+        expect(result[0].netProfit).toBe(8500); // 10000 - 1000 - 500
+      });
+    });
+
+    describe('getCompanySummary — 7-day period', () => {
+      it('sums 7 rows (one per day) returning 7X when each day has allocatedAmount X', async () => {
+        const tenantId = 'tenant-bug021';
+        const dateFrom = '2026-04-09';
+        const dateTo = '2026-04-15';
+
+        mockPrismaService.company.findMany.mockResolvedValue([
+          { id: 'c-1', name: 'TOO Burger na Abaya', tenantId },
+        ]);
+        mockPrismaService.restaurant.findMany.mockResolvedValue([
+          { id: 'r-1', brandId: 'b-1', brand: { id: 'b-1', companyId: 'c-1' } },
+        ]);
+        mockPrismaService.financialSnapshot.aggregate.mockResolvedValue({
+          _sum: { revenue: 70000 },
+        });
+        mockPrismaService.expense.aggregate.mockResolvedValue({
+          _sum: { amount: 7000 },
+        });
+        // 7 day-boundary rows × 500 each = 3500 (Prisma aggregates server-side)
+        mockPrismaService.costAllocation.aggregate.mockResolvedValue({
+          _sum: { allocatedAmount: 3500 },
+        });
+
+        const result = await service.getCompanySummary(tenantId, dateFrom, dateTo);
+
+        expect(result[0].allocatedExpenses).toBe(3500); // 7 × 500
+        expect(result[0].netProfit).toBe(59500); // 70000 - 7000 - 3500
+      });
+    });
+
+    describe('getCompanyRevenueAggregated — 1-day CostAllocation via $queryRaw (site 3)', () => {
+      it('totalDistributedExpenses equals allocatedAmount from single day row', async () => {
+        const tenantId = 'tenant-bug021';
+        const dateFrom = '2026-04-15';
+        const dateTo = '2026-04-15';
+
+        mockPrismaService.restaurant.findMany.mockResolvedValue([
+          { id: 'r-1', name: 'BNA Besagash' },
+        ]);
+        // $queryRaw call order: snapshotRows, snapshotIdRows, paymentRows,
+        //   directExpensesAgg (#4), distributedAgg (#5 = site 1701-1709)
+        mockPrismaService.$queryRaw
+          .mockResolvedValueOnce([
+            { restaurantId: 'r-1', date: new Date('2026-04-15T00:00:00+05:00'), sum_revenue: 8000, sum_directExpenses: 0, sum_salesCount: 40 },
+          ])
+          .mockResolvedValueOnce([{ id: 'snap-1' }])
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([{ sum_amount: 800 }])   // directExpenses
+          .mockResolvedValueOnce([{ sum_amount: 400 }]);   // distributedExpenses — 1 day row
+
+        mockPrismaService.paymentType.findMany.mockResolvedValue([]);
+
+        const result = await service.getCompanyRevenueAggregated(
+          tenantId, 'custom', dateFrom, dateTo,
+        );
+
+        expect(result.totalDistributedExpenses).toBe(400);
+        expect(result.totalExpenses).toBe(1200); // 800 + 400
+        expect(result.financialResult).toBe(6800); // 8000 - 1200
+      });
+    });
+
+    describe('getBrandSummary — 7-day period (site 434-448)', () => {
+      it('sums 7 day-boundary rows returning 7X for multi-day brand query', async () => {
+        const companyId = 'c-1';
+        const dateFrom = '2026-04-09';
+        const dateTo = '2026-04-15';
+
+        mockPrismaService.brand.findMany.mockResolvedValue([
+          { id: 'b-1', name: 'Burger na Abaya', companyId },
+        ]);
+        mockPrismaService.restaurant.findMany.mockResolvedValue([
+          { id: 'r-1', brandId: 'b-1' },
+        ]);
+        mockPrismaService.financialSnapshot.aggregate.mockResolvedValue({
+          _sum: { revenue: 35000 },
+        });
+        mockPrismaService.expense.aggregate.mockResolvedValue({
+          _sum: { amount: 3500 },
+        });
+        // 7 day rows × 300 each = 2100
+        mockPrismaService.costAllocation.aggregate.mockResolvedValue({
+          _sum: { allocatedAmount: 2100 },
+        });
+
+        const result = await service.getBrandSummary(companyId, dateFrom, dateTo);
+
+        expect(result[0].allocatedExpenses).toBe(2100);
+        expect(result[0].netProfit).toBe(29400); // 35000 - 3500 - 2100
+      });
+    });
+
+    // ── TODO (pre-fix duplicate guard) ────────────────────────────────────────
+    // This test documents the ×24 over-count that existed before the worker
+    // truncate fix. The mock simulates 24 hourly rows for one calendar day.
+    // After bug_021 fix: Prisma DB will never return >1 row per (restaurant,expense,day).
+    // Service-level guard is NOT implemented — this test is skipped.
+    it.todo('pre-fix: 24 duplicate rows for one day → ×24 over-count (should warn in logs after guard added)');
+  });
+
   // ── bug_007: getDashboardSummary RBAC fail-closed ──────────────────────────
 
   describe('getDashboardSummary — bug_007 RBAC fail-closed', () => {
