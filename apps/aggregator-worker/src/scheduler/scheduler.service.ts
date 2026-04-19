@@ -4,6 +4,10 @@ import { IikoSyncService } from '../iiko/iiko-sync.service';
 import { OneCyncService } from '../onec/onec-sync.service';
 import { AllocationService } from '../allocation/allocation.service';
 import { AlertService } from '../alert/alert.service';
+import {
+  startOfBusinessDay,
+  endOfBusinessDay,
+} from '../utils/date';
 
 @Injectable()
 export class SchedulerService {
@@ -220,7 +224,10 @@ export class SchedulerService {
     }
   }
 
-  // Every hour — run cost allocation (after syncs)
+  // Every hour — run cost allocation (after syncs).
+  // dateFrom/dateTo are sliding-window inputs; allocation.service splits them
+  // into Almaty calendar days so the upsert key is always deterministic and
+  // each hour's run updates the same row rather than inserting a new one.
   @Cron('45 * * * *')
   async runCostAllocation() {
     try {
@@ -236,6 +243,26 @@ export class SchedulerService {
     } catch (error) {
       this.logger.error(
         `Cost allocation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Daily 00:05 Almaty — re-run allocation for the previous full day so that
+  // the previous day's figures are finalized once all overnight syncs settle.
+  @Cron('5 0 * * *', { timeZone: 'Asia/Almaty' })
+  async recalculateYesterdayAllocation() {
+    try {
+      const yesterdayInstant = new Date(Date.now() - 24 * 3600 * 1000);
+      const yesterday = startOfBusinessDay(yesterdayInstant);
+      const yesterdayEnd = endOfBusinessDay(yesterdayInstant);
+
+      this.logger.log(
+        `Finalizing yesterday allocation: ${yesterday.toISOString()} – ${yesterdayEnd.toISOString()}`,
+      );
+      await this.allocation.runAllocation(yesterday, yesterdayEnd);
+    } catch (error) {
+      this.logger.error(
+        `Yesterday allocation finalization failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
