@@ -579,7 +579,7 @@ Plans:
 - [x] 08.2-04 — Apply theme to all screens (Dashboard, PointDetail, Reports, Article, Profile, BottomNav)
 
 ### Phase 10: Design System v3 — Approved HTML-sync (INSERTED)
-**Статус: ✅ 87% готово (Waves 1/2/3/5 done · Wave 4 pending)**
+**Статус: ✅ 100% готово**
 
 **Goal:** Синхронизировать `apps/mobile-dashboard/` с 19 утверждёнными HTML-прототипами (UI/UX review через Claude Design + ui-critic).
 **Source of truth:** `.planning/phases/10-design-system-v3-sync/` — `10-RESEARCH.md` (~140 tokens) + `10-UI-SPEC.md` (11 components) + `10-RULES.md` (~110 rules).
@@ -590,10 +590,15 @@ Waves:
 - [x] **Wave 1 · Research** — UX Architect + UI Designer + UX Researcher → RESEARCH.md + UI-SPEC.md + RULES.md
 - [x] **Wave 2 · Theme tokens (1265 lines)** — colors.ts (solid hex 5-level hierarchy, +text-secondary #CBD5E1), spacing.ts (11-level 4px-grid), radii.ts (NEW), typography.ts (7 headings + 5 body + displayNumeric, Fira Sans/Code pinned), shadows.ts (5 elev + 3 glow + 2 inset), categories.ts (NEW, 12 DDS), semantic.ts (NEW, restaurant thresholds + KPI semantics), icons.ts (8 color fixes), package.json (jetbrains-mono + plus-jakarta-sans → fira-code + fira-sans), App.tsx (useFonts 8 weights + loading guard)
 - [x] **Wave 3 · Components (~3500 lines)** — NEW: Button, Input, PhoneInput, OtpInput, KPICard+KPIRow, HeroCard, Chart, Chip, Badge · UPDATED: BottomNav (sync), RestaurantCard (major rewrite: BNA/DNA brand-badges, plan-bar 6px + ПЛАН marker, 5 states, semantic sync dot+border-left+bar-fill+text)
-- [ ] **Wave 4 · Screens migration** — 3 screens (DashboardScreen, BrandDetailScreen, PointsScreen) используют stub props `(r as any).transactions` для нового RestaurantCard; нужен mapping из finance-service API response к новым required props (brand, cuisine, plannedRevenue, marginPct, deltaPct, planAttainmentPct, planMarkPct, periodLabel)
+- [x] **Wave 4 · Screens migration** — 3 screens (DashboardScreen, BrandDetailScreen, PointsScreen) мигрированы на типизированные props · src/utils/brand.ts с resolveBrand/mapLegacyStatus/computeMarginPct/computePlanAttainment/formatPeriodLabel · hooks (useDashboard, useBrandDetail, useRestaurantList) возвращают новые поля с backward-compat для type/dev/planPct
 - [x] **Wave 5 · Verify** — npm install (2 packages added: fira-sans, fira-code) · tsc --noEmit: 0 errors · npm test: 8/8 pass (Operations role-gate) · backward-compat flat aliases в colors.ts для legacy usages
 
-Commit: `0f7101e` (Waves 1-3+5)
+Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
+
+**Known STUBs** (требуют finance-service API extension — будущая Phase 11):
+- `plannedRevenue` = revenue × 1.05 placeholder (нет real plan данных в API)
+- `transactions` на brand/list уровне = null (есть только в RestaurantDetailDto как salesCount)
+- `periodLabel` в useRestaurantList = сегодняшняя дата (period не в list context)
 
 ## Phase 9: Деплой и Релиз
 **Статус: ❌ Не начат**
