@@ -1,8 +1,18 @@
+// BUG-11-8: mock must expose setExtra + captureMessage on scope for per-record error path
+const mockScope = {
+  setTag: jest.fn(),
+  setContext: jest.fn(),
+  setExtra: jest.fn(),
+  captureMessage: jest.fn(),
+};
+
 jest.mock('@sentry/node', () => ({
   init: jest.fn(),
-  withScope: jest.fn((cb) => cb({ setTag: jest.fn(), setContext: jest.fn() })),
+  withScope: jest.fn((cb) => cb(mockScope)),
   captureException: jest.fn(),
 }));
+
+import * as Sentry from '@sentry/node';
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpModule, HttpService } from '@nestjs/axios';
@@ -66,6 +76,11 @@ describe('OneCyncService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    // Also clear the module-level mockScope counters
+    mockScope.setTag.mockClear();
+    mockScope.setContext.mockClear();
+    mockScope.setExtra.mockClear();
+    mockScope.captureMessage.mockClear();
     delete process.env.ONEC_BASE_URL;
     delete process.env.ONEC_USER;
     delete process.env.ONEC_PASSWORD;
@@ -211,40 +226,102 @@ describe('OneCyncService', () => {
   });
 
   describe('BUG-11-8 · per-record try/catch in syncExpenses', () => {
-    beforeEach(() => {
-      process.env.ONEC_BASE_URL = 'https://test-1c';
-      process.env.ONEC_USER = 'test';
-      process.env.ONEC_PASSWORD = 'test';
-      process.env.TENANT_ID = 'tenant-1';
-    });
+    const dateFrom = new Date('2026-04-20');
+    const dateTo = new Date('2026-04-20');
+
+    /**
+     * Helper: set up HTTP mock to return given expense records, and Prisma mocks
+     * so upsert throws for records whose Ref_Key is in `badKeys`.
+     */
+    function setupExpenseMocks(
+      records: Array<{ Ref_Key: string; Amount: string; Date: string; Description?: string }>,
+      badKeys: string[] = [],
+    ) {
+      const mockHttpResponse = {
+        data: { value: records },
+      };
+      jest.spyOn(httpService, 'get').mockReturnValue(of(mockHttpResponse) as any);
+
+      // Provide an existing hq_overhead article so the findFirst path is short-circuited
+      const mockArticle = { id: 'art-hq', code: 'hq_overhead', groupId: 'grp-hq' };
+      (mockPrisma.ddsArticle.findFirst as jest.Mock).mockResolvedValue(mockArticle);
+      (mockPrisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      // Expense upsert: throw for bad keys, succeed for good ones
+      (mockPrisma.expense.upsert as jest.Mock).mockImplementation((args: any) => {
+        const syncId: string = args?.where?.syncId ?? '';
+        const refKey = syncId.replace('onec:expense:', '');
+        if (badKeys.includes(refKey)) {
+          return Promise.reject(new Error(`DB error for ${refKey}`));
+        }
+        return Promise.resolve({ id: refKey });
+      });
+    }
 
     it('skips one bad record and continues processing remaining good records', async () => {
-      // GIVEN: 3 expense records (middle one will fail upsert)
       const records = [
         { Ref_Key: 'good-1', Amount: '100.00', Date: '2026-04-20', Description: 'Rent' },
-        { Ref_Key: 'bad-1',  Amount: 'NaN',    Date: 'invalid',    Description: 'Broken' },
+        { Ref_Key: 'bad-1',  Amount: 'NaN',    Date: '2026-04-20', Description: 'Broken' },
         { Ref_Key: 'good-2', Amount: '200.00', Date: '2026-04-20', Description: 'IT' },
       ];
 
-      // Mock HTTP + Prisma so 'bad-1' throws in upsert
-      // ... (implementation in Wave 3 will need mock setup)
+      setupExpenseMocks(records, ['bad-1']);
 
-      // WHEN syncExpenses called
-      // THEN: service does not throw, processes good-1 and good-2, warns on bad-1
+      // WHEN: syncExpenses is called
+      // THEN: must NOT throw (per-record catch stops propagation)
+      await expect(service.syncExpenses(dateFrom, dateTo)).resolves.toBeUndefined();
 
-      expect(true).toBe(false); // RED — Wave 3 replaces with real assertion
+      // All 3 upsert attempts were made (good-1, bad-1 throws, good-2)
+      expect(mockPrisma.expense.upsert).toHaveBeenCalledTimes(3);
+
+      // SyncLog must record SUCCESS (not ERROR) since the outer loop completed
+      expect(mockPrisma.syncLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'SUCCESS' }),
+        }),
+      );
     });
 
-    it('logs warning + Sentry.captureMessage for each skipped record (not throw)', async () => {
-      // GIVEN: 1 bad record
-      // WHEN syncExpenses called
-      // THEN: logger.warn called with Ref_Key; Sentry.withScope called with tag system=ONE_C
-      expect(true).toBe(false); // RED
+    it('logs warning + Sentry.withScope for each skipped record (not throw)', async () => {
+      const records = [
+        { Ref_Key: 'bad-1', Amount: 'NaN', Date: '2026-04-20', Description: 'Bad' },
+      ];
+
+      setupExpenseMocks(records, ['bad-1']);
+
+      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
+
+      await service.syncExpenses(dateFrom, dateTo);
+
+      // logger.warn must mention the bad record's Ref_Key
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('bad-1'),
+      );
+
+      // Sentry.withScope must have been invoked
+      expect(Sentry.withScope).toHaveBeenCalled();
+
+      // scope.captureMessage called with 'warning' severity
+      expect(mockScope.captureMessage).toHaveBeenCalledWith(
+        expect.stringContaining('Skipped 1C expense record'),
+        'warning',
+      );
     });
 
     it('tagged with system=ONE_C and recordRefKey in Sentry scope', async () => {
-      // Verify Sentry scope metadata matches bug_021 pattern
-      expect(true).toBe(false); // RED
+      const records = [
+        { Ref_Key: 'bad-key-42', Amount: 'NaN', Date: '2026-04-20' },
+      ];
+
+      setupExpenseMocks(records, ['bad-key-42']);
+
+      await service.syncExpenses(dateFrom, dateTo);
+
+      // Scope must have system=ONE_C tag
+      expect(mockScope.setTag).toHaveBeenCalledWith('system', 'ONE_C');
+
+      // Scope must have recordRefKey extra matching the bad record's Ref_Key
+      expect(mockScope.setExtra).toHaveBeenCalledWith('recordRefKey', 'bad-key-42');
     });
   });
 });

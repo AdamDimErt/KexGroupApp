@@ -87,50 +87,64 @@ export class OneCyncService {
       let processedCount = 0;
 
       for (const record of expenseRecords) {
-        const amount = parseFloat(record.Amount) || 0;
-        const expenseDate = new Date(record.Date);
-        const description = record.Description ?? 'Unknown';
-        const syncId = `onec:expense:${record.Ref_Key}`;
+        try {
+          // BUG-11-8 · bug_021 pattern: per-record try/catch so one bad record does not abort the whole sync
+          const amount = parseFloat(record.Amount) || 0;
+          const expenseDate = new Date(record.Date);
+          const description = record.Description ?? 'Unknown';
+          const syncId = `onec:expense:${record.Ref_Key}`;
 
-        // Get or create article for HQ expenses
-        let article = await this.prisma.ddsArticle.findFirst({
-          where: { code: 'hq_overhead' },
-        });
-
-        if (!article) {
-          const group = await this.prisma.ddsArticleGroup.upsert({
-            where: { tenantId_code: { tenantId, code: 'hq' } },
-            update: {},
-            create: { tenantId, code: 'hq', name: 'HQ & Overhead' },
+          // Get or create article for HQ expenses
+          let article = await this.prisma.ddsArticle.findFirst({
+            where: { code: 'hq_overhead' },
           });
 
-          article = await this.prisma.ddsArticle.create({
-            data: {
-              groupId: group.id,
-              code: 'hq_overhead',
-              name: 'HQ Overhead',
+          if (!article) {
+            const group = await this.prisma.ddsArticleGroup.upsert({
+              where: { tenantId_code: { tenantId, code: 'hq' } },
+              update: {},
+              create: { tenantId, code: 'hq', name: 'HQ & Overhead' },
+            });
+
+            article = await this.prisma.ddsArticle.create({
+              data: {
+                groupId: group.id,
+                code: 'hq_overhead',
+                name: 'HQ Overhead',
+                source: 'ONE_C',
+                allocationType: 'DISTRIBUTED',
+              },
+            });
+          }
+
+          // Expenses without restaurantId = distributed (allocated by coefficient)
+          await this.prisma.expense.upsert({
+            where: { syncId },
+            update: { amount },
+            create: {
+              syncId,
+              articleId: article.id,
+              restaurantId: null, // No direct restaurant = distribution needed
+              date: expenseDate,
+              amount,
+              comment: description,
               source: 'ONE_C',
-              allocationType: 'DISTRIBUTED',
             },
           });
+
+          processedCount++;
+        } catch (recordErr) {
+          // BUG-11-8 · bug_021 pattern: one bad record must not abort the whole sync
+          const errMsg = recordErr instanceof Error ? recordErr.message : String(recordErr);
+          this.logger.warn(`Skipping 1C expense record ${record.Ref_Key}: ${errMsg}`);
+          Sentry.withScope((scope) => {
+            scope.setTag('system', 'ONE_C');
+            scope.setTag('method', 'syncExpenses');
+            scope.setExtra('recordRefKey', record.Ref_Key);
+            scope.setExtra('recordDate', record.Date);
+            scope.captureMessage(`Skipped 1C expense record: ${errMsg}`, 'warning');
+          });
         }
-
-        // Expenses without restaurantId = distributed (allocated by coefficient)
-        await this.prisma.expense.upsert({
-          where: { syncId },
-          update: { amount },
-          create: {
-            syncId,
-            articleId: article.id,
-            restaurantId: null, // No direct restaurant = distribution needed
-            date: expenseDate,
-            amount,
-            comment: description,
-            source: 'ONE_C',
-          },
-        });
-
-        processedCount++;
       }
 
       const durationMs = Date.now() - startTime;
@@ -199,36 +213,50 @@ export class OneCyncService {
       let processedCount = 0;
 
       for (const record of purchaseRecords) {
-        const purchaseDate = new Date(record.Date);
-        const supplier = record.Counterparty ?? 'Unknown';
+        try {
+          // BUG-11-8 · bug_021 pattern: per-record try/catch so one bad record does not abort the whole sync
+          const purchaseDate = new Date(record.Date);
+          const supplier = record.Counterparty ?? 'Unknown';
 
-        // Expand items if available
-        const items: OneCPurchaseItem[] = record.Items ?? [];
+          // Expand items if available
+          const items: OneCPurchaseItem[] = record.Items ?? [];
 
-        for (const item of items) {
-          const productName = item.Product ?? 'Unknown';
-          const quantity = parseFloat(item.Quantity ?? '0') || 0;
-          const amount = parseFloat(item.Amount ?? '0') || 0;
-          const syncId = `onec:purchase:${record.Ref_Key}:${item.Ref_Key ?? productName}`;
+          for (const item of items) {
+            const productName = item.Product ?? 'Unknown';
+            const quantity = parseFloat(item.Quantity ?? '0') || 0;
+            const amount = parseFloat(item.Amount ?? '0') || 0;
+            const syncId = `onec:purchase:${record.Ref_Key}:${item.Ref_Key ?? productName}`;
 
-          await this.prisma.kitchenPurchase.upsert({
-            where: { syncId },
-            update: {
-              amount,
-              quantity,
-            },
-            create: {
-              syncId,
-              tenantId,
-              date: purchaseDate,
-              productName,
-              supplierName: supplier,
-              quantity,
-              amount,
-            },
+            await this.prisma.kitchenPurchase.upsert({
+              where: { syncId },
+              update: {
+                amount,
+                quantity,
+              },
+              create: {
+                syncId,
+                tenantId,
+                date: purchaseDate,
+                productName,
+                supplierName: supplier,
+                quantity,
+                amount,
+              },
+            });
+
+            processedCount++;
+          }
+        } catch (recordErr) {
+          // BUG-11-8 · bug_021 pattern: one bad record must not abort the whole sync
+          const errMsg = recordErr instanceof Error ? recordErr.message : String(recordErr);
+          this.logger.warn(`Skipping 1C kitchen purchase record ${record.Ref_Key}: ${errMsg}`);
+          Sentry.withScope((scope) => {
+            scope.setTag('system', 'ONE_C');
+            scope.setTag('method', 'syncKitchenPurchases');
+            scope.setExtra('recordRefKey', record.Ref_Key);
+            scope.setExtra('recordDate', record.Date);
+            scope.captureMessage(`Skipped 1C kitchen purchase record: ${errMsg}`, 'warning');
           });
-
-          processedCount++;
         }
       }
 
@@ -298,24 +326,38 @@ export class OneCyncService {
       let processedCount = 0;
 
       for (const record of incomeRecords) {
-        const incomeDate = new Date(record.Date);
-        const amount = parseFloat(record.DocumentAmount ?? '0') || 0;
-        const description = record.Description ?? 'Kitchen income';
-        const syncId = `onec:income:${record.Ref_Key}`;
+        try {
+          // BUG-11-8 · bug_021 pattern: per-record try/catch so one bad record does not abort the whole sync
+          const incomeDate = new Date(record.Date);
+          const amount = parseFloat(record.DocumentAmount ?? '0') || 0;
+          const description = record.Description ?? 'Kitchen income';
+          const syncId = `onec:income:${record.Ref_Key}`;
 
-        await this.prisma.kitchenIncome.upsert({
-          where: { syncId },
-          update: { amount },
-          create: {
-            syncId,
-            tenantId,
-            date: incomeDate,
-            amount,
-            description,
-          },
-        });
+          await this.prisma.kitchenIncome.upsert({
+            where: { syncId },
+            update: { amount },
+            create: {
+              syncId,
+              tenantId,
+              date: incomeDate,
+              amount,
+              description,
+            },
+          });
 
-        processedCount++;
+          processedCount++;
+        } catch (recordErr) {
+          // BUG-11-8 · bug_021 pattern: one bad record must not abort the whole sync
+          const errMsg = recordErr instanceof Error ? recordErr.message : String(recordErr);
+          this.logger.warn(`Skipping 1C kitchen income record ${record.Ref_Key}: ${errMsg}`);
+          Sentry.withScope((scope) => {
+            scope.setTag('system', 'ONE_C');
+            scope.setTag('method', 'syncKitchenIncome');
+            scope.setExtra('recordRefKey', record.Ref_Key);
+            scope.setExtra('recordDate', record.Date);
+            scope.captureMessage(`Skipped 1C kitchen income record: ${errMsg}`, 'warning');
+          });
+        }
       }
 
       const durationMs = Date.now() - startTime;
@@ -432,26 +474,40 @@ export class OneCyncService {
           continue;
         }
 
-        const amount = parseFloat(record.DocumentAmount ?? '0') || 0;
-        const shipmentDate = new Date(record.Date);
-        const description = record.Description ?? 'Kitchen shipment';
-        const syncId = `onec:kitchenshipment:${record.Ref_Key}`;
+        try {
+          // BUG-11-8 · bug_021 pattern: per-record try/catch so one bad record does not abort the whole sync
+          const amount = parseFloat(record.DocumentAmount ?? '0') || 0;
+          const shipmentDate = new Date(record.Date);
+          const description = record.Description ?? 'Kitchen shipment';
+          const syncId = `onec:kitchenshipment:${record.Ref_Key}`;
 
-        await this.prisma.expense.upsert({
-          where: { syncId },
-          update: { amount },
-          create: {
-            syncId,
-            articleId: article.id,
-            restaurantId: restaurant.id,
-            date: shipmentDate,
-            amount,
-            comment: description,
-            source: 'ONE_C',
-          },
-        });
+          await this.prisma.expense.upsert({
+            where: { syncId },
+            update: { amount },
+            create: {
+              syncId,
+              articleId: article.id,
+              restaurantId: restaurant.id,
+              date: shipmentDate,
+              amount,
+              comment: description,
+              source: 'ONE_C',
+            },
+          });
 
-        processedCount++;
+          processedCount++;
+        } catch (recordErr) {
+          // BUG-11-8 · bug_021 pattern: one bad record must not abort the whole sync
+          const errMsg = recordErr instanceof Error ? recordErr.message : String(recordErr);
+          this.logger.warn(`Skipping 1C kitchen shipment record ${record.Ref_Key}: ${errMsg}`);
+          Sentry.withScope((scope) => {
+            scope.setTag('system', 'ONE_C');
+            scope.setTag('method', 'syncKitchenShipmentsByRestaurant');
+            scope.setExtra('recordRefKey', record.Ref_Key);
+            scope.setExtra('recordDate', record.Date);
+            scope.captureMessage(`Skipped 1C kitchen shipment record: ${errMsg}`, 'warning');
+          });
+        }
       }
 
       const durationMs = Date.now() - startTime;
