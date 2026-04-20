@@ -9,6 +9,7 @@ import { PeriodSelector, usePeriodHeroLabel, PERIOD_OPTIONS } from '../component
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useDashboard } from '../hooks/useDashboard';
+import { formatSyncTime } from '../utils/brand';
 import { useDashboardStore } from '../store/dashboard';
 import { useAuthStore } from '../store/auth';
 import { styles } from './DashboardScreen.styles';
@@ -189,7 +190,7 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
       {lastSyncAt && (() => {
         const syncStale = (Date.now() - new Date(lastSyncAt).getTime()) > 3600000;
         const syncColor = syncStale ? '#EF4444' : 'rgba(255,255,255,0.35)';
-        const timeStr = new Date(lastSyncAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        const timeStr = formatSyncTime(lastSyncAt);
         return (
           <View style={styles.syncRow}>
             <View style={[styles.syncDot, { backgroundColor: syncColor }]} />
