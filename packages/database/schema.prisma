@@ -28,6 +28,14 @@ enum DataSource {
   @@schema("finance")
 }
 
+enum BrandType {
+  RESTAURANT   // Consumer-facing restaurant brand (BNA, DNA, JD, SB)
+  KITCHEN      // Production kitchen (Цех) — excluded from Dashboard
+  MARKETPLACE  // Third-party platform (future)
+
+  @@schema("finance")
+}
+
 enum AllocationType {
   DIRECT       // Прямой расход — привязан к точке
   DISTRIBUTED  // Распределяемый — делится по удельному весу выручки
@@ -176,6 +184,7 @@ model Brand {
   slug        String   @unique    // "burger-na-abaya"
   iikoGroupId String?  @unique    // ID структурного подразделения в iiko
   isActive    Boolean  @default(true)
+  type        BrandType @default(RESTAURANT)   // BUG-11-3
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
