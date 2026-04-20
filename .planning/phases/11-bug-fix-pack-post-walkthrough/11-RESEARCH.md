@@ -124,8 +124,8 @@ The biggest structural change is the `BrandType` enum addition (BUG-11-3), which
 ### To Add
 | Library | Version | Purpose | Bug |
 |---------|---------|---------|-----|
-| date-fns | ^4.x | Date manipulation utilities | BUG-11-6 |
-| date-fns-tz | ^3.x | Timezone-aware formatting (`toZonedTime`, `format`) | BUG-11-6 |
+| date-fns | ^3.x | Date manipulation utilities (v3 API) | BUG-11-6 |
+| date-fns-tz | ^3.x | Timezone-aware formatting (`toZonedTime`, `format`) — v3 API | BUG-11-6 |
 
 **date-fns-tz is NOT currently in `apps/mobile-dashboard/package.json`** — confirmed by inspection. Must be installed.
 

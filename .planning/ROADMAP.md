@@ -600,6 +600,56 @@ Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
 - `transactions` на brand/list уровне = null (есть только в RestaurantDetailDto как salesCount)
 - `periodLabel` в useRestaurantList = сегодняшняя дата (period не в list context)
 
+### Phase 11: Post-walkthrough bug-fix pack (INSERTED)
+**Статус: 🔄 Planned — ready to execute**
+
+**Goal:** Починить 8 багов, найденных live-walkthrough'ом Dashboard на эмуляторе 2026-04-20. Блокеры демо — неверная маржа (7000%), неправильные бейджы брендов, Kitchen в списке ресторанов.
+
+**Source of truth:** `.planning/todos/pending/2026-04-20-*.md` — 8 todo с root-cause + Solution + Acceptance.
+
+**Depends on:** Phase 10 (design system — экраны уже используют RestaurantCard + resolveBrand которые здесь дорабатываются).
+
+**Requirements:** [BUG-11-1, BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-5, BUG-11-6, BUG-11-7, BUG-11-8]
+
+**Plans:** 5 plans
+
+Plans:
+- [ ] 11-00-wave0-prereqs-PLAN.md — Wave 0: install date-fns-tz + brand.test.ts stubs + Brand.type migration SQL + .env.example ONEC_ docs + onec spec skeleton [BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-6, BUG-11-8]
+- [ ] 11-01-backend-finance-PLAN.md — Wave 1: finance-service getDashboardSummary fixes — filter Brand.type=RESTAURANT, groupBy restaurantCount, EXPENSE_UNIT_DIVISOR for margin fix [BUG-11-1, BUG-11-3, BUG-11-5]
+- [ ] 11-02-mobile-utils-PLAN.md — Wave 2a: mobile utils — BRAND_MAP + 6-code BrandCode + computePlanDelta + formatPlanLabel + formatSyncTime + 4 new brand colors + DashboardScreen TZ render [BUG-11-2, BUG-11-4, BUG-11-6]
+- [ ] 11-03-mobile-screens-PLAN.md — Wave 2b: ReportsScreen DDS section restore for OWNER/FIN_DIR + dev OTP bypass returns OWNER role [BUG-11-7]
+- [ ] 11-04-worker-onec-PLAN.md — Wave 3: 1C sync per-record try/catch + iiko Brand.type upsert (autonomous: false — requires .env credential check) [BUG-11-3, BUG-11-8]
+
+**Scope:**
+- [ ] **BUG-11-1 CRITICAL** — Маржа показывает 6500-7050% вместо ~68% (`financialResult` в копейках, `revenue` в тенге — unit mismatch в finance-service DTO или mobile транслирует в неверном unit)
+- [ ] **BUG-11-2 CRITICAL** — `resolveBrand` знает только BNA/DNA, 4 из 6 брендов (JD, SB, KEX, KITCHEN) получают неправильный badge. Нужна BRAND_MAP таблица + расширение `BrandCode` type
+- [ ] **BUG-11-3 CRITICAL** — "Цех" (production kitchen) показывается как consumer brand на Dashboard с выручкой и маржой. Добавить `Brand.type: BrandType` enum, фильтровать в finance-service `getBrandSummaries`
+- [ ] **BUG-11-4 HIGH** — "Выше плана · 0.0%" у всех брендов даже когда actual ниже plan. `computePlanAttainment` возвращает процент выполнения, UI ожидает delta. Разделить на `computePlanDelta` + `formatPlanLabel` (above/below/onplan)
+- [ ] **BUG-11-5 HIGH** — "84 точек" вместо реальных 13. Finance-service COUNT(*) вместо COUNT(DISTINCT restaurant_id) или используется salesCount вместо restaurantCount
+- [ ] **BUG-11-6 HIGH** — "Синхронизация: 13:30" при устройстве 12:31. UTC → Asia/Almaty timezone fix на mobile render + finance DTO. Vector-fix паттерна bug_012
+- [ ] **BUG-11-7 HIGH** — ReportsScreen не показывает DDS-секцию для OWNER (видны 3/4 секции). Либо секция удалена, либо dev bypass OTP даёт не OWNER роль
+- [ ] **BUG-11-8 HIGH** — 1C sync лежит (Company Expenses "Нет данных", Kitchen Закупки/Отгрузки/Доход все ₸0). Проверить credentials в .env, SchedulerService.syncOneCExpenses, ручной trigger
+
+**Out of scope (отложено):**
+- Delta chip "0.0%" period-over-period comparison — MEDIUM, отдельный todo
+- Real plannedRevenue вместо stub `revenue × 1.05` — требует finance-service API extension (Phase 12)
+- UI v3 миграция экранов (см. `.planning/UI-AUDIT-2026-04-20.md` 32/60) — отдельная phase
+
+**Success criteria:**
+- Маржа на Dashboard ≈ 68% для всех брендов (не 7000%)
+- 5 брендов на Dashboard с правильными badge кодами (BNA/DNA/JD/SB/KEX), Kitchen скрыт
+- "Точек" = 13 (или сколько реально в БД)
+- "Синхронизация: HH:MM" в Asia/Almaty
+- Reports показывает DDS-секцию для OWNER
+- `npm test` и `tsc --noEmit` проходят во всех затронутых пакетах
+
+**Стратегия:** Разделить на 3 wave
+- Wave 1 (backend): finance-service DTO units, Brand.type enum, restaurant count fix, timezone-safe lastSyncAt
+- Wave 2 (mobile): BRAND_MAP, computePlanDelta, formatPlanLabel, DDS section visibility, TZ render
+- Wave 3 (worker): 1C sync restoration + kitchen shipments
+
+---
+
 ## Phase 9: Деплой и Релиз
 **Статус: ❌ Не начат**
 

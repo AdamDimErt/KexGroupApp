@@ -116,7 +116,7 @@
 - `apps/finance-service/src/dashboard/dashboard.service.ts` — getSummary, getBrandSummaries
 - `apps/mobile-dashboard/src/utils/brand.ts` — resolveBrand, computeMarginPct, computePlanAttainment
 - `apps/mobile-dashboard/src/theme/colors.ts` — brand color tokens
-- `apps/aggregator-worker/src/one-c/onec-sync.service.ts` — 1C OData sync
+- `apps/aggregator-worker/src/onec/onec-sync.service.ts` — 1C OData sync
 - `apps/aggregator-worker/src/scheduler/scheduler.service.ts` — cron jobs
 
 ### Related commits / patterns
