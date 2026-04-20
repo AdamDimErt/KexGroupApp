@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-20T02:23:11.379Z"
+last_updated: "2026-04-20T07:38:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 8
@@ -70,6 +70,7 @@ progress:
 - **11-00** (2026-04-20): Wave 0 prereqs — date-fns@^3 + date-fns-tz@^3 installed in mobile-dashboard, brand.test.ts RED stubs (BUG-11-2/4/6), BrandType Prisma migration SQL, ONEC env var docs, onec-sync.service.spec.ts scaffold. 5 tasks, 5 commits: a3aa523 177b268 95d1124 956c453 9acae77
 - **11-01** (2026-04-20): HARD GATE SQL verify REJECTED (kopeck hypothesis false, ratios 22-49%). BUG-11-3 fixed: type:'RESTAURANT' filter on brand+restaurant queries removes Цех tile. BUG-11-5 fixed: restaurant.groupBy replaces unfiltered _count include. Wave 0 migration applied to live DB. 53+3 tests pass. Commits: f91ec68 4a02b54
 - **11-02** (2026-04-20): BUG-11-2/4/6 fixed in mobile-dashboard. BRAND_MAP with 6 codes + keyword fallback; 4 new brand color tokens (jd/sb/kex/kitchen); computePlanDelta + formatPlanLabel wired into useDashboard; RestaurantCard colors plan label by status; formatSyncTime (Asia/Almaty) replaces toLocaleTimeString. 22/22 brand.test.ts pass. Commits: fa7048e 69ee601 a2c53c0 61314f7
+- **11-04** (2026-04-20): BUG-11-8 fixed: per-record try/catch added to all 4 OneCyncService sync methods (syncExpenses, syncKitchenPurchases, syncKitchenIncome, syncKitchenShipmentsByRestaurant) — one bad OData record no longer aborts whole sync; warn+Sentry.withScope(captureMessage('warning')) per skip. BUG-11-3 worker half: determineBrandType(/цех|kitchen|fabrika/i) added to IikoSyncService; Brand.type populated in brand.upsert both update+create. 78/78 tests pass, tsc clean. Commits: fc850fd a30b77d
 
 ## Key Decisions
 
@@ -137,6 +138,9 @@ progress:
 - **[11-01]** Wave 0 DB migration applied manually to live DB (docker exec psql): BrandType enum created, Brand.type column added, Цех brand set to KITCHEN
 - **[08.1-01]** syncId for DDS Expenses: dds:{shiftId}:{movementId} — global deduplication across restaurants, days, articles
 - **[11-00]** date-fns v3 API uses toZonedTime (not deprecated utcToZonedTime); BrandType enum in finance schema per Pitfall 2; Wave 0 migration SQL created
+- **[11-04]** BUG-11-8: inner try/catch per record (not outer catch replacement) — outer catch still handles structural failures; inner catch logs warn+Sentry without rethrowing so processedCount stays honest
+- **[11-04]** BUG-11-3 worker: string literals 'KITCHEN'/'RESTAURANT' used instead of imported BrandType enum to avoid potential Prisma client circular dep; regex must stay in sync with migration SQL backfill regex
+- **[11-04]** Credential status: ONEC_* vars missing from .env — 1C integration dormant until operator provisions real credentials
 - **[11-01]** Wave 0 DB migration applied manually — BrandType enum + Brand.type column; 1 brand (Цех) set to KITCHEN
 - **[08.1-02]** GROUP_COLORS inlined in each screen (not extracted to shared constants file) — mobile scope is self-contained, avoids premature abstraction
 - **[08.1-02]** Emoji icons used per explicit user request ("красиво") — exception to no-emoji rule documented in code comments

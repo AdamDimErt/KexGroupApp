@@ -611,7 +611,7 @@ Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
 
 **Requirements:** [BUG-11-1, BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-5, BUG-11-6, BUG-11-7, BUG-11-8]
 
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 - [x] 11-00-wave0-prereqs-PLAN.md — Wave 0: install date-fns-tz + brand.test.ts stubs + Brand.type migration SQL + .env.example ONEC_ docs + onec spec skeleton [BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-6, BUG-11-8] — DONE 2026-04-20
