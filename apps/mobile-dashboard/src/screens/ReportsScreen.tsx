@@ -5,7 +5,12 @@ import { TrendingUp, Award, Trophy } from 'lucide-react-native';
 import { PeriodSelector } from '../components/PeriodSelector';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useAuthStore } from '../store/auth';
-import { useReportCompanyExpenses, useReportKitchen, useReportTrends } from '../hooks/useReports';
+import {
+  useReportCompanyExpenses,
+  useReportKitchen,
+  useReportTrends,
+  useReportDds,
+} from '../hooks/useReports';
 import { useRestaurantList } from '../hooks/useRestaurantList';
 import { colors } from '../theme';
 import { styles } from './ReportsScreen.styles';
@@ -27,8 +32,11 @@ export function ReportsScreen() {
   const [selectedTrendIdx, setSelectedTrendIdx] = useState<number | null>(null);
 
   const canSeeCompany = role === 'OWNER' || role === 'FINANCE_DIRECTOR' || role === 'ADMIN';
+  // BUG-11-7: DDS visible to same roles as Company Expenses (OWNER/FIN_DIR/ADMIN)
+  const canSeeDds = role === 'OWNER' || role === 'FINANCE_DIRECTOR' || role === 'ADMIN';
 
   // Only fetch role-gated reports when the user has permission
+  const dds = useReportDds(canSeeDds);
   const company = useReportCompanyExpenses(canSeeCompany);
   const kitchen = useReportKitchen();
   const trends = useReportTrends();
@@ -40,7 +48,12 @@ export function ReportsScreen() {
     .slice(0, 3);
 
   // Aggregate offline state (only from sections actually being fetched)
-  const activeSections = [kitchen, trends, ...(canSeeCompany ? [company] : [])];
+  const activeSections = [
+    kitchen,
+    trends,
+    ...(canSeeCompany ? [company] : []),
+    ...(canSeeDds ? [dds] : []),
+  ];
   const isAnyOffline = activeSections.some(s => s.isOffline);
   const isAnyStale = activeSections.some(s => s.isStale);
   const cachedAtValues = activeSections.map(s => s.cachedAt).filter((v): v is number => v !== null);
@@ -48,6 +61,7 @@ export function ReportsScreen() {
 
   const refetchAll = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (canSeeDds) dds.refetch();
     if (canSeeCompany) company.refetch();
     kitchen.refetch();
     trends.refetch();
@@ -67,6 +81,46 @@ export function ReportsScreen() {
         </View>
 
         <PeriodSelector marginTop={12} />
+
+        {/* DDS - Движение Денежных Средств -- OWNER + FINANCE_DIRECTOR + ADMIN only (BUG-11-7) */}
+        {canSeeDds && (
+          <View style={styles.reportCard}>
+            <Text style={styles.reportTitle}>ДДС — Движение денег</Text>
+            {dds.isLoading ? (
+              <ActivityIndicator size="small" color={colors.accentDefault} />
+            ) : dds.error ? (
+              <Text style={styles.reportError}>{dds.error}</Text>
+            ) : (dds.data?.groups ?? []).length === 0 ? (
+              <EmptyState message="Нет данных за выбранный период" />
+            ) : (
+              <>
+                <Text style={styles.reportTotal}>
+                  Итого: {fmtAmount(dds.data?.grandTotal ?? 0)}
+                </Text>
+                {(dds.data?.groups ?? []).map(group => (
+                  <View key={group.groupId} style={{ marginTop: 8 }}>
+                    <View style={styles.ddsGroupRow}>
+                      <Text style={[styles.reportLabel, { fontWeight: '600' }]}>
+                        {group.groupName}
+                      </Text>
+                      <Text style={styles.reportValue}>{fmtAmount(group.totalAmount)}</Text>
+                    </View>
+                    {(group.restaurants ?? []).map(rest => (
+                      <View key={rest.restaurantId} style={styles.ddsRestaurantRow}>
+                        <Text style={[styles.reportLabel, { fontSize: 13, color: colors.textSecondary }]}>
+                          {rest.restaurantName}
+                        </Text>
+                        <Text style={[styles.reportValue, { fontSize: 13 }]}>
+                          {fmtAmount(rest.amount)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </>
+            )}
+          </View>
+        )}
 
         {/* Company Expenses -- OWNER + FINANCE_DIRECTOR only */}
         {canSeeCompany && (
@@ -114,7 +168,7 @@ export function ReportsScreen() {
               </View>
               <View style={styles.reportRow}>
                 <Text style={styles.reportLabel}>Доход</Text>
-                <Text style={[styles.reportValue, { color: '#10B981' }]}>
+                <Text style={[styles.reportValue, { color: colors.green }]}>
                   {fmtAmount(kitchen.data?.totalIncome ?? 0)}
                 </Text>
               </View>
@@ -163,7 +217,7 @@ export function ReportsScreen() {
                           {selected.expenses > 0 && <Text style={{ color: '#EF4444', fontSize: 13 }}>Расходы: {fmtAmount(selected.expenses)}</Text>}
                         </View>
                         {avgRev > 0 && (
-                          <Text style={{ color: selected.revenue >= avgRev ? '#10B981' : '#F59E0B', fontSize: 11, marginTop: 2 }}>
+                          <Text style={{ color: selected.revenue >= avgRev ? colors.green : colors.yellow, fontSize: 11, marginTop: 2 }}>
                             {selected.revenue >= avgRev ? '↑' : '↓'} {Math.abs(Math.round(((selected.revenue - avgRev) / avgRev) * 100))}% от среднего
                           </Text>
                         )}
