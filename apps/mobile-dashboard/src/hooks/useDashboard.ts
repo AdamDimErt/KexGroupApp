@@ -15,8 +15,8 @@ export interface DashboardRestaurantItem {
   name: string;
   city: string;
   // NEW fields (required by RestaurantCard v2)
-  brand: 'BNA' | 'DNA';
-  cuisine: 'Burger' | 'Doner';
+  brand: 'BNA' | 'DNA' | 'JD' | 'SB' | 'KEX' | 'KITCHEN';
+  cuisine: 'Burger' | 'Doner' | 'Mixed' | 'Multi' | 'Kitchen';
   revenue: number;
   plannedRevenue: number; // STUB: revenue * 1.05 — Phase 11: replace with real plan from finance-service API
   marginPct: number | null;

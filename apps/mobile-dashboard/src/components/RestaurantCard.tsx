@@ -7,10 +7,10 @@ import { styles } from './RestaurantCard.styles';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface RestaurantCardProps {
-  brand: 'BNA' | 'DNA';
+  brand: 'BNA' | 'DNA' | 'JD' | 'SB' | 'KEX' | 'KITCHEN';
   name: string;
   city: string;
-  cuisine: 'Burger' | 'Doner';
+  cuisine: 'Burger' | 'Doner' | 'Mixed' | 'Multi' | 'Kitchen';
   transactions: number | null;
   revenue: number | null;
   plannedRevenue: number;

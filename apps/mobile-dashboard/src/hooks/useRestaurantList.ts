@@ -20,8 +20,8 @@ export interface RestaurantListItem {
   financialResult: number;
   changePercent: number;
   // NEW fields (required by RestaurantCard v2)
-  brand: 'BNA' | 'DNA';
-  cuisine: 'Burger' | 'Doner';
+  brand: 'BNA' | 'DNA' | 'JD' | 'SB' | 'KEX' | 'KITCHEN';
+  cuisine: 'Burger' | 'Doner' | 'Mixed' | 'Multi' | 'Kitchen';
   plannedRevenue: number; // STUB: revenue * 1.05 — Phase 11: real plan from finance-service API
   marginPct: number | null;
   deltaPct: number | null;
