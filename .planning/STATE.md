@@ -2,16 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-04-20T02:16:16.000Z"
-stopped_at: "Completed 11-bug-fix-pack-post-walkthrough/11-02-mobile-utils-PLAN.md"
+status: unknown
+last_updated: "2026-04-20T02:23:11.379Z"
 progress:
   total_phases: 13
   completed_phases: 8
-  total_plans: 31
-  completed_plans: 31
-  percent: 100
-  bar: "[██████████] 100%"
+  total_plans: 30
+  completed_plans: 32
 ---
 
 # Project State
@@ -150,7 +147,10 @@ progress:
 - **[11-02]** BRAND_MAP uses exact iiko display names as keys (including Cyrillic КексБрэндс + Latin KEX-BRANDS + Kexbrands) — iiko may return any variant
 - **[11-02]** computePlanDelta reuses computePlanAttainment — single source of truth for the plan ratio math
 - **[11-02]** Jest @sentry/react-native stub via moduleNameMapper in package.json — ESM parse error avoided without removing Sentry dependency
+- **[11-03b]** (2026-04-20): BUG-11-7 auth half fixed. Dev OTP bypass now overrides user.role to OWNER in non-production when phone in DEV_BYPASS_PHONES and code matches DEV_BYPASS_CODE. Scenario B: in-memory role override before issueTokens(), no DB mutation. Also fixed env var name mismatch (DEV_OTP_BYPASS_CODE → DEV_BYPASS_CODE). 3 regression tests added. 38/38 tests pass. Commit: 1a4d368
 - **[11-02]** planLabel object (text + status) computed in hook, passed as prop — RestaurantCard stays pure (no color re-derivation inside component)
+- **[11-03b]** BUG-11-7 auth half: Scenario B — user fetched from DB; role overridden inline to OWNER before issueTokens() when isDevBypassActive(); no DB write or migration; production path unchanged
+- **[11-03b]** Env var aligned: service reads DEV_BYPASS_CODE (matches .env.example), not DEV_OTP_BYPASS_CODE
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
