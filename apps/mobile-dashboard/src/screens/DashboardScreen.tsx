@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Bell, Settings, LogOut, AlertTriangle, RefreshCw } from 'lucide-react-native';
+import { Bell, Settings, LogOut, AlertTriangle, RefreshCw, ChevronRight } from 'lucide-react-native';
 import { colors } from '../theme';
 import { RestaurantCard } from '../components/RestaurantCard';
-import { PeriodSelector, usePeriodHeroLabel } from '../components/PeriodSelector';
+import { HeroCard } from '../components/HeroCard';
+import { PeriodSelector, usePeriodHeroLabel, PERIOD_OPTIONS } from '../components/PeriodSelector';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { OfflineBanner } from '../components/OfflineBanner';
 import { useDashboard } from '../hooks/useDashboard';
@@ -18,9 +19,11 @@ interface DashboardProps {
   onNavigateNotifications: () => void;
   onNavigateProfile?: () => void;
   onLogout: () => void;
+  /** Navigate to the company revenue detail screen */
+  onNavigateRevenueDetail?: () => void;
 }
 
-export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onNavigateProfile, onLogout }: DashboardProps) {
+export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onNavigateProfile, onLogout, onNavigateRevenueDetail }: DashboardProps) {
   const {
     totalRevenue, totalExpenses, financialResult, totalRestaurantCount,
     restaurantItems, confirmLogout, isLoading, isRefreshing, error,
@@ -28,7 +31,7 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
     isStale, isOffline, cachedAt,
   } = useDashboard(onLogout);
 
-  const heroLabel = usePeriodHeroLabel('ВЫРУЧКА');
+  const heroPeriodLabel = usePeriodHeroLabel('');
   const role = useAuthStore(s => s.user?.role);
 
   // Access matrix:
@@ -146,10 +149,28 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
 
       {/* Three KPI cards */}
       <View style={styles.kpiRow}>
-        <View style={styles.kpiCard}>
+        {/* ВЫРУЧКА — tappable, navigates to RevenueDetailScreen */}
+        <TouchableOpacity
+          style={[styles.kpiCard, { position: 'relative', minHeight: 62 }]}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            onNavigateRevenueDetail?.();
+          }}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Выручка — детали"
+          disabled={!onNavigateRevenueDetail}
+        >
           <Text style={styles.kpiLabel}>ВЫРУЧКА</Text>
           <Text style={styles.kpiValue}>{formatAmount(totalRevenue)}</Text>
-        </View>
+          {onNavigateRevenueDetail && (
+            <ChevronRight
+              size={12}
+              color={colors.textTertiary}
+              style={{ position: 'absolute', top: 12, right: 10 }}
+            />
+          )}
+        </TouchableOpacity>
         <View style={styles.kpiCard}>
           <Text style={styles.kpiLabel}>РАСХОДЫ</Text>
           <Text style={styles.kpiValue}>{formatAmount(totalExpenses)}</Text>
@@ -157,7 +178,7 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
         {showBalance && (
           <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>БАЛАНС</Text>
-            <Text style={[styles.kpiValue, { color: financialResult >= 0 ? '#10B981' : '#EF4444' }]}>
+            <Text style={[styles.kpiValue, { color: financialResult >= 0 ? colors.green : colors.red }]}>
               {formatAmount(financialResult)}
             </Text>
           </View>
@@ -180,7 +201,7 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
       {/* Hero Card — total revenue */}
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
-          <Text style={styles.heroLabel}>{heroLabel}</Text>
+          <Text style={styles.heroLabel}>ВЫРУЧКА</Text>
           <View style={styles.heroSourceRow}>
             {['iiko', '1С'].map(src => (
               <View key={src} style={styles.heroBadge}>
@@ -222,6 +243,7 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
           periodLabel={r.periodLabel}
           transactions={r.transactions}
           status={r.status}
+          planLabel={r.planLabel}
           onPress={() => onNavigateBrand ? onNavigateBrand(r.id, r.name) : onPointSelect(r.id)}
         />
       ))}

@@ -7,6 +7,8 @@ import {
   mapLegacyStatus,
   computeMarginPct,
   computePlanAttainment,
+  computePlanDelta,
+  formatPlanLabel,
   formatPeriodLabel,
 } from '../utils/brand';
 
@@ -22,6 +24,7 @@ export interface DashboardRestaurantItem {
   marginPct: number | null;
   deltaPct: number | null;
   planAttainmentPct: number;
+  planLabel: { text: string; status: 'above' | 'onplan' | 'below' };
   planMarkPct: number;
   periodLabel: string;
   transactions: number | null; // STUB: null at brand level — salesCount only on RestaurantDetailDto
@@ -70,8 +73,13 @@ export function useDashboard(onLogout: () => void) {
       revenue: brand.revenue,
       plannedRevenue,
       marginPct: computeMarginPct(brand.revenue, brand.financialResult),
-      deltaPct: brand.changePercent,
+      // BUG-11-4: compute signed delta locally until finance-service ships period-over-period API (Phase 12).
+      // `brand.changePercent` from DTO is always 0 currently, so we derive deltaPct from stub plannedRevenue.
+      deltaPct: brand.revenue > 0 ? computePlanDelta(brand.revenue, plannedRevenue) : null,
       planAttainmentPct: computePlanAttainment(brand.revenue, plannedRevenue),
+      planLabel: formatPlanLabel(
+        brand.revenue > 0 ? computePlanDelta(brand.revenue, plannedRevenue) : null,
+      ),
       planMarkPct: 100,
       periodLabel,
       transactions: null, // STUB: brand-level has no salesCount — Phase 11: aggregate from restaurants

@@ -21,6 +21,7 @@ export interface RestaurantCardProps {
   periodLabel: string;            // "за 1–19 апр 2026"
   status: 'above' | 'onplan' | 'below' | 'offline' | 'loading';
   showPlanLabel?: boolean;        // show "ПЛАН" text above marker (first card only)
+  planLabel?: { text: string; status: 'above' | 'onplan' | 'below' }; // BUG-11-4: pre-computed label from hook
   onPress?: () => void;
 }
 
@@ -101,6 +102,7 @@ export function RestaurantCard({
   periodLabel,
   status,
   showPlanLabel,
+  planLabel,
   onPress,
 }: RestaurantCardProps) {
 
@@ -113,6 +115,16 @@ export function RestaurantCard({
     ? restaurantStatusColors.offline
     : restaurantStatusColors[status as keyof typeof restaurantStatusColors];
 
+  // BUG-11-2: dynamic brand color lookup for all 6 codes
+  const brandKey = (brand || 'BNA').toLowerCase() as keyof typeof colors.brand;
+  const brandTheme = colors.brand[brandKey] ?? colors.brand.bna;
+
+  // BUG-11-4: plan label color from planLabel.status (if provided)
+  const planLabelColor =
+    planLabel?.status === 'above' ? colors.status.positive :
+    planLabel?.status === 'below' ? colors.status.danger :
+    colors.text.secondary;
+
   // Delta pill
   const isOffline = status === 'offline';
   const deltaKey = isOffline
@@ -122,9 +134,10 @@ export function RestaurantCard({
       : deltaPct > 0 ? 'up' : deltaPct < 0 ? 'down' : 'flat';
   const deltaToken = deltaVariants[deltaKey];
 
-  // Status label text
+  // Status label text — prefer planLabel (BUG-11-4) when provided, fall back to legacy delta-based render
   const statusLabel = (() => {
     if (status === 'offline') return null; // rendered differently
+    if (planLabel) return null; // planLabel renders separately with explicit color
     if (status === 'above')  return `Выше плана · ${formatDelta(deltaPct)}`;
     if (status === 'onplan') return `В плане · ${formatDelta(deltaPct)}`;
     if (status === 'below')  return `Ниже плана · ${formatDelta(deltaPct)}`;
@@ -156,8 +169,9 @@ export function RestaurantCard({
           <View style={styles.metaColumn}>
             {/* name line: brand badge + name */}
             <View style={styles.nameLine}>
-              <View style={[styles.brandBadge, brand === 'DNA' && styles.brandBadgeDna]}>
-                <Text style={[styles.brandBadgeText, brand === 'DNA' && styles.brandBadgeTextDna]}>
+              {/* BUG-11-2: dynamic brand theme for all 6 codes */}
+              <View style={[styles.brandBadge, { backgroundColor: brandTheme.bg, borderColor: brandTheme.border }]}>
+                <Text style={[styles.brandBadgeText, { color: brandTheme.text }]}>
                   {brand}
                 </Text>
               </View>
@@ -242,6 +256,10 @@ export function RestaurantCard({
               Нет данных
             </Text>
           </View>
+        ) : planLabel ? (
+          <Text style={[styles.statusText, { color: planLabelColor }]}>
+            {planLabel.text}
+          </Text>
         ) : (
           <Text style={[styles.statusText, { color: semanticColors.text }]}>
             {statusLabel}
