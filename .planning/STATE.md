@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-04-20T14:51:00.000Z"
-stopped_at: "Completed 11-bug-fix-pack-post-walkthrough/11-00-wave0-prereqs-PLAN.md"
+last_updated: "2026-04-20T02:01:14.000Z"
+stopped_at: "Completed 11-bug-fix-pack-post-walkthrough/11-01-backend-finance-PLAN.md"
 progress:
   total_phases: 13
   completed_phases: 8
   total_plans: 30
-  completed_plans: 29
+  completed_plans: 30
   percent: 97
   bar: "[██████████] 97%"
 ---
@@ -83,6 +83,8 @@ progress:
 - **08-02** (2026-04-08): AlertService created in aggregator-worker — checkSyncHealth (IIKO/ONE_C, >1h failure), checkRevenueThresholds (<70% 30-day avg), checkLargeExpenses (>500000 KZT default), shouldFireAlert (Redis 4h dedup), fireAlert (fire-and-forget HTTP POST to api-gateway /internal/notifications/trigger). AlertModule registered. Wired into syncRevenue/syncExpenses/syncOneCExpenses in SchedulerService. 10 unit tests, 38/38 total, tsc clean. Commits: 0345e44, 1502cb6
 - **08-03** (2026-04-08): Native FCM token registration fixed (getDevicePushTokenAsync replacing getExpoPushTokenAsync), static imports replacing dynamic import(), module-level setNotificationHandler with shouldShowAlert/shouldShowBanner/shouldShowList. usePushNotifications wired in App.tsx. useNotificationPrefs hook with optimistic toggle + error revert. ProfileScreen with 3 Switch rows (SYNC_FAILURE, LOW_REVENUE, LARGE_EXPENSE). Navigation: DashboardScreen settings icon → ProfileScreen. tsc clean. Commits: 9d473e1, 0aca2bb
 - **08.1-01** (2026-04-08): syncDdsArticles (POST /v2/entities/list with GET fallback), syncDdsTransactions (/v2/cashshifts/list per restaurant, dds:{shiftId}:{movId} syncId deduplication), resolveGroupCode (12 DDS group codes). POST /sync/dds endpoint. syncAll + syncBackfill include DDS. 54 tests passing, tsc clean. Commits: 572d80c, fa33d42
+- **11-00** (2026-04-20): Wave 0 prereqs — date-fns@^3 + date-fns-tz@^3 installed in mobile-dashboard, brand.test.ts RED stubs (BUG-11-2/4/6), BrandType Prisma migration SQL, ONEC env var docs, onec-sync.service.spec.ts scaffold. 5 tasks, 5 commits: a3aa523 177b268 95d1124 956c453 9acae77
+- **11-01** (2026-04-20): HARD GATE SQL verify REJECTED (kopeck hypothesis false, ratios 22-49%). BUG-11-3 fixed: type:'RESTAURANT' filter on brand+restaurant queries removes Цех tile. BUG-11-5 fixed: restaurant.groupBy replaces unfiltered _count include. Wave 0 migration applied to live DB. 53+3 tests pass. Commits: f91ec68 4a02b54
 
 ## Key Decisions
 
@@ -142,13 +144,21 @@ progress:
 - **[08-03]** NotificationBehavior in Expo SDK 54 requires shouldShowBanner + shouldShowList in addition to shouldShowAlert — TypeScript enforces all fields
 - **[08-03]** onNavigateProfile added as optional prop to DashboardScreen — settings icon only renders when prop is passed, backward compatible with existing call sites
 - **[08.1-01]** resolveGroupCode checks 'заработн' in addition to 'зарплат' to cover both 'Заработная плата' and 'Зарплата' Russian account name forms
+- **[11-01]** BUG-11-1 REJECTED (SQL verify): directExpenses stored in tenge, ratios 22-49%; EXPENSE_UNIT_DIVISOR not added; 7000% margin has different root cause
+- **[11-01]** BUG-11-3+BUG-11-5 fixed: brand/restaurant type:'RESTAURANT' filter + restaurant.groupBy for accurate restaurantCount (Pitfall 3 workaround)
 - **[08.1-01]** syncDdsArticles tries POST /v2/entities/list first, falls back to GET — iiko Server v2 API pattern with graceful degradation
 - **[08.1-01]** DdsArticle.upsert uses compound key groupId_code — code is not globally unique in schema (@@unique([groupId, code]))
 - **[08.1-01]** syncDdsTransactions uses findFirst({ source: 'IIKO' }) not findUnique — DdsArticle.code is optional and only unique per groupId
+- **[11-01]** Wave 0 DB migration applied manually to live DB (docker exec psql): BrandType enum created, Brand.type column added, Цех brand set to KITCHEN
 - **[08.1-01]** syncId for DDS Expenses: dds:{shiftId}:{movementId} — global deduplication across restaurants, days, articles
+- **[11-00]** date-fns v3 API uses toZonedTime (not deprecated utcToZonedTime); BrandType enum in finance schema per Pitfall 2; Wave 0 migration SQL created
+- **[11-01]** Wave 0 DB migration applied manually — BrandType enum + Brand.type column; 1 brand (Цех) set to KITCHEN
 - **[08.1-02]** GROUP_COLORS inlined in each screen (not extracted to shared constants file) — mobile scope is self-contained, avoids premature abstraction
 - **[08.1-02]** Emoji icons used per explicit user request ("красиво") — exception to no-emoji rule documented in code comments
 - **[08.1-02]** expandedGroup stores groupId string for natural single-accordion pattern; null = all collapsed; no animation for performance on low-end Android
+- **[11-01]** BUG-11-1 kopeck hypothesis REJECTED — directExpenses/revenue ratios 22-49% confirm tenge storage; EXPENSE_UNIT_DIVISOR not added
+- **[11-01]** BUG-11-3 fix: type:'RESTAURANT' filter on brand.findMany + restaurant.findMany.brand removes KITCHEN tiles from dashboard
+- **[11-01]** BUG-11-5 fix: restaurant.groupBy replaces brand._count.restaurants — Prisma _count in include has no where filter (Pitfall 3)
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)

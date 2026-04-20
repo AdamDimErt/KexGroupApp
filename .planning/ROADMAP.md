@@ -601,7 +601,7 @@ Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
 - `periodLabel` в useRestaurantList = сегодняшняя дата (period не в list context)
 
 ### Phase 11: Post-walkthrough bug-fix pack (INSERTED)
-**Статус: 🔄 Planned — ready to execute**
+**Статус: 🔄 In Progress — Wave 1 complete**
 
 **Goal:** Починить 8 багов, найденных live-walkthrough'ом Dashboard на эмуляторе 2026-04-20. Блокеры демо — неверная маржа (7000%), неправильные бейджы брендов, Kitchen в списке ресторанов.
 
@@ -611,21 +611,21 @@ Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
 
 **Requirements:** [BUG-11-1, BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-5, BUG-11-6, BUG-11-7, BUG-11-8]
 
-**Plans:** 1/6 plans executed
+**Plans:** 2/6 plans executed
 
 Plans:
-- [ ] 11-00-wave0-prereqs-PLAN.md — Wave 0: install date-fns-tz + brand.test.ts stubs + Brand.type migration SQL + .env.example ONEC_ docs + onec spec skeleton [BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-6, BUG-11-8]
-- [ ] 11-01-backend-finance-PLAN.md — Wave 1: finance-service getDashboardSummary fixes — filter Brand.type=RESTAURANT, groupBy restaurantCount, EXPENSE_UNIT_DIVISOR for margin fix [BUG-11-1, BUG-11-3, BUG-11-5]
+- [x] 11-00-wave0-prereqs-PLAN.md — Wave 0: install date-fns-tz + brand.test.ts stubs + Brand.type migration SQL + .env.example ONEC_ docs + onec spec skeleton [BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-6, BUG-11-8] — DONE 2026-04-20
+- [x] 11-01-backend-finance-PLAN.md — Wave 1: BUG-11-3 (type filter) + BUG-11-5 (groupBy restaurantCount) FIXED; BUG-11-1 SQL REJECTED (tenge not kopecks) — DONE 2026-04-20
 - [ ] 11-02-mobile-utils-PLAN.md — Wave 2a: mobile utils — BRAND_MAP + 6-code BrandCode + computePlanDelta + formatPlanLabel + formatSyncTime + 4 new brand colors + DashboardScreen TZ render [BUG-11-2, BUG-11-4, BUG-11-6]
 - [ ] 11-03-mobile-screens-PLAN.md — Wave 2b: ReportsScreen DDS section restore for OWNER/FIN_DIR + dev OTP bypass returns OWNER role [BUG-11-7]
 - [ ] 11-04-worker-onec-PLAN.md — Wave 3: 1C sync per-record try/catch + iiko Brand.type upsert (autonomous: false — requires .env credential check) [BUG-11-3, BUG-11-8]
 
 **Scope:**
-- [ ] **BUG-11-1 CRITICAL** — Маржа показывает 6500-7050% вместо ~68% (`financialResult` в копейках, `revenue` в тенге — unit mismatch в finance-service DTO или mobile транслирует в неверном unit)
+- [x] **BUG-11-1 CRITICAL** — SQL verify REJECTED: directExpenses stored in tenge (ratios 22-49%); EXPENSE_UNIT_DIVISOR not needed; 7000% margin root cause TBD
 - [ ] **BUG-11-2 CRITICAL** — `resolveBrand` знает только BNA/DNA, 4 из 6 брендов (JD, SB, KEX, KITCHEN) получают неправильный badge. Нужна BRAND_MAP таблица + расширение `BrandCode` type
-- [ ] **BUG-11-3 CRITICAL** — "Цех" (production kitchen) показывается как consumer brand на Dashboard с выручкой и маржой. Добавить `Brand.type: BrandType` enum, фильтровать в finance-service `getBrandSummaries`
+- [x] **BUG-11-3 CRITICAL** — Fixed: Brand.type=RESTAURANT filter in getDashboardSummary; Цех (KITCHEN) no longer appears as dashboard tile; Wave 0 migration applied to live DB
 - [ ] **BUG-11-4 HIGH** — "Выше плана · 0.0%" у всех брендов даже когда actual ниже plan. `computePlanAttainment` возвращает процент выполнения, UI ожидает delta. Разделить на `computePlanDelta` + `formatPlanLabel` (above/below/onplan)
-- [ ] **BUG-11-5 HIGH** — "84 точек" вместо реальных 13. Finance-service COUNT(*) вместо COUNT(DISTINCT restaurant_id) или используется salesCount вместо restaurantCount
+- [x] **BUG-11-5 HIGH** — Fixed: restaurant.groupBy replaces unfiltered _count include; restaurantCount now counts only active RESTAURANT-type restaurants per brand
 - [ ] **BUG-11-6 HIGH** — "Синхронизация: 13:30" при устройстве 12:31. UTC → Asia/Almaty timezone fix на mobile render + finance DTO. Vector-fix паттерна bug_012
 - [ ] **BUG-11-7 HIGH** — ReportsScreen не показывает DDS-секцию для OWNER (видны 3/4 секции). Либо секция удалена, либо dev bypass OTP даёт не OWNER роль
 - [ ] **BUG-11-8 HIGH** — 1C sync лежит (Company Expenses "Нет данных", Kitchen Закупки/Отгрузки/Доход все ₸0). Проверить credentials в .env, SchedulerService.syncOneCExpenses, ручной trigger
