@@ -611,7 +611,7 @@ Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
 
 **Requirements:** [BUG-11-1, BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-5, BUG-11-6, BUG-11-7, BUG-11-8]
 
-**Plans:** 6/6 plans complete
+**Plans:** 6/7 plans complete (gap-closure plan 11-05 pending)
 
 Plans:
 - [x] 11-00-wave0-prereqs-PLAN.md — Wave 0: install date-fns-tz + brand.test.ts stubs + Brand.type migration SQL + .env.example ONEC_ docs + onec spec skeleton [BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-6, BUG-11-8] — DONE 2026-04-20
@@ -619,6 +619,7 @@ Plans:
 - [ ] 11-02-mobile-utils-PLAN.md — Wave 2a: mobile utils — BRAND_MAP + 6-code BrandCode + computePlanDelta + formatPlanLabel + formatSyncTime + 4 new brand colors + DashboardScreen TZ render [BUG-11-2, BUG-11-4, BUG-11-6]
 - [ ] 11-03-mobile-screens-PLAN.md — Wave 2b: ReportsScreen DDS section restore for OWNER/FIN_DIR + dev OTP bypass returns OWNER role [BUG-11-7]
 - [ ] 11-04-worker-onec-PLAN.md — Wave 3: 1C sync per-record try/catch + iiko Brand.type upsert (autonomous: false — requires .env credential check) [BUG-11-3, BUG-11-8]
+- [ ] 11-05-bug-11-1-margin-root-cause-PLAN.md — Gap-closure: empirical root-cause investigation for 7000% margin (SQL verify rejected kopeck hypothesis; API-sample + triage + ONE targeted fix + regression test + emulator verify) [BUG-11-1]
 
 **Scope:**
 - [x] **BUG-11-1 CRITICAL** — SQL verify REJECTED: directExpenses stored in tenge (ratios 22-49%); EXPENSE_UNIT_DIVISOR not needed; 7000% margin root cause TBD
