@@ -209,4 +209,42 @@ describe('OneCyncService', () => {
       );
     });
   });
+
+  describe('BUG-11-8 · per-record try/catch in syncExpenses', () => {
+    beforeEach(() => {
+      process.env.ONEC_BASE_URL = 'https://test-1c';
+      process.env.ONEC_USER = 'test';
+      process.env.ONEC_PASSWORD = 'test';
+      process.env.TENANT_ID = 'tenant-1';
+    });
+
+    it('skips one bad record and continues processing remaining good records', async () => {
+      // GIVEN: 3 expense records (middle one will fail upsert)
+      const records = [
+        { Ref_Key: 'good-1', Amount: '100.00', Date: '2026-04-20', Description: 'Rent' },
+        { Ref_Key: 'bad-1',  Amount: 'NaN',    Date: 'invalid',    Description: 'Broken' },
+        { Ref_Key: 'good-2', Amount: '200.00', Date: '2026-04-20', Description: 'IT' },
+      ];
+
+      // Mock HTTP + Prisma so 'bad-1' throws in upsert
+      // ... (implementation in Wave 3 will need mock setup)
+
+      // WHEN syncExpenses called
+      // THEN: service does not throw, processes good-1 and good-2, warns on bad-1
+
+      expect(true).toBe(false); // RED — Wave 3 replaces with real assertion
+    });
+
+    it('logs warning + Sentry.captureMessage for each skipped record (not throw)', async () => {
+      // GIVEN: 1 bad record
+      // WHEN syncExpenses called
+      // THEN: logger.warn called with Ref_Key; Sentry.withScope called with tag system=ONE_C
+      expect(true).toBe(false); // RED
+    });
+
+    it('tagged with system=ONE_C and recordRefKey in Sentry scope', async () => {
+      // Verify Sentry scope metadata matches bug_021 pattern
+      expect(true).toBe(false); // RED
+    });
+  });
 });
