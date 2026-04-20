@@ -48,7 +48,8 @@ describe('AuthService', () => {
           MOBIZON_API_KEY: '',
           MOBIZON_API_DOMAIN: 'api.mobizon.kz',
           DEV_BYPASS_PHONES: '+77074408018',
-          DEV_OTP_BYPASS_CODE: '111111',
+          DEV_BYPASS_CODE: '111111',
+          NODE_ENV: 'development',
         };
         return config[key];
       }),
@@ -660,6 +661,87 @@ describe('AuthService', () => {
       const result = await serviceWithTg.generateOtp(phone);
 
       expect(result.message).toContain('SMS');
+    });
+  });
+
+  // BUG-11-7: dev bypass OTP must return OWNER role so all OWNER-gated UI
+  // (Dashboard KPIs, DDS/Reports sections) is visible during dev walkthroughs.
+  describe('BUG-11-7: dev bypass role', () => {
+    const bypassPhone = '+77074408018';
+    const bypassCode = '111111';
+
+    const mockOwnerUser = {
+      id: 'owner-user-123',
+      phone: bypassPhone,
+      name: 'Dev Owner',
+      role: 'OPERATIONS_DIRECTOR', // DB has this role — bypass must override it
+      isActive: true,
+      tenantId: null,
+      tenant: null,
+      restaurants: [],
+    };
+
+    it('returns OWNER role when bypass code used with listed phone in development', async () => {
+      // In the outer beforeEach, mockConfigService already returns NODE_ENV='development',
+      // DEV_BYPASS_PHONES='+77074408018', DEV_BYPASS_CODE='111111'
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `otp:${bypassPhone}`) return bypassCode;
+        if (key === `otp_attempts:${bypassPhone}`) return null;
+        return null;
+      });
+      mockPrisma.user.findUnique.mockResolvedValue(mockOwnerUser as any);
+
+      const result = await service.verifyOtp(bypassPhone, bypassCode);
+
+      // Role in the returned UserDto must be OWNER regardless of what DB has
+      expect(result.user.role).toBe('OWNER');
+    });
+
+    it('does NOT engage bypass in production even for listed phone', async () => {
+      // Override config to return 'production' for NODE_ENV
+      mockConfigService.get.mockImplementation((key: string) => {
+        const config: Record<string, string | undefined> = {
+          JWT_SECRET: 'test-secret-key',
+          REDIS_URL: 'redis://localhost:6380',
+          POSTGRES_URL: 'postgresql://root:root@127.0.0.1:5434/dashboard',
+          MOBIZON_API_KEY: '',
+          MOBIZON_API_DOMAIN: 'api.mobizon.kz',
+          DEV_BYPASS_PHONES: '+77074408018',
+          DEV_BYPASS_CODE: '111111',
+          NODE_ENV: 'production', // production — bypass must NOT engage
+        };
+        return config[key];
+      });
+
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `otp:${bypassPhone}`) return bypassCode;
+        if (key === `otp_attempts:${bypassPhone}`) return null;
+        return null;
+      });
+      // In production, bypass is inactive — user is fetched from DB with OPERATIONS_DIRECTOR
+      mockPrisma.user.findUnique.mockResolvedValue(mockOwnerUser as any);
+
+      const result = await service.verifyOtp(bypassPhone, bypassCode);
+
+      // Role comes from DB (OPERATIONS_DIRECTOR) — bypass did NOT override
+      expect(result.user.role).toBe('OPERATIONS_DIRECTOR');
+    });
+
+    it('does NOT engage bypass for phone NOT in DEV_BYPASS_PHONES', async () => {
+      const unknownPhone = '+77999999999';
+
+      mockRedis.get.mockImplementation((key: string) => {
+        if (key === `otp:${unknownPhone}`) return bypassCode;
+        if (key === `otp_attempts:${unknownPhone}`) return null;
+        return null;
+      });
+      const nonBypassUser = { ...mockOwnerUser, phone: unknownPhone, role: 'OPERATIONS_DIRECTOR' };
+      mockPrisma.user.findUnique.mockResolvedValue(nonBypassUser as any);
+
+      const result = await service.verifyOtp(unknownPhone, bypassCode);
+
+      // Role should NOT be overridden — phone not in bypass list
+      expect(result.user.role).toBe('OPERATIONS_DIRECTOR');
     });
   });
 });

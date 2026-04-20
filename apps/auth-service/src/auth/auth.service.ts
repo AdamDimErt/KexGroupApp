@@ -35,7 +35,12 @@ export class AuthService {
   }
 
   private get devOtpBypassCode(): string {
-    return this.config.get<string>('DEV_OTP_BYPASS_CODE') ?? '111111';
+    return this.config.get<string>('DEV_BYPASS_CODE') ?? '111111';
+  }
+
+  private isDevBypassActive(phone: string, code: string): boolean {
+    const isNonProd = this.config.get<string>('NODE_ENV') !== 'production';
+    return isNonProd && this.bypassPhones.includes(phone) && code === this.devOtpBypassCode;
   }
 
   constructor(
@@ -148,7 +153,18 @@ export class AuthService {
     await this.redis.del(`otp:${phone}`);
     await this.redis.del(attemptsKey);
 
-    const user = await this.findOrCreateUser(phone);
+    let user = await this.findOrCreateUser(phone);
+
+    // BUG-11-7: dev bypass must return OWNER role so all OWNER-gated UI
+    // (Dashboard KPIs, DDS section) is visible during development walkthroughs.
+    // Safety-net override: only applies in non-production when bypass is active.
+    if (this.isDevBypassActive(phone, code)) {
+      this.logger.warn(
+        `[DEV BYPASS] Overriding role ${user.role} → OWNER for ${phone}`,
+      );
+      user = { ...user, role: 'OWNER' as typeof user.role };
+    }
+
     void this.writeAuditLog(user.id, 'LOGIN', ip, userAgent);
     return this.issueTokens(user);
   }
