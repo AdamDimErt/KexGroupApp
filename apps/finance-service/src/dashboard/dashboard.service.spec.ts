@@ -18,6 +18,7 @@ describe('DashboardService', () => {
     restaurant: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      groupBy: jest.fn(),
     },
     financialSnapshot: {
       findMany: jest.fn(),
@@ -432,7 +433,8 @@ describe('DashboardService', () => {
       const syncDate = new Date('2026-04-07T10:00:00Z');
 
       mockPrismaService.restaurant.findMany.mockResolvedValue([]);
-      mockPrismaService.brand.findMany.mockResolvedValue([{ id: 'brand-1', name: 'BNA', slug: 'bna', _count: { restaurants: 0 } }]);
+      mockPrismaService.restaurant.groupBy.mockResolvedValue([]);
+      mockPrismaService.brand.findMany.mockResolvedValue([{ id: 'brand-1', name: 'BNA', slug: 'bna', type: 'RESTAURANT' }]);
       // getDashboardSummary uses $queryRaw for revenueByRestaurant
       mockPrismaService.$queryRaw.mockResolvedValue([]);
       mockPrismaService.syncLog.aggregate.mockResolvedValue({
@@ -455,6 +457,7 @@ describe('DashboardService', () => {
       const tenantId = 'tenant-1';
 
       mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.restaurant.groupBy.mockResolvedValue([]);
       mockPrismaService.brand.findMany.mockResolvedValue([]);
       // getDashboardSummary uses $queryRaw for revenueByRestaurant
       mockPrismaService.$queryRaw.mockResolvedValue([]);
@@ -466,6 +469,84 @@ describe('DashboardService', () => {
 
       expect(result.lastSyncAt).toBeNull();
       expect(result.lastSyncStatus).toBeNull();
+    });
+  });
+
+  describe('getDashboardSummary - BUG-11-3 brand type filter', () => {
+    it('should query brands with type RESTAURANT filter to exclude kitchen brands', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.brand.findMany.mockResolvedValue([]);
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.restaurant.groupBy.mockResolvedValue([]);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
+      mockPrismaService.syncLog.aggregate.mockResolvedValue({ _max: { createdAt: null } });
+
+      await service.getDashboardSummary(tenantId, 'today', '2026-04-07', '2026-04-07');
+
+      expect(mockPrismaService.brand.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ type: 'RESTAURANT' }),
+        }),
+      );
+    });
+
+    it('should query restaurants with brand type RESTAURANT filter', async () => {
+      const tenantId = 'tenant-1';
+
+      mockPrismaService.brand.findMany.mockResolvedValue([]);
+      mockPrismaService.restaurant.findMany.mockResolvedValue([]);
+      mockPrismaService.restaurant.groupBy.mockResolvedValue([]);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
+      mockPrismaService.syncLog.aggregate.mockResolvedValue({ _max: { createdAt: null } });
+
+      await service.getDashboardSummary(tenantId, 'today', '2026-04-07', '2026-04-07');
+
+      expect(mockPrismaService.restaurant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            brand: expect.objectContaining({ type: 'RESTAURANT' }),
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('getDashboardSummary - BUG-11-5 restaurantCount', () => {
+    it('should use groupBy for restaurantCount instead of _count include', async () => {
+      const tenantId = 'tenant-1';
+      const brandId = 'brand-bna';
+
+      mockPrismaService.brand.findMany.mockResolvedValue([
+        { id: brandId, name: 'BNA', slug: 'bna', type: 'RESTAURANT', sortOrder: 1 },
+      ]);
+      mockPrismaService.restaurant.findMany.mockResolvedValue([
+        { id: 'r-1', brandId },
+        { id: 'r-2', brandId },
+        { id: 'r-3', brandId },
+      ]);
+      // groupBy returns 3 active restaurants for brand-bna
+      mockPrismaService.restaurant.groupBy.mockResolvedValue([
+        { brandId, _count: { id: 3 } },
+      ]);
+      mockPrismaService.$queryRaw.mockResolvedValue([
+        { restaurantId: 'r-1', sum_revenue: 100000, sum_directExpenses: 30000 },
+        { restaurantId: 'r-2', sum_revenue: 200000, sum_directExpenses: 60000 },
+        { restaurantId: 'r-3', sum_revenue: 150000, sum_directExpenses: 45000 },
+      ]);
+      mockPrismaService.syncLog.aggregate.mockResolvedValue({ _max: { createdAt: null } });
+
+      const result = await service.getDashboardSummary(tenantId, 'today', '2026-04-07', '2026-04-07');
+
+      expect(result.brands).toHaveLength(1);
+      expect(result.brands[0].restaurantCount).toBe(3);
+      expect(mockPrismaService.restaurant.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          by: ['brandId'],
+          where: expect.objectContaining({ brandId: { in: [brandId] } }),
+          _count: { id: true },
+        }),
+      );
     });
   });
 

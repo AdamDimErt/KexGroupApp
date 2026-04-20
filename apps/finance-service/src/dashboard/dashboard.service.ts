@@ -195,27 +195,41 @@ export class DashboardService {
     const startDate = this.parseStartDate(dateFrom);
     const endDate = this.parseEndDate(dateTo);
 
-    // Get all brands for this tenant (through companies)
+    // Get consumer brands only (BUG-11-3: exclude KITCHEN/MARKETPLACE brand tiles)
     const brands = await this.prisma.brand.findMany({
       where: {
         company: { tenantId },
         isActive: true,
-      },
-      include: {
-        _count: { select: { restaurants: true } },
+        type: 'RESTAURANT',
       },
       orderBy: { sortOrder: 'asc' },
     });
 
     // Get all restaurant IDs for this tenant (optionally filtered for OPS_DIRECTOR)
+    // BUG-11-3: restrict to brands of type RESTAURANT to exclude kitchen brands
     const allRestaurants = await this.prisma.restaurant.findMany({
       where: {
-        brand: { company: { tenantId } },
+        brand: { company: { tenantId }, type: 'RESTAURANT' },
         isActive: true,
         ...(restaurantFilter ? { id: { in: restaurantFilter } } : {}),
       },
       select: { id: true, brandId: true },
     });
+
+    // BUG-11-5: count active RESTAURANT-type restaurants per brand explicitly
+    // (Prisma _count in include has no where filter — Pitfall 3)
+    const brandIds = brands.map((b) => b.id);
+    const restaurantCountRows = await this.prisma.restaurant.groupBy({
+      by: ['brandId'],
+      where: {
+        brandId: { in: brandIds },
+        isActive: true,
+      },
+      _count: { id: true },
+    });
+    const countMap = new Map(
+      restaurantCountRows.map((row) => [row.brandId, row._count.id]),
+    );
 
     const allRestaurantIds = allRestaurants.map((r) => r.id);
 
@@ -277,7 +291,7 @@ export class DashboardService {
         expenses: brandExpenses,
         financialResult: brandRevenue - brandExpenses,
         changePercent: 0, // TODO: compare with previous period
-        restaurantCount: brand._count.restaurants,
+        restaurantCount: countMap.get(brand.id) ?? 0,
       };
     });
 
