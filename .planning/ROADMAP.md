@@ -601,7 +601,7 @@ Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
 - `periodLabel` в useRestaurantList = сегодняшняя дата (period не в list context)
 
 ### Phase 11: Post-walkthrough bug-fix pack (INSERTED)
-**Статус: 🔄 In Progress — Wave 1 complete**
+**Статус: ✅ Complete — 2026-04-20 (all 8 bugs closed, gap-closure plan 11-05 resolved 7000% margin)**
 
 **Goal:** Починить 8 багов, найденных live-walkthrough'ом Dashboard на эмуляторе 2026-04-20. Блокеры демо — неверная маржа (7000%), неправильные бейджы брендов, Kitchen в списке ресторанов.
 
@@ -611,25 +611,26 @@ Commits: `0f7101e` (Waves 1-3+5) · `49286fb` (Wave 4)
 
 **Requirements:** [BUG-11-1, BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-5, BUG-11-6, BUG-11-7, BUG-11-8]
 
-**Plans:** 6/7 plans complete (gap-closure plan 11-05 pending)
+**Plans:** 7/7 plans complete
 
 Plans:
 - [x] 11-00-wave0-prereqs-PLAN.md — Wave 0: install date-fns-tz + brand.test.ts stubs + Brand.type migration SQL + .env.example ONEC_ docs + onec spec skeleton [BUG-11-2, BUG-11-3, BUG-11-4, BUG-11-6, BUG-11-8] — DONE 2026-04-20
 - [x] 11-01-backend-finance-PLAN.md — Wave 1: BUG-11-3 (type filter) + BUG-11-5 (groupBy restaurantCount) FIXED; BUG-11-1 SQL REJECTED (tenge not kopecks) — DONE 2026-04-20
-- [ ] 11-02-mobile-utils-PLAN.md — Wave 2a: mobile utils — BRAND_MAP + 6-code BrandCode + computePlanDelta + formatPlanLabel + formatSyncTime + 4 new brand colors + DashboardScreen TZ render [BUG-11-2, BUG-11-4, BUG-11-6]
-- [ ] 11-03-mobile-screens-PLAN.md — Wave 2b: ReportsScreen DDS section restore for OWNER/FIN_DIR + dev OTP bypass returns OWNER role [BUG-11-7]
-- [ ] 11-04-worker-onec-PLAN.md — Wave 3: 1C sync per-record try/catch + iiko Brand.type upsert (autonomous: false — requires .env credential check) [BUG-11-3, BUG-11-8]
-- [ ] 11-05-bug-11-1-margin-root-cause-PLAN.md — Gap-closure: empirical root-cause investigation for 7000% margin (SQL verify rejected kopeck hypothesis; API-sample + triage + ONE targeted fix + regression test + emulator verify) [BUG-11-1]
+- [x] 11-02-mobile-utils-PLAN.md — Wave 2a: BRAND_MAP + 6-code BrandCode + computePlanDelta + formatPlanLabel + formatSyncTime + 4 new brand colors + DashboardScreen TZ render [BUG-11-2, BUG-11-4, BUG-11-6] — DONE 2026-04-20
+- [x] 11-03-mobile-screens-PLAN.md — Wave 2b: ReportsScreen DDS section restore for OWNER/FIN_DIR [BUG-11-7 mobile half] — DONE 2026-04-20
+- [x] 11-03b-auth-dev-bypass-PLAN.md — Wave 2c: dev OTP bypass returns OWNER role via in-memory override [BUG-11-7 auth half] — DONE 2026-04-20
+- [x] 11-04-worker-onec-PLAN.md — Wave 3: 1C sync per-record try/catch + iiko Brand.type upsert [BUG-11-3 worker, BUG-11-8] — DONE 2026-04-20
+- [x] 11-05-bug-11-1-margin-root-cause-PLAN.md — Gap-closure: H3_CONFIRMED render-layer unit contract mismatch in formatMargin+formatDelta; moved to utils/brand.ts with correct contract; 16 regression tests [BUG-11-1] — DONE 2026-04-20
 
 **Scope:**
-- [x] **BUG-11-1 CRITICAL** — SQL verify REJECTED: directExpenses stored in tenge (ratios 22-49%); EXPENSE_UNIT_DIVISOR not needed; 7000% margin root cause TBD
-- [ ] **BUG-11-2 CRITICAL** — `resolveBrand` знает только BNA/DNA, 4 из 6 брендов (JD, SB, KEX, KITCHEN) получают неправильный badge. Нужна BRAND_MAP таблица + расширение `BrandCode` type
-- [x] **BUG-11-3 CRITICAL** — Fixed: Brand.type=RESTAURANT filter in getDashboardSummary; Цех (KITCHEN) no longer appears as dashboard tile; Wave 0 migration applied to live DB
-- [ ] **BUG-11-4 HIGH** — "Выше плана · 0.0%" у всех брендов даже когда actual ниже plan. `computePlanAttainment` возвращает процент выполнения, UI ожидает delta. Разделить на `computePlanDelta` + `formatPlanLabel` (above/below/onplan)
-- [x] **BUG-11-5 HIGH** — Fixed: restaurant.groupBy replaces unfiltered _count include; restaurantCount now counts only active RESTAURANT-type restaurants per brand
-- [ ] **BUG-11-6 HIGH** — "Синхронизация: 13:30" при устройстве 12:31. UTC → Asia/Almaty timezone fix на mobile render + finance DTO. Vector-fix паттерна bug_012
-- [ ] **BUG-11-7 HIGH** — ReportsScreen не показывает DDS-секцию для OWNER (видны 3/4 секции). Либо секция удалена, либо dev bypass OTP даёт не OWNER роль
-- [ ] **BUG-11-8 HIGH** — 1C sync лежит (Company Expenses "Нет данных", Kitchen Закупки/Отгрузки/Доход все ₸0). Проверить credentials в .env, SchedulerService.syncOneCExpenses, ручной trigger
+- [x] **BUG-11-1 CRITICAL** — Root cause: render-layer unit contract mismatch. formatMargin+formatDelta in RestaurantCard.tsx applied *100 to values already in percentage units (computeMarginPct returns 0-100, computePlanDelta returns signed percentage). Fix: moved both formatters to utils/brand.ts with correct contract. Emulator verified: BNA=70, DNA=68, JD=70, SB=68, KEX=65; delta chip -4.8% (was -476.2%). Plan 11-05.
+- [x] **BUG-11-2 CRITICAL** — Fixed: BRAND_MAP with 6 codes (BNA/DNA/JD/SB/KEX/KITCHEN) + keyword fallback; 4 new brand color tokens. Plan 11-02.
+- [x] **BUG-11-3 CRITICAL** — Fixed: Brand.type=RESTAURANT filter in getDashboardSummary; Цех no longer appears as dashboard tile; worker populates Brand.type on upsert. Plans 11-01 (backend) + 11-04 (worker).
+- [x] **BUG-11-4 HIGH** — Fixed: computePlanDelta + formatPlanLabel split (above/below/onplan with semantic color). Plan 11-02.
+- [x] **BUG-11-5 HIGH** — Fixed: restaurant.groupBy replaces unfiltered _count include; restaurantCount now counts only active RESTAURANT-type restaurants. Plan 11-01.
+- [x] **BUG-11-6 HIGH** — Fixed: formatSyncTime uses toZonedTime(Asia/Almaty) via date-fns-tz; TZ-safe render independent of process.env.TZ. Plan 11-02.
+- [x] **BUG-11-7 HIGH** — Fixed in two halves: ReportsScreen DDS section restored for OWNER/FIN_DIRECTOR (Plan 11-03); dev OTP bypass returns OWNER role via in-memory override (Plan 11-03b).
+- [x] **BUG-11-8 HIGH** — Fixed: per-record try/catch added to 4 OneCyncService sync methods; one bad OData row no longer aborts whole sync. Plan 11-04. (Note: 1C credentials still missing from .env — integration dormant until operator provisions.)
 
 **Out of scope (отложено):**
 - Delta chip "0.0%" period-over-period comparison — MEDIUM, отдельный todo

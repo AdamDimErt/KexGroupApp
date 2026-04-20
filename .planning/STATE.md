@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: unknown
-last_updated: "2026-04-20T07:38:00.000Z"
+last_updated: "2026-04-20T08:05:00.000Z"
 progress:
   total_phases: 13
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 30
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # Project State
@@ -71,6 +71,7 @@ progress:
 - **11-01** (2026-04-20): HARD GATE SQL verify REJECTED (kopeck hypothesis false, ratios 22-49%). BUG-11-3 fixed: type:'RESTAURANT' filter on brand+restaurant queries removes Цех tile. BUG-11-5 fixed: restaurant.groupBy replaces unfiltered _count include. Wave 0 migration applied to live DB. 53+3 tests pass. Commits: f91ec68 4a02b54
 - **11-02** (2026-04-20): BUG-11-2/4/6 fixed in mobile-dashboard. BRAND_MAP with 6 codes + keyword fallback; 4 new brand color tokens (jd/sb/kex/kitchen); computePlanDelta + formatPlanLabel wired into useDashboard; RestaurantCard colors plan label by status; formatSyncTime (Asia/Almaty) replaces toLocaleTimeString. 22/22 brand.test.ts pass. Commits: fa7048e 69ee601 a2c53c0 61314f7
 - **11-04** (2026-04-20): BUG-11-8 fixed: per-record try/catch added to all 4 OneCyncService sync methods (syncExpenses, syncKitchenPurchases, syncKitchenIncome, syncKitchenShipmentsByRestaurant) — one bad OData record no longer aborts whole sync; warn+Sentry.withScope(captureMessage('warning')) per skip. BUG-11-3 worker half: determineBrandType(/цех|kitchen|fabrika/i) added to IikoSyncService; Brand.type populated in brand.upsert both update+create. 78/78 tests pass, tsc clean. Commits: fc850fd a30b77d
+- **11-05** (2026-04-20): BUG-11-1 CLOSED (gap-closure). Root cause: render-layer unit contract mismatch — formatMargin+formatDelta in RestaurantCard.tsx applied *100 to values already in percentage units. Live API sample captured (fr/rev=0.65-0.71 in tenge — API was correct). Triage DECISION: H3_CONFIRMED. Fix: moved both formatters to utils/brand.ts with correct unit contract. 16 regression tests added (38 total in brand.test.ts, 46 total mobile). Emulator verified: BNA=70, DNA=68, JD=70, SB=68, KEX=65; delta chip -4.8% (was -476.2%). Phase 11 now 7/7 complete. Commits: 261d38a f37b6a9 97cab93 2a15b2c
 
 ## Key Decisions
 
@@ -155,6 +156,10 @@ progress:
 - **[11-02]** planLabel object (text + status) computed in hook, passed as prop — RestaurantCard stays pure (no color re-derivation inside component)
 - **[11-03b]** BUG-11-7 auth half: Scenario B — user fetched from DB; role overridden inline to OWNER before issueTokens() when isDevBypassActive(); no DB write or migration; production path unchanged
 - **[11-03b]** Env var aligned: service reads DEV_BYPASS_CODE (matches .env.example), not DEV_OTP_BYPASS_CODE
+- **[11-05]** BUG-11-1 root cause: H3_CONFIRMED — render-layer unit contract mismatch. API data was always correct (fr/rev=0.65-0.71 in tenge). The bug lived in local RestaurantCard formatters applying *100 to values already in percentage units (computeMarginPct returns 0-100, computePlanDelta returns signed percentage, NOT 0-1 ratios)
+- **[11-05]** Fix strategy: move formatMargin+formatDelta from RestaurantCard.tsx local functions to utils/brand.ts exports with explicit unit-contract comment — single source of truth prevents future re-introduction of the bug
+- **[11-05]** Regression test pattern: capture BUG SIGNATURE (e.g., inflated-input produces 7048%) alongside fixed-behavior assertions — lets future reviewers trace ~7000% to "input inflation" vs "formula bug" in one grep
+- **[11-05]** Deferred: KPICard.tsx has same buggy formatDelta but is not mounted on Dashboard (DashboardScreen uses inline KPI blocks). Per plan's max-2-file guardrail, left as latent bug for follow-up cleanup
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
