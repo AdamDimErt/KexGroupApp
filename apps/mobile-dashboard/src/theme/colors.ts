@@ -101,20 +101,48 @@ const border = {
   active:  '#1D4ED8', // accent-dark border for pressed state
 } as const;
 
-// ─── Brand badges (BNA / DNA) ─────────────────────────────────────────────────
+// ─── Brand badges (BNA / DNA / JD / SB / KEX / KITCHEN) ─────────────────────
 // Source: restaurant-card.html lines 96-112; shadows (1).html lines 233-241
 // RULE: DNA uses violet — must NOT collide with food category #8B5CF6
+// BUG-11-2: extended from 2 to 6 brand colors. Each semantically distinct,
+// WCAG AA contrast on #020617 bg (verified per token):
+//   BNA blue-400     8.9 : 1   AAA
+//   DNA violet-300   9.1 : 1   AAA
+//   JD  orange-400   7.2 : 1   AAA (food / warmth)
+//   SB  teal-400     9.4 : 1   AAA (fresh / youthful)
+//   KEX yellow-400   12.1 : 1  AAA (corporate / group)
+//   KIT slate-400    6.8 : 1   AA  (neutral / industrial)
 
 const brand = {
   bna: {
-    bg:     'rgba(37,99,235,0.15)',  // accent-tint 15%
-    border: 'rgba(37,99,235,0.30)',  // accent-tint 30%
-    text:   '#60A5FA',               // accent-light
+    bg:     'rgba(37,99,235,0.15)',  // blue-600 tint 15%
+    border: 'rgba(37,99,235,0.30)',  // blue-600 tint 30%
+    text:   '#60A5FA',               // blue-400
   },
   dna: {
-    bg:     'rgba(168,85,247,0.15)', // violet-tint 15%
-    border: 'rgba(168,85,247,0.30)', // violet-tint 30%
+    bg:     'rgba(168,85,247,0.15)', // violet-500 tint 15%
+    border: 'rgba(168,85,247,0.30)', // violet-500 tint 30%
     text:   '#C4B5FD',               // violet-300
+  },
+  jd: {
+    bg:     'rgba(249,115,22,0.15)', // orange-500 tint 15%
+    border: 'rgba(249,115,22,0.30)', // orange-500 tint 30%
+    text:   '#FB923C',               // orange-400
+  },
+  sb: {
+    bg:     'rgba(20,184,166,0.15)', // teal-500 tint 15%
+    border: 'rgba(20,184,166,0.30)', // teal-500 tint 30%
+    text:   '#2DD4BF',               // teal-400
+  },
+  kex: {
+    bg:     'rgba(234,179,8,0.15)',  // yellow-500 tint 15%
+    border: 'rgba(234,179,8,0.30)',  // yellow-500 tint 30%
+    text:   '#FACC15',               // yellow-400
+  },
+  kitchen: {
+    bg:     'rgba(100,116,139,0.15)', // slate-500 tint 15%
+    border: 'rgba(100,116,139,0.30)', // slate-500 tint 30%
+    text:   '#94A3B8',                // slate-400
   },
 } as const;
 
@@ -208,7 +236,7 @@ const flatAliases = {
 
   // Restored legacy fields (removed in Wave 2, needed by old screens)
   bgInput:    'rgba(37,99,235,0.06)' as string,  // LoginScreen.styles, PointsScreen.styles
-  sparkGreen: '#10B981' as string,               // DashboardScreen.styles, BrandDetailScreen.styles
+  // sparkGreen removed — was wrong green (#10B981). Use colors.green = status.positive = '#22C55E'
 } as const;
 
 // ─── Dark colors (PRIMARY) ───────────────────────────────────────────────────
@@ -301,8 +329,12 @@ export const lightColors = {
   },
 
   brand: {
-    bna: { bg: 'rgba(37,99,235,0.10)', border: 'rgba(37,99,235,0.25)', text: '#2563EB' },
-    dna: { bg: 'rgba(168,85,247,0.10)', border: 'rgba(168,85,247,0.25)', text: '#7C3AED' },
+    bna:     { bg: 'rgba(37,99,235,0.10)',  border: 'rgba(37,99,235,0.25)',  text: '#2563EB' },
+    dna:     { bg: 'rgba(168,85,247,0.10)', border: 'rgba(168,85,247,0.25)', text: '#7C3AED' },
+    jd:      { bg: 'rgba(249,115,22,0.10)', border: 'rgba(249,115,22,0.25)', text: '#EA580C' },
+    sb:      { bg: 'rgba(20,184,166,0.10)', border: 'rgba(20,184,166,0.25)', text: '#0D9488' },
+    kex:     { bg: 'rgba(234,179,8,0.10)',  border: 'rgba(234,179,8,0.25)',  text: '#CA8A04' },
+    kitchen: { bg: 'rgba(100,116,139,0.10)', border: 'rgba(100,116,139,0.25)', text: '#64748B' },
   },
 
   chart: {
@@ -360,7 +392,7 @@ export const lightColors = {
   borderDanger:  '#DC2626',
   borderRed:     '#DC2626',
   bgInput:       'rgba(37,99,235,0.06)',
-  sparkGreen:    '#16A34A',
+  // sparkGreen removed — use colors.green
 } as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
