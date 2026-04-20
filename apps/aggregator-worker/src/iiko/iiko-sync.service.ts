@@ -178,11 +178,14 @@ export class IikoSyncService {
 
       // Process brands
       for (const brand of brands) {
+        // BUG-11-3 (worker half): set type so finance-service RESTAURANT filter works correctly
+        const brandType = this.determineBrandType(brand.name);
         await this.prisma.brand.upsert({
           where: { iikoGroupId: brand.id },
           update: {
             name: brand.name,
             isActive: true,
+            type: brandType,
           },
           create: {
             iikoGroupId: brand.id,
@@ -190,6 +193,7 @@ export class IikoSyncService {
             slug: this.slugify(brand.name),
             companyId: (await this.getOrCreateCompany(tenantId, brand.name)).id,
             isActive: true,
+            type: brandType,
           },
         });
       }
@@ -1414,6 +1418,18 @@ export class IikoSyncService {
         name,
       },
     });
+  }
+
+  /**
+   * BUG-11-3 (worker half): Determine Brand.type from the brand name.
+   * Matches kitchen/production brands so they are excluded from restaurant-level
+   * dashboard aggregation.
+   */
+  private determineBrandType(
+    name: string,
+  ): 'RESTAURANT' | 'KITCHEN' | 'MARKETPLACE' {
+    if (/цех|kitchen|fabrika/i.test(name)) return 'KITCHEN';
+    return 'RESTAURANT';
   }
 
   private slugify(text: string): string {

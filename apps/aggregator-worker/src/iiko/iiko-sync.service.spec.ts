@@ -589,4 +589,79 @@ describe('IikoSyncService', () => {
       // logSync completed without propagating the dead letter error
     });
   });
+
+  describe('BUG-11-3 · determineBrandType + brand.upsert type field', () => {
+    it('returns RESTAURANT for regular brand names', () => {
+      expect((service as any).determineBrandType('BNA Samal')).toBe('RESTAURANT');
+      expect((service as any).determineBrandType('Doner na Abaya')).toBe('RESTAURANT');
+      expect((service as any).determineBrandType('KEX Coffee')).toBe('RESTAURANT');
+    });
+
+    it('returns KITCHEN for names matching цех|kitchen|fabrika (case-insensitive)', () => {
+      expect((service as any).determineBrandType('Цех')).toBe('KITCHEN');
+      expect((service as any).determineBrandType('цех производства')).toBe('KITCHEN');
+      expect((service as any).determineBrandType('Kitchen')).toBe('KITCHEN');
+      expect((service as any).determineBrandType('Main Kitchen Almaty')).toBe('KITCHEN');
+      expect((service as any).determineBrandType('Fabrika')).toBe('KITCHEN');
+      expect((service as any).determineBrandType('Central Fabrika')).toBe('KITCHEN');
+    });
+
+    it('includes type:RESTAURANT in brand.upsert create/update for normal brand', async () => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+
+      // Mock XML parser to return one ORGDEVELOPMENT brand
+      jest.spyOn((service as any).xmlParser, 'parse').mockReturnValue({
+        corporateItemDtoes: {
+          corporateItemDto: [
+            { id: 'brand-uuid-1', name: 'BNA Samal', type: 'ORGDEVELOPMENT' },
+          ],
+        },
+      });
+
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      (prisma.brand.upsert as jest.Mock).mockResolvedValue({ id: 'brand-uuid-1' });
+      (prisma.company.upsert as jest.Mock).mockResolvedValue({ id: 'company-1' });
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncOrganizations();
+
+      expect(prisma.brand.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { iikoGroupId: 'brand-uuid-1' },
+          update: expect.objectContaining({ type: 'RESTAURANT' }),
+          create: expect.objectContaining({ type: 'RESTAURANT' }),
+        }),
+      );
+    });
+
+    it('includes type:KITCHEN in brand.upsert create/update for kitchen brand', async () => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+
+      // Mock XML parser to return one ORGDEVELOPMENT brand named Цех
+      jest.spyOn((service as any).xmlParser, 'parse').mockReturnValue({
+        corporateItemDtoes: {
+          corporateItemDto: [
+            { id: 'brand-kitchen-1', name: 'Цех', type: 'ORGDEVELOPMENT' },
+          ],
+        },
+      });
+
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      (prisma.brand.upsert as jest.Mock).mockResolvedValue({ id: 'brand-kitchen-1' });
+      (prisma.company.upsert as jest.Mock).mockResolvedValue({ id: 'company-1' });
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncOrganizations();
+
+      expect(prisma.brand.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { iikoGroupId: 'brand-kitchen-1' },
+          update: expect.objectContaining({ type: 'KITCHEN' }),
+          create: expect.objectContaining({ type: 'KITCHEN' }),
+        }),
+      );
+    });
+  });
 });
