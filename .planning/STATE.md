@@ -3,28 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-04-20T02:01:14.000Z"
-stopped_at: "Completed 11-bug-fix-pack-post-walkthrough/11-01-backend-finance-PLAN.md"
+last_updated: "2026-04-20T02:16:16.000Z"
+stopped_at: "Completed 11-bug-fix-pack-post-walkthrough/11-02-mobile-utils-PLAN.md"
 progress:
   total_phases: 13
   completed_phases: 8
-  total_plans: 30
-  completed_plans: 30
-  percent: 97
-  bar: "[██████████] 97%"
----
-
----
-gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: milestone
-status: unknown
-last_updated: "2026-04-08T19:21:39.253Z"
-progress:
-  [█████████░] 91%
-  completed_phases: 6
-  total_plans: 22
-  completed_plans: 19
+  total_plans: 31
+  completed_plans: 31
+  percent: 100
+  bar: "[██████████] 100%"
 ---
 
 # Project State
@@ -85,6 +72,7 @@ progress:
 - **08.1-01** (2026-04-08): syncDdsArticles (POST /v2/entities/list with GET fallback), syncDdsTransactions (/v2/cashshifts/list per restaurant, dds:{shiftId}:{movId} syncId deduplication), resolveGroupCode (12 DDS group codes). POST /sync/dds endpoint. syncAll + syncBackfill include DDS. 54 tests passing, tsc clean. Commits: 572d80c, fa33d42
 - **11-00** (2026-04-20): Wave 0 prereqs — date-fns@^3 + date-fns-tz@^3 installed in mobile-dashboard, brand.test.ts RED stubs (BUG-11-2/4/6), BrandType Prisma migration SQL, ONEC env var docs, onec-sync.service.spec.ts scaffold. 5 tasks, 5 commits: a3aa523 177b268 95d1124 956c453 9acae77
 - **11-01** (2026-04-20): HARD GATE SQL verify REJECTED (kopeck hypothesis false, ratios 22-49%). BUG-11-3 fixed: type:'RESTAURANT' filter on brand+restaurant queries removes Цех tile. BUG-11-5 fixed: restaurant.groupBy replaces unfiltered _count include. Wave 0 migration applied to live DB. 53+3 tests pass. Commits: f91ec68 4a02b54
+- **11-02** (2026-04-20): BUG-11-2/4/6 fixed in mobile-dashboard. BRAND_MAP with 6 codes + keyword fallback; 4 new brand color tokens (jd/sb/kex/kitchen); computePlanDelta + formatPlanLabel wired into useDashboard; RestaurantCard colors plan label by status; formatSyncTime (Asia/Almaty) replaces toLocaleTimeString. 22/22 brand.test.ts pass. Commits: fa7048e 69ee601 a2c53c0 61314f7
 
 ## Key Decisions
 
@@ -159,6 +147,10 @@ progress:
 - **[11-01]** BUG-11-1 kopeck hypothesis REJECTED — directExpenses/revenue ratios 22-49% confirm tenge storage; EXPENSE_UNIT_DIVISOR not added
 - **[11-01]** BUG-11-3 fix: type:'RESTAURANT' filter on brand.findMany + restaurant.findMany.brand removes KITCHEN tiles from dashboard
 - **[11-01]** BUG-11-5 fix: restaurant.groupBy replaces brand._count.restaurants — Prisma _count in include has no where filter (Pitfall 3)
+- **[11-02]** BRAND_MAP uses exact iiko display names as keys (including Cyrillic КексБрэндс + Latin KEX-BRANDS + Kexbrands) — iiko may return any variant
+- **[11-02]** computePlanDelta reuses computePlanAttainment — single source of truth for the plan ratio math
+- **[11-02]** Jest @sentry/react-native stub via moduleNameMapper in package.json — ESM parse error avoided without removing Sentry dependency
+- **[11-02]** planLabel object (text + status) computed in hook, passed as prop — RestaurantCard stays pure (no color re-derivation inside component)
 - 3 роли: OWNER, FIN_DIRECTOR, OPS_DIRECTOR (по ТЗ, не HOLDING/RESTAURANT_DIRECTOR)
 - Drill-down: 4 уровня Компания → Точка → Статья → Операция (по ТЗ)
 - Главный экран: Вариант Б (плитки по брендам, раскрытие → точки)
