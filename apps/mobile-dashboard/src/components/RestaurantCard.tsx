@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { ChevronRight, TrendingUp, TrendingDown, WifiOff, AlertCircle } from 'lucide-react-native';
 import { colors, restaurantStatusColors, deltaVariants } from '../theme';
+import { formatMargin, formatDelta } from '../utils/brand';
 import { styles } from './RestaurantCard.styles';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,7 +16,7 @@ export interface RestaurantCardProps {
   revenue: number | null;
   plannedRevenue: number;
   marginPct: number | null;
-  deltaPct: number | null;        // e.g. 0.10 = "+10%"
+  deltaPct: number | null;        // percentage units, e.g. -4.74 = "-4.7%"
   planAttainmentPct: number;      // 0..100
   planMarkPct: number;            // where ПЛАН marker sits (usually 100)
   periodLabel: string;            // "за 1–19 апр 2026"
@@ -25,7 +26,8 @@ export interface RestaurantCardProps {
   onPress?: () => void;
 }
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
+// ─── Local formatters (currency) ──────────────────────────────────────────────
+// formatMargin + formatDelta live in utils/brand.ts — unit-contract normalized per BUG-11-1 fix.
 
 function formatRevenue(v: number | null): string {
   if (v === null) return '—';
@@ -38,17 +40,6 @@ function formatPlanned(v: number): string {
   if (v >= 1_000_000) return `₸${(v / 1_000_000).toFixed(2)}М`;
   if (v >= 1_000) return `₸${(v / 1_000).toFixed(0)}К`;
   return `₸${v}`;
-}
-
-function formatDelta(v: number | null): string {
-  if (v === null) return '—';
-  const sign = v > 0 ? '+' : '';
-  return `${sign}${(v * 100).toFixed(1)}%`;
-}
-
-function formatMargin(v: number | null): string {
-  if (v === null) return '—';
-  return `${Math.round(v * 100)}%`;
 }
 
 // ─── Loading skeleton ─────────────────────────────────────────────────────────

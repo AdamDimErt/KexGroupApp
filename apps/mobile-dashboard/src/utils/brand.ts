@@ -89,6 +89,33 @@ export function computeMarginPct(
   return (financialResult / revenue) * 100;
 }
 
+// ─── BUG-11-1: render-layer formatters (moved from RestaurantCard.tsx) ────────
+// Unit contract: marginPct and deltaPct are ALREADY in percentage units (0-100),
+// produced by computeMarginPct (`× 100` inside) and computePlanDelta (`attainment - 100`).
+// Formatters MUST NOT multiply by 100 again — doing so produced the BUG-11-1 7000% margin bug.
+
+/**
+ * Format a margin value (already in percentage units 0-100) as "N%".
+ * Example: formatMargin(70.48) === "70%"
+ * Returns "—" for null.
+ */
+export function formatMargin(v: number | null): string {
+  if (v === null) return '—';
+  return `${Math.round(v)}%`;
+}
+
+/**
+ * Format a signed delta value (already in percentage units, e.g. -4.74 means -4.74%).
+ * Positive values get a "+" prefix, negatives keep their sign from toFixed.
+ * Example: formatDelta(-4.74) === "-4.7%", formatDelta(5.2) === "+5.2%"
+ * Returns "—" for null.
+ */
+export function formatDelta(v: number | null): string {
+  if (v === null) return '—';
+  const sign = v > 0 ? '+' : '';
+  return `${sign}${v.toFixed(1)}%`;
+}
+
 /**
  * Plan attainment percentage (0..150).
  * Returns 0 if plannedRevenue is 0 or invalid.
