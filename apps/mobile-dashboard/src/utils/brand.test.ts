@@ -55,22 +55,22 @@ describe('BUG-11-4: computePlanAttainment / computePlanDelta / formatPlanLabel',
     expect(delta).toBeGreaterThan(-5);
     expect(delta).toBeLessThan(-4);
   });
-  it('formatPlanLabel null → "Нет плана"', () => {
-    expect(formatPlanLabel(null).text).toBe('Нет плана');
+  it('formatPlanLabel null → "Нет данных"', () => {
+    expect(formatPlanLabel(null).text).toBe('Нет данных');
     expect(formatPlanLabel(null).status).toBe('onplan');
   });
-  it('formatPlanLabel -4.7 → "Ниже плана" with below status', () => {
+  it('formatPlanLabel -4.7 → "Ниже среднего" with below status', () => {
     const r = formatPlanLabel(-4.7);
     expect(r.status).toBe('below');
-    expect(r.text).toContain('Ниже плана');
+    expect(r.text).toContain('Ниже среднего');
   });
-  it('formatPlanLabel 0.3 → "По плану" (within ±0.5% threshold)', () => {
+  it('formatPlanLabel 0.3 → "На уровне" (within ±0.5% threshold)', () => {
     expect(formatPlanLabel(0.3).status).toBe('onplan');
   });
-  it('formatPlanLabel 5.2 → "Выше плана" with above status', () => {
+  it('formatPlanLabel 5.2 → "Выше среднего" with above status', () => {
     const r = formatPlanLabel(5.2);
     expect(r.status).toBe('above');
-    expect(r.text).toContain('Выше плана');
+    expect(r.text).toContain('Выше среднего');
   });
 });
 

@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile-dashboard",
-    "slug": "mobile-dashboard",
+    "name": "AliPush",
+    "slug": "alipush",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,13 +12,17 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "kz.kexgroup.alipush",
+      "buildNumber": "1",
       "minimumOsVersion": "15.1",
       "supportsTablet": true,
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Используется для быстрого входа в приложение"
+        "NSFaceIDUsageDescription": "Используется для быстрого входа в AliPush"
       }
     },
     "android": {
+      "package": "kz.kexgroup.alipush",
+      "versionCode": 1,
       "minSdkVersion": 26,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

@@ -8,7 +8,7 @@ export const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', color: colors.textPrimary },
 
   reportCard: {
-    backgroundColor: '#12122A',
+    backgroundColor: colors.bgCard,
     borderRadius: 16,
     marginHorizontal: 16,
     marginTop: 16,

@@ -1,5 +1,5 @@
 // ─── Навигация ────────────────────────────────────────────────────────────────
-export type Screen = 'login' | 'dashboard' | 'brand-details' | 'points' | 'point-details' | 'notifications' | 'reports' | 'article-detail' | 'operations' | 'profile';
+export type Screen = 'login' | 'dashboard' | 'brand-details' | 'legal-entity-details' | 'point-details' | 'notifications' | 'reports' | 'article-detail' | 'operations' | 'profile' | 'settings' | 'search' | 'revenue-detail';
 
 // ─── Пользователь ────────────────────────────────────────────────────────────
 export type UserRole = 'ADMIN' | 'OWNER' | 'FINANCE_DIRECTOR' | 'OPERATIONS_DIRECTOR';
@@ -51,6 +51,7 @@ export interface BrandIndicatorDto {
   financialResult: number;
   changePercent: number;
   restaurantCount: number;
+  plannedRevenue: number;        // План = выручка за такой же по длительности предыдущий период
 }
 
 export interface DashboardSummaryDto {
@@ -59,6 +60,7 @@ export interface DashboardSummaryDto {
   totalRevenue: number;
   totalExpenses: number;
   financialResult: number;
+  totalPlannedRevenue: number;   // Сумма plannedRevenue по всем брендам
   brands: BrandIndicatorDto[];
   lastSyncAt: string | null;
   lastSyncStatus: 'success' | 'error' | null;
@@ -76,9 +78,37 @@ export interface RestaurantIndicatorDto {
   status: 'green' | 'yellow' | 'red';
 }
 
+export interface LegalEntitySummaryDto {
+  id: string;
+  name: string;                    // "ТОО \"A Doner\""
+  taxpayerIdNumber: string | null; // ИНН/БИН
+  revenue: number;
+  expenses: number;
+  financialResult: number;
+  restaurantCount: number;
+}
+
 export interface BrandDetailDto {
   id: string;
   name: string;
+  period: PeriodDto;
+  totalRevenue: number;
+  totalExpenses: number;
+  restaurants: RestaurantIndicatorDto[];
+  /**
+   * Юр-лица (JURPERSON в iiko) под этим брендом.
+   * Бэкенд скрывает записи с restaurantCount === 0.
+   * UI: показывать как уровень drill-down только если length >= 2.
+   */
+  legalEntities: LegalEntitySummaryDto[];
+}
+
+export interface LegalEntityDetailDto {
+  id: string;
+  name: string;
+  taxpayerIdNumber: string | null;
+  brandId: string;
+  brandName: string;
   period: PeriodDto;
   totalRevenue: number;
   totalExpenses: number;
@@ -285,6 +315,40 @@ export interface RankingItem {
   name: string;
   revenue: string;
   planPct: number;
+}
+
+// ─── Company Revenue Aggregated ───────────────────────────────────────────────
+export interface PaymentBreakdownItemDto {
+  name: string;
+  iikoCode: string;
+  amount: number;
+  percent: number;
+}
+
+export interface DailyRevenueAggregatedPointDto {
+  date: string;
+  revenue: number;
+  transactions: number;
+}
+
+export interface TopRestaurantDto {
+  id: string;
+  name: string;
+  revenue: number;
+  share: number;
+}
+
+export interface CompanyRevenueAggregatedDto {
+  tenantId: string;
+  period: PeriodDto;
+  totalRevenue: number;
+  totalDirectExpenses: number;
+  totalDistributedExpenses: number;
+  totalExpenses: number;
+  financialResult: number;
+  paymentBreakdown: PaymentBreakdownItemDto[];
+  dailyRevenue: DailyRevenueAggregatedPointDto[];
+  topRestaurants: TopRestaurantDto[];
 }
 
 // ─── Графики ──────────────────────────────────────────────────────────────────

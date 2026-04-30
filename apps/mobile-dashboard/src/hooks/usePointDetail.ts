@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { Dimensions } from 'react-native';
 import { useRestaurantDetail } from './useApi';
 import { colors } from '../theme';
 import type { PaymentTypeAmountDto, ExpenseGroupDto, CashDiscrepancyDto, DailyRevenuePointDto, DistributedExpenseItemDto } from '../types';
@@ -7,7 +6,7 @@ import type { PaymentTypeAmountDto, ExpenseGroupDto, CashDiscrepancyDto, DailyRe
 const statusLabels: Record<'green' | 'yellow' | 'red', string> = {
   green: 'Норма',
   yellow: 'Внимание',
-  red: 'Ниже плана',
+  red: 'Ниже среднего',
 };
 
 export interface HourlyDataPoint {
@@ -38,8 +37,6 @@ export function usePointDetail(restaurantId: string | null) {
         hourlyData: [] as HourlyDataPoint[],
         planLine: 0,
         maxBar: 0,
-        chartW: Dimensions.get('window').width - 80,
-        barW: 0,
         expenseItems: [],
         expenseGroups: [] as ExpenseGroupDto[],
         directExpensesTotal: 0,
@@ -75,8 +72,8 @@ export function usePointDetail(restaurantId: string | null) {
       ? hourlyData.reduce((sum, d) => sum + d.value, 0) / hourlyData.length
       : 0;
 
-    const chartW = Dimensions.get('window').width - 80;
-    const barW = hourlyData.length > 0 ? (chartW / hourlyData.length) - 6 : 0;
+    // chartW/barW удалены: ширина графика считается в DailyRevenueChart внутри
+    // PointDetailScreen через useWindowDimensions (реакция на поворот / split-screen).
 
     // Transform expense groups to simple items
     const expenseItems = restaurantDetail.expenseGroups.map(group => ({
@@ -129,8 +126,6 @@ export function usePointDetail(restaurantId: string | null) {
       hourlyData,
       planLine,
       maxBar,
-      chartW,
-      barW,
       expenseItems,
       expenseGroups: restaurantDetail.expenseGroups,
       directExpensesTotal: restaurantDetail.directExpensesTotal,

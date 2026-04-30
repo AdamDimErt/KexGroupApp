@@ -137,6 +137,19 @@ export function useBrandDetail(brandId: string, options?: { enabled?: boolean })
   );
 }
 
+export function useLegalEntityDetail(legalEntityId: string, options?: { enabled?: boolean }) {
+  const period = useDashboardStore(s => s.period);
+  const customFrom = useDashboardStore(s => s.customFrom);
+  const customTo = useDashboardStore(s => s.customTo);
+  const { dateFrom, dateTo } = getPeriodDates(period, customFrom, customTo);
+  return useCachedQuery(
+    `legalEntity_${legalEntityId}_${period}_${dateFrom}_${dateTo}`,
+    () => dashboardApi.getLegalEntity(legalEntityId, period, dateFrom, dateTo),
+    [legalEntityId, period, customFrom, customTo],
+    options,
+  );
+}
+
 export function useRestaurantDetail(restaurantId: string) {
   const period = useDashboardStore(s => s.period);
   const customFrom = useDashboardStore(s => s.customFrom);

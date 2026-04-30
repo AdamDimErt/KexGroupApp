@@ -8,7 +8,13 @@ Sentry.init({
 });
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Alert, Animated, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Alert, Animated, PanResponder, LogBox } from 'react-native';
+
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications',
+  '`expo-notifications` functionality is not fully supported in Expo Go',
+  'SafeAreaView has been deprecated',
+]);
 import { useFonts } from 'expo-font';
 import {
   FiraSans_400Regular,
@@ -33,10 +39,12 @@ import {
 } from './src/services/biometric';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { BrandDetailScreen } from './src/screens/BrandDetailScreen';
-import { PointsScreen } from './src/screens/PointsScreen';
+import { LegalEntityDetailScreen } from './src/screens/LegalEntityDetailScreen';
 import { PointDetailScreen } from './src/screens/PointDetailScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SearchScreen } from './src/screens/SearchScreen';
 import { BottomNav } from './src/components/BottomNav';
 import { colors } from './src/theme';
 import type { Screen, User } from './src/types';
@@ -46,8 +54,10 @@ import { OperationsScreen } from './src/screens/OperationsScreen';
 import { useInactivityLogout } from './src/hooks/useInactivityLogout';
 import { useAuthStore } from './src/store/auth';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
-import { ProfileScreen } from './src/screens/ProfileScreen';
 import { RevenueDetailScreen } from './src/screens/RevenueDetailScreen';
+import { DEFAULT_PERIOD_KEY } from './src/screens/SettingsScreen';
+import { useDashboardStore } from './src/store/dashboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type AppState = 'bootstrapping' | 'biometric-prompt' | 'login' | 'biometric-setup' | 'app';
 type BiometricType = 'faceid' | 'fingerprint' | 'iris' | null;
@@ -57,6 +67,8 @@ function App() {
   const [screen, setScreen]     = useState<Screen>('dashboard');
   const [brandId, setBrandId]   = useState<string | null>(null);
   const [brandName, setBrandName] = useState<string>('');
+  const [legalEntityId, setLegalEntityId] = useState<string | null>(null);
+  const [legalEntityName, setLegalEntityName] = useState<string>('');
   const [pointId, setPointId]   = useState<string | null>(null);
   const [articleGroupId, setArticleGroupId] = useState<string | null>(null);
   const [articleId, setArticleId] = useState<string | null>(null);
@@ -83,6 +95,17 @@ function App() {
 
   const bootstrap = async () => {
     const { accessToken, user: storedUser } = await getStoredTokens();
+
+    // Restore the user-chosen default period before any data fetch fires so
+    // that `useDashboardSummary` etc. open with the right window from the start.
+    try {
+      const saved = await AsyncStorage.getItem(DEFAULT_PERIOD_KEY);
+      if (saved === 'today' || saved === 'thisWeek' || saved === 'thisMonth') {
+        useDashboardStore.getState().setPeriod(saved);
+      }
+    } catch {
+      /* non-fatal */
+    }
 
     if (!accessToken || !storedUser) {
       setAppState('login');
@@ -198,7 +221,15 @@ function App() {
   const handleBrandSelect = (id: string, name: string) => {
     setBrandId(id);
     setBrandName(name);
+    setLegalEntityId(null);
+    setLegalEntityName('');
     setScreen('brand-details');
+  };
+
+  const handleLegalEntitySelect = (id: string, name: string) => {
+    setLegalEntityId(id);
+    setLegalEntityName(name);
+    setScreen('legal-entity-details');
   };
 
   const handlePointSelect = (id: string) => {
@@ -229,6 +260,13 @@ function App() {
         setScreen('point-details');
         break;
       case 'point-details':
+        // From a restaurant we go back to its parent screen — legal entity if
+        // we drilled in via that path, otherwise the brand, otherwise dashboard.
+        if (legalEntityId) setScreen('legal-entity-details');
+        else if (brandId) setScreen('brand-details');
+        else setScreen('dashboard');
+        break;
+      case 'legal-entity-details':
         setScreen(brandId ? 'brand-details' : 'dashboard');
         break;
       case 'brand-details':
@@ -237,7 +275,10 @@ function App() {
       case 'notifications':
         setScreen('dashboard');
         break;
-      case 'profile':
+      case 'settings':
+        setScreen('dashboard');
+        break;
+      case 'search':
         setScreen('dashboard');
         break;
       case 'revenue-detail':
@@ -246,10 +287,10 @@ function App() {
       default:
         break;
     }
-  }, [screen, brandId]);
+  }, [screen, brandId, legalEntityId]);
 
   // Свайп слева направо для "назад"
-  const canGoBack = !['dashboard', 'points', 'reports', 'notifications'].includes(screen as string);
+  const canGoBack = !['dashboard', 'reports', 'notifications', 'settings'].includes(screen as string);
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, gestureState) => {
@@ -327,9 +368,17 @@ function App() {
             onPointSelect={handlePointSelect}
             onNavigateBrand={handleBrandSelect}
             onNavigateNotifications={() => setScreen('notifications')}
-            onNavigateProfile={() => setScreen('profile')}
+            onNavigateProfile={() => setScreen('settings')}
             onLogout={handleLogout}
             onNavigateRevenueDetail={handleNavigateRevenueDetail}
+            onNavigateSearch={() => setScreen('search')}
+          />
+        );
+      case 'search':
+        return (
+          <SearchScreen
+            onPointSelect={handlePointSelect}
+            onBack={() => setScreen('dashboard')}
           />
         );
       case 'revenue-detail':
@@ -345,17 +394,27 @@ function App() {
             brandId={brandId}
             brandName={brandName}
             onNavigateToRestaurant={handlePointSelect}
+            onNavigateToLegalEntity={handleLegalEntitySelect}
             onBack={() => setScreen('dashboard')}
           />
         );
-      case 'points':
-        return <PointsScreen onPointSelect={handlePointSelect} />;
+      case 'legal-entity-details':
+        return (
+          <LegalEntityDetailScreen
+            legalEntityId={legalEntityId}
+            legalEntityName={legalEntityName}
+            onNavigateToRestaurant={handlePointSelect}
+            onBack={() => setScreen(brandId ? 'brand-details' : 'dashboard')}
+          />
+        );
       case 'point-details':
         return (
           <PointDetailScreen
             pointId={pointId}
             onBack={() => {
-              setScreen(brandId ? 'brand-details' : 'dashboard');
+              if (legalEntityId) setScreen('legal-entity-details');
+              else if (brandId) setScreen('brand-details');
+              else setScreen('dashboard');
             }}
           />
         );
@@ -382,15 +441,15 @@ function App() {
         return <ReportsScreen />;
       case 'notifications':
         return <NotificationsScreen />;
-      case 'profile':
-        return <ProfileScreen onBack={() => setScreen('dashboard')} />;
+      case 'settings':
+        return <SettingsScreen onLogout={handleLogout} />;
       default:
         return (
           <DashboardScreen
             onPointSelect={handlePointSelect}
             onNavigateBrand={handleBrandSelect}
             onNavigateNotifications={() => setScreen('notifications')}
-            onNavigateProfile={() => setScreen('profile')}
+            onNavigateProfile={() => setScreen('settings')}
             onLogout={handleLogout}
             onNavigateRevenueDetail={handleNavigateRevenueDetail}
           />

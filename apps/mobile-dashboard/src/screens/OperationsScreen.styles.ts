@@ -19,7 +19,7 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    backgroundColor: '#12122A',
+    backgroundColor: colors.bgCard,
     borderRadius: 16,
     marginHorizontal: 16,
     marginTop: 16,

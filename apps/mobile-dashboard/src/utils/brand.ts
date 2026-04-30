@@ -150,15 +150,15 @@ export function formatPlanLabel(
   deltaPct: number | null | undefined,
 ): { text: string; status: 'above' | 'onplan' | 'below' } {
   if (deltaPct === null || deltaPct === undefined) {
-    return { text: 'Нет плана', status: 'onplan' };
+    return { text: 'Нет данных', status: 'onplan' };
   }
   if (deltaPct > 0.5) {
-    return { text: `Выше плана · +${deltaPct.toFixed(1)}%`, status: 'above' };
+    return { text: `Выше среднего · +${deltaPct.toFixed(1)}%`, status: 'above' };
   }
   if (deltaPct < -0.5) {
-    return { text: `Ниже плана · ${deltaPct.toFixed(1)}%`, status: 'below' };
+    return { text: `Ниже среднего · ${deltaPct.toFixed(1)}%`, status: 'below' };
   }
-  return { text: `По плану · ${deltaPct.toFixed(1)}%`, status: 'onplan' };
+  return { text: `На уровне · ${deltaPct.toFixed(1)}%`, status: 'onplan' };
 }
 
 // ─── BUG-11-6: formatSyncTime (Asia/Almaty, TZ-safe) ─────────────────────────

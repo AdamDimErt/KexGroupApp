@@ -129,9 +129,9 @@ export function RestaurantCard({
   const statusLabel = (() => {
     if (status === 'offline') return null; // rendered differently
     if (planLabel) return null; // planLabel renders separately with explicit color
-    if (status === 'above')  return `Выше плана · ${formatDelta(deltaPct)}`;
+    if (status === 'above')  return `Выше среднего · ${formatDelta(deltaPct)}`;
     if (status === 'onplan') return `В плане · ${formatDelta(deltaPct)}`;
-    if (status === 'below')  return `Ниже плана · ${formatDelta(deltaPct)}`;
+    if (status === 'below')  return `Ниже среднего · ${formatDelta(deltaPct)}`;
     return null;
   })();
 
@@ -224,7 +224,7 @@ export function RestaurantCard({
         {/* plan marker */}
         <View style={[styles.planMark, { left: `${markLeft}%` as any }]}>
           {showPlanLabel && (
-            <Text style={styles.planLabel}>ПЛАН</Text>
+            <Text style={styles.planLabel}>СРЕД.</Text>
           )}
         </View>
       </View>
@@ -233,7 +233,7 @@ export function RestaurantCard({
       <View style={styles.footerRow}>
         {/* left: plan + margin */}
         <Text style={styles.footerLeft}>
-          {'План '}
+          {'Сред. '}
           <Text style={styles.footerValue}>{formatPlanned(plannedRevenue)}</Text>
           {' · Маржа '}
           <Text style={styles.footerValue}>{formatMargin(marginPct)}</Text>

@@ -20,7 +20,7 @@ export const styles = StyleSheet.create({
   },
   groupTotal: { fontSize: 14, color: colors.textSecondary },
   card: {
-    backgroundColor: '#12122A',
+    backgroundColor: colors.bgCard,
     borderRadius: 16,
     marginHorizontal: 16,
     marginTop: 16,

@@ -57,11 +57,14 @@ export const styles = StyleSheet.create({
     borderRadius: 16, padding: 20, marginHorizontal: 20, marginTop: 12,
   },
   expTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: 16 },
-  expRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  expLabel: { color: colors.textPrimary, fontSize: 13, width: 110 },
-  expBarBg: { flex: 1, height: 6, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 3, marginRight: 12 },
+  expRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 12 },
+  // expLabel/expAmount: убраны жёсткие width: 110/100 — на узких экранах длинное
+  // название статьи (>110px) обрезалось, а длинная сумма (например ₸-2.5M)
+  // не влезала в 100px. Теперь label flex-grows, amount берёт по контенту.
+  expLabel: { color: colors.textPrimary, fontSize: 13, flex: 1 },
+  expBarBg: { flex: 2, height: 6, backgroundColor: 'rgba(59,130,246,0.08)', borderRadius: 3 },
   expBarFill: { height: '100%', backgroundColor: 'rgba(59,130,246,0.35)', borderRadius: 3 },
-  expAmount: { color: colors.red, fontSize: 13, fontWeight: '500', width: 100, textAlign: 'right' },
+  expAmount: { color: colors.red, fontSize: 13, fontWeight: '500', textAlign: 'right', minWidth: 70 },
   // Financial result formula hint
   finFormulaHint: {
     color: 'rgba(255,255,255,0.3)',

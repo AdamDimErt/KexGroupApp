@@ -20,7 +20,7 @@ export interface DashboardRestaurantItem {
   brand: 'BNA' | 'DNA' | 'JD' | 'SB' | 'KEX' | 'KITCHEN';
   cuisine: 'Burger' | 'Doner' | 'Mixed' | 'Multi' | 'Kitchen';
   revenue: number;
-  plannedRevenue: number; // STUB: revenue * 1.05 — Phase 11: replace with real plan from finance-service API
+  plannedRevenue: number; // План = выручка за такой же по длительности прошлый период (из API)
   marginPct: number | null;
   deltaPct: number | null;
   planAttainmentPct: number;
@@ -54,6 +54,7 @@ export function useDashboard(onLogout: () => void) {
   const totalRevenue = summary?.totalRevenue ?? 0;
   const totalExpenses = summary?.totalExpenses ?? 0;
   const financialResult = summary?.financialResult ?? 0;
+  const totalPlannedRevenue = summary?.totalPlannedRevenue ?? 0;
   const totalRestaurantCount = (summary?.brands ?? []).reduce((sum, b) => sum + b.restaurantCount, 0);
 
   const periodLabel = formatPeriodLabel(summary?.period?.from, summary?.period?.to);
@@ -63,7 +64,10 @@ export function useDashboard(onLogout: () => void) {
     const legacyStatus: 'green' | 'yellow' | 'red' =
       brand.financialResult >= 0 ? 'green' : (brand.changePercent < -10 ? 'red' : 'yellow');
     const { code, cuisine } = resolveBrand(brand.name);
-    const plannedRevenue = brand.revenue * 1.05; // STUB — Phase 11: real plan from finance-service API
+    // План = выручка за прошлый период такой же длительности (приходит из finance-service).
+    // Если данных за прошлый период нет (новый бренд / первый период) — план = 0,
+    // тогда planAttainmentPct/deltaPct вернут 0, а planLabel покажет "план не задан".
+    const plannedRevenue = brand.plannedRevenue ?? 0;
     return {
       id: brand.id,
       name: brand.name,
@@ -73,8 +77,6 @@ export function useDashboard(onLogout: () => void) {
       revenue: brand.revenue,
       plannedRevenue,
       marginPct: computeMarginPct(brand.revenue, brand.financialResult),
-      // BUG-11-4: compute signed delta locally until finance-service ships period-over-period API (Phase 12).
-      // `brand.changePercent` from DTO is always 0 currently, so we derive deltaPct from stub plannedRevenue.
       deltaPct: brand.revenue > 0 ? computePlanDelta(brand.revenue, plannedRevenue) : null,
       planAttainmentPct: computePlanAttainment(brand.revenue, plannedRevenue),
       planLabel: formatPlanLabel(
@@ -115,6 +117,7 @@ export function useDashboard(onLogout: () => void) {
     totalRevenue,
     totalExpenses,
     financialResult,
+    totalPlannedRevenue,
     totalRestaurantCount,
     restaurantItems,
     confirmLogout,

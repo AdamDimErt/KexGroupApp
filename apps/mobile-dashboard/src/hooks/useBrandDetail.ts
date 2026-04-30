@@ -7,6 +7,7 @@ import {
   computePlanAttainment,
   formatPeriodLabel,
 } from '../utils/brand';
+import type { LegalEntitySummaryDto } from '../types';
 
 export interface EnrichedRestaurant {
   id: string;
@@ -36,6 +37,7 @@ export function useBrandDetail(brandId: string) {
         totalRevenue: 0,
         totalExpenses: 0,
         restaurants: [] as EnrichedRestaurant[],
+        legalEntities: [] as LegalEntitySummaryDto[],
         isLoading,
         error,
       };
@@ -73,6 +75,9 @@ export function useBrandDetail(brandId: string) {
       totalRevenue: brandData.totalRevenue,
       totalExpenses: brandData.totalExpenses,
       restaurants,
+      // Backend may not yet include legalEntities[] when brand row is empty (BrandDetailDto fallback);
+      // default to [] so the screen can safely check legalEntities.length without crashing.
+      legalEntities: brandData.legalEntities ?? [],
       isLoading,
       error,
     };

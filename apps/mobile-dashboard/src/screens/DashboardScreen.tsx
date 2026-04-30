@@ -1,16 +1,18 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, LayoutChangeEvent } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Bell, Settings, LogOut, AlertTriangle, RefreshCw, ChevronRight } from 'lucide-react-native';
+import { Bell, Search, LogOut, AlertTriangle, RefreshCw, ChevronRight } from 'lucide-react-native';
 import { colors } from '../theme';
 import { RestaurantCard } from '../components/RestaurantCard';
 import { HeroCard } from '../components/HeroCard';
 import { PeriodSelector, usePeriodHeroLabel, PERIOD_OPTIONS } from '../components/PeriodSelector';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { RevenueSparkline } from '../components/RevenueSparkline';
 import { useDashboard } from '../hooks/useDashboard';
+import { useSparklineRevenue } from '../hooks/useSparklineRevenue';
+import { excludeTodayPartial } from '../utils/sparkline';
 import { formatSyncTime } from '../utils/brand';
-import { useDashboardStore } from '../store/dashboard';
 import { useAuthStore } from '../store/auth';
 import { styles } from './DashboardScreen.styles';
 
@@ -22,11 +24,13 @@ interface DashboardProps {
   onLogout: () => void;
   /** Navigate to the company revenue detail screen */
   onNavigateRevenueDetail?: () => void;
+  /** Open flat search overlay (find any restaurant by name) */
+  onNavigateSearch?: () => void;
 }
 
-export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onNavigateProfile, onLogout, onNavigateRevenueDetail }: DashboardProps) {
+export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNotifications, onNavigateProfile, onLogout, onNavigateRevenueDetail, onNavigateSearch }: DashboardProps) {
   const {
-    totalRevenue, totalExpenses, financialResult, totalRestaurantCount,
+    totalRevenue, totalExpenses, financialResult, totalPlannedRevenue, totalRestaurantCount,
     restaurantItems, confirmLogout, isLoading, isRefreshing, error,
     lastSyncAt, refetch, handleRefresh, greeting,
     isStale, isOffline, cachedAt,
@@ -34,6 +38,29 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
 
   const heroPeriodLabel = usePeriodHeroLabel('');
   const role = useAuthStore(s => s.user?.role);
+
+  // Sparkline data: дневная выручка за выбранный период.
+  // Если последняя точка = сегодня (неполный день) — отрезаем её, иначе график
+  // визуально «обваливается» в правом краю и пугает пользователя «упало!».
+  // Sparkline — всегда последние 30 дней (для контекста), независимо от period switcher
+  const { data: sparkData } = useSparklineRevenue();
+  const rawPoints = (sparkData?.dailyRevenue ?? []).map(p => ({ date: p.date, revenue: p.revenue }));
+  const { points: sparkPoints, todayDropped, todayValue } = excludeTodayPartial(rawPoints);
+
+  // Цвет sparkline: нейтральный белый.
+  // Раньше пытались сделать зелёный/красный по сравнению с прошлым периодом, но это
+  // давало конфликт UX: «Результат» (выручка - расходы) мог быть зелёным, а график
+  // красным (если этот месяц чуть слабее прошлого). Пользователь видел противоречие.
+  // Sparkline — это ИНФОРМАЦИЯ о тренде, не ОЦЕНКА. Оценку даёт цифра «Результат».
+  const trendColor = '#FFFFFF';
+
+  // Sparkline ширину считаем по реальному размеру контейнера, чтобы избежать
+  // overflow на устройствах с разной шириной экрана.
+  const [sparkWidth, setSparkWidth] = useState(0);
+  const onHeroLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && Math.abs(w - sparkWidth) > 1) setSparkWidth(w);
+  };
 
   // Access matrix:
   // OWNER + FINANCE_DIRECTOR: see revenue, expenses, balance (financial result)
@@ -130,15 +157,15 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
           <Text style={styles.title}>Kex Group</Text>
         </View>
         <View style={styles.headerRight}>
+          {onNavigateSearch && (
+            <TouchableOpacity onPress={onNavigateSearch} style={styles.bellBtn}>
+              <Search size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={onNavigateNotifications} style={styles.bellBtn}>
             <Bell size={20} color={colors.textSecondary} />
             <View style={styles.bellBadge} />
           </TouchableOpacity>
-          {onNavigateProfile && (
-            <TouchableOpacity onPress={onNavigateProfile} style={styles.logoutBtn}>
-              <Settings size={18} color={colors.textTertiary} />
-            </TouchableOpacity>
-          )}
           <TouchableOpacity onPress={confirmLogout} style={styles.logoutBtn}>
             <LogOut size={18} color={colors.textTertiary} />
           </TouchableOpacity>
@@ -162,8 +189,15 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
           accessibilityLabel="Выручка — детали"
           disabled={!onNavigateRevenueDetail}
         >
-          <Text style={styles.kpiLabel}>ВЫРУЧКА</Text>
-          <Text style={styles.kpiValue}>{formatAmount(totalRevenue)}</Text>
+          <Text style={styles.kpiLabel} numberOfLines={1}>ВЫРУЧКА</Text>
+          <Text
+            style={styles.kpiValue}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {formatAmount(totalRevenue)}
+          </Text>
           {onNavigateRevenueDetail && (
             <ChevronRight
               size={12}
@@ -173,13 +207,25 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
           )}
         </TouchableOpacity>
         <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>РАСХОДЫ</Text>
-          <Text style={styles.kpiValue}>{formatAmount(totalExpenses)}</Text>
+          <Text style={styles.kpiLabel} numberOfLines={1}>РАСХОДЫ</Text>
+          <Text
+            style={[styles.kpiValue, { color: colors.red }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {formatAmount(totalExpenses)}
+          </Text>
         </View>
         {showBalance && (
           <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>БАЛАНС</Text>
-            <Text style={[styles.kpiValue, { color: financialResult >= 0 ? colors.green : colors.red }]}>
+            <Text style={styles.kpiLabel} numberOfLines={1}>БАЛАНС</Text>
+            <Text
+              style={[styles.kpiValue, { color: financialResult >= 0 ? colors.green : colors.red }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
               {formatAmount(financialResult)}
             </Text>
           </View>
@@ -199,8 +245,8 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
         );
       })()}
 
-      {/* Hero Card — total revenue */}
-      <View style={styles.heroCard}>
+      {/* Hero Card — total revenue (Binance-style: amount + PnL + sparkline) */}
+      <View style={styles.heroCard} onLayout={onHeroLayout}>
         <View style={styles.heroTop}>
           <Text style={styles.heroLabel}>ВЫРУЧКА</Text>
           <View style={styles.heroSourceRow}>
@@ -211,14 +257,50 @@ export function DashboardScreen({ onPointSelect, onNavigateBrand, onNavigateNoti
             ))}
           </View>
         </View>
-        <Text style={styles.heroAmount}>{formatAmount(totalRevenue)}</Text>
+        <Text
+          style={styles.heroAmount}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+        >
+          {formatAmount(totalRevenue)}
+        </Text>
+
+        {/* PnL блок убран до подключения реальных расходов из 1С.
+            До этого момента «PnL = revenue × 1.05 − revenue» давал ложное «−4.76%»,
+            что вводило руководство в заблуждение. Вернём после интеграции с 1С. */}
+
+        {/* Sparkline area chart.
+            sparkWidth — фактическая внутренняя ширина hero-card (без padding 20*2).
+            heroSparkWrap имеет marginHorizontal: -4, поэтому полезной ширины
+            sparkWidth - 40 (паддинг) + 8 (компенсация отрицательного marginHorizontal) = sparkWidth - 32. */}
+        {sparkPoints.length >= 2 && sparkWidth > 0 && (
+          <View style={styles.heroSparkWrap}>
+            <RevenueSparkline
+              data={sparkPoints}
+              width={Math.max(sparkWidth - 32, 0)}
+              height={64}
+              color={trendColor}
+            />
+            {/* Подсказка про неполный сегодняшний день — чтобы не казалось что «упало» */}
+            {todayDropped && todayValue != null && (
+              <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 4 }}>
+                ⏳ график — по полным дням · сегодня ещё в работе ({formatAmount(todayValue)})
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Footer: financial result + expenses (расходы выделены красным) */}
         <View style={styles.heroSubRow}>
           {showFinancialResult && (
-            <Text style={financialResult >= 0 ? styles.heroGreen : styles.heroGray}>
+            <Text style={financialResult >= 0 ? styles.heroGreen : { color: colors.red, fontSize: 12, fontWeight: '500' }}>
               {financialResult >= 0 ? '↑' : '↓'} Результат: {formatAmount(financialResult)}
             </Text>
           )}
-          <Text style={styles.heroGray}>Расходы: {formatAmount(totalExpenses)}</Text>
+          <Text style={{ color: colors.red, fontSize: 12, fontWeight: '500' }}>
+            Расходы: {formatAmount(totalExpenses)}
+          </Text>
         </View>
       </View>
 

@@ -2,7 +2,11 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { registerPushToken } from '../services/notifications';
+
+// Expo Go (SDK 53+) stripped push registration. Skip in Expo Go; only run in dev/prod builds.
+const IS_EXPO_GO = Constants.appOwnership === 'expo';
 
 // Set foreground handler ONCE at module level — must be before any Notifications API calls
 Notifications.setNotificationHandler({
@@ -26,6 +30,10 @@ export function usePushNotifications(accessToken: string | null) {
 
   useEffect(() => {
     if (!accessToken) return;
+    if (IS_EXPO_GO) {
+      console.log('[Push] Expo Go detected — push registration disabled (use dev build)');
+      return;
+    }
 
     let cancelled = false;
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Home, Store, BarChart3, Bell, type LucideIcon } from 'lucide-react-native';
+import { Home, Settings, BarChart3, Bell, type LucideIcon } from 'lucide-react-native';
 import { colors } from '../theme';
 import type { Screen } from '../types';
 import { styles } from './BottomNav.styles';
@@ -13,13 +13,13 @@ interface BottomNavProps {
 
 const tabs: { id: Screen; label: string; Icon: LucideIcon }[] = [
   { id: 'dashboard',     label: 'Главная',      Icon: Home },
-  { id: 'points',        label: 'Рестораны',    Icon: Store },
   { id: 'reports',       label: 'Аналитика',    Icon: BarChart3 },
   { id: 'notifications', label: 'Уведомления',  Icon: Bell },
+  { id: 'settings',      label: 'Настройки',    Icon: Settings },
 ];
 
 function isTabActive(current: Screen, tabId: Screen): boolean {
-  return current === tabId || (tabId === 'points' && current === 'point-details');
+  return current === tabId;
 }
 
 export function BottomNav({ current, onNavigate, hasAlerts }: BottomNavProps) {

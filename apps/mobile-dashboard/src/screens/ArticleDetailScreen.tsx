@@ -86,7 +86,7 @@ export function ArticleDetailScreen({
               <Text
                 style={[
                   styles.sourceText,
-                  { color: isIiko ? '#10B981' : '#6366F1' },
+                  { color: isIiko ? colors.green : colors.accentLight },
                 ]}
               >
                 {isIiko ? 'iiko' : '1C'}

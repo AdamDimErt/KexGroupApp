@@ -106,7 +106,7 @@ export function usePeriodHeroLabel(prefix = 'ВЫРУЧКА'): string {
 
 const styles = StyleSheet.create({
   row: {},
-  rowContent: { paddingHorizontal: 20, gap: 8 },
+  rowContent: { paddingHorizontal: 16, gap: 8 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 7,

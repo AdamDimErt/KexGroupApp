@@ -97,24 +97,17 @@ export function ReportsScreen() {
                 <Text style={styles.reportTotal}>
                   Итого: {fmtAmount(dds.data?.grandTotal ?? 0)}
                 </Text>
+                {/* Только общие суммы по группам — без детализации по точкам.
+                    Раньше под каждой группой был длинный список из 75 ресторанов
+                    с копеечными суммами (BNA Бесагаш ₸943, DNA Гагарина ₸2K),
+                    что захламляло экран. Если нужна детализация — её можно
+                    открыть отдельным экраном по тапу на группу (TODO). */}
                 {(dds.data?.groups ?? []).map(group => (
-                  <View key={group.groupId} style={{ marginTop: 8 }}>
-                    <View style={styles.ddsGroupRow}>
-                      <Text style={[styles.reportLabel, { fontWeight: '600' }]}>
-                        {group.groupName}
-                      </Text>
-                      <Text style={styles.reportValue}>{fmtAmount(group.totalAmount)}</Text>
-                    </View>
-                    {(group.restaurants ?? []).map(rest => (
-                      <View key={rest.restaurantId} style={styles.ddsRestaurantRow}>
-                        <Text style={[styles.reportLabel, { fontSize: 13, color: colors.textSecondary }]}>
-                          {rest.restaurantName}
-                        </Text>
-                        <Text style={[styles.reportValue, { fontSize: 13 }]}>
-                          {fmtAmount(rest.amount)}
-                        </Text>
-                      </View>
-                    ))}
+                  <View key={group.groupId} style={styles.reportRow}>
+                    <Text style={[styles.reportLabel, { fontWeight: '600' }]}>
+                      {group.groupName}
+                    </Text>
+                    <Text style={styles.reportValue}>{fmtAmount(group.totalAmount)}</Text>
                   </View>
                 ))}
               </>

@@ -6,7 +6,7 @@ export const styles = StyleSheet.create({
   content: { paddingBottom: 100 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
-    paddingHorizontal: 20, paddingTop: 60,
+    paddingHorizontal: 16, paddingTop: 60,
   },
   greeting: { color: colors.textTertiary, fontSize: 12 },
   title: { color: colors.textPrimary, fontSize: 22, fontWeight: '700', letterSpacing: -0.6, marginTop: 2 },
@@ -21,7 +21,7 @@ export const styles = StyleSheet.create({
   },
   // Period selector
   periodRow: { marginTop: 16 },
-  periodRowContent: { paddingHorizontal: 20, gap: 8 },
+  periodRowContent: { paddingHorizontal: 16, gap: 8 },
   periodChip: {
     paddingHorizontal: 14, paddingVertical: 7,
     borderRadius: 20, borderWidth: 1,
@@ -36,8 +36,8 @@ export const styles = StyleSheet.create({
   periodChipTextActive: { color: '#FFF' },
   // Hero Card
   heroCard: {
-    marginHorizontal: 20, marginTop: 16,
-    borderRadius: 20, padding: 22, overflow: 'hidden',
+    marginHorizontal: 16, marginTop: 16,
+    borderRadius: 20, padding: 20, overflow: 'hidden',
     backgroundColor: colors.accentDefault,
     borderWidth: 1, borderColor: colors.borderActive,
   },
@@ -47,19 +47,21 @@ export const styles = StyleSheet.create({
   heroBadge: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   heroBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '500' },
   heroAmount: { color: '#FFF', fontSize: 36, fontWeight: '500', letterSpacing: -1.5, marginTop: 6 },
-  heroSubRow: { flexDirection: 'row', gap: 12, marginTop: 4, alignItems: 'center' },
-  heroGreen: { color: colors.sparkGreen, fontSize: 12 },
+  // PnL-стили удалены — блок убран до подключения 1С (см. DashboardScreen.tsx).
+  heroSparkWrap: { marginTop: 10, marginHorizontal: -4 },
+  heroSubRow: { flexDirection: 'row', gap: 12, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' },
+  heroGreen: { color: colors.green, fontSize: 12 },
   heroGray: { color: 'rgba(255,255,255,0.55)', fontSize: 12 },
   // List
-  listHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 20, marginBottom: 10 },
+  listHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 20, marginBottom: 10 },
   listTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   listCount: { color: colors.textTertiary, fontSize: 12 },
   // Balances
   balancesLabel: {
     color: colors.textTertiary, fontSize: 11, textTransform: 'uppercase',
-    letterSpacing: 0.8, paddingHorizontal: 20, marginTop: 8, marginBottom: 8,
+    letterSpacing: 0.8, paddingHorizontal: 16, marginTop: 8, marginBottom: 8,
   },
-  balancesRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20 },
+  balancesRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16 },
   balanceCard: {
     flex: 1, backgroundColor: colors.bgCard,
     borderWidth: 1, borderColor: colors.borderColor,
@@ -120,7 +122,7 @@ export const styles = StyleSheet.create({
   },
   skeletonPeriodRow: {
     flexDirection: 'row',
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginTop: 16,
     gap: 8,
   },

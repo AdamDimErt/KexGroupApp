@@ -35,14 +35,14 @@ export function getExpenseBreakdown(totalExpenses: number): ExpenseItem[] {
 
 /** Цвет статуса */
 export const statusColor: Record<Status, string> = {
-  green: '#10B981',
+  green: '#22C55E',
   yellow: '#F59E0B',
   red: '#EF4444',
 };
 
 /** Цвет по проценту выполнения плана */
 export function planColor(pct: number): string {
-  if (pct >= 100) return '#10B981';
+  if (pct >= 100) return '#22C55E';
   if (pct >= 90) return '#F59E0B';
   return '#EF4444';
 }

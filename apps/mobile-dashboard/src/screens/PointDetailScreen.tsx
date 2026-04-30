@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Dimensions, type DimensionValue } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, useWindowDimensions, type DimensionValue } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, Package } from 'lucide-react-native';
 import { usePointDetail } from '../hooks/usePointDetail';
@@ -21,10 +21,14 @@ function DailyRevenueChart({ data, periodLabel }: { data: { date: string; revenu
   const maxRev = Math.max(...points.map(p => p.revenue), 1);
   const avgRev = points.reduce((s, p) => s + p.revenue, 0) / points.length;
 
-  // Адаптивная ширина: если > 14 дней — горизонтальный скролл
-  const screenW = Dimensions.get('window').width - 80;
+  // Адаптивная ширина: maxBarWidth 48px чтобы бары не растягивались при 1-3 днях.
+  // useWindowDimensions реагирует на поворот / split-screen — в отличие от Dimensions.get,
+  // которая фиксирует ширину при первом рендере и не обновляется.
+  const { width: windowWidth } = useWindowDimensions();
+  const screenW = windowWidth - 80;
+  const MAX_BAR_W = 48;
   const barWidth = points.length <= 14
-    ? (screenW / points.length) - 6
+    ? Math.min(MAX_BAR_W, (screenW / points.length) - 6)
     : 22; // фиксированная ширина для скролла
   const chartTotalW = points.length <= 14
     ? screenW
@@ -54,7 +58,7 @@ function DailyRevenueChart({ data, periodLabel }: { data: { date: string; revenu
           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
             {dayNames[selDate.getDay()]}, {selDate.getDate()}.{String(selDate.getMonth() + 1).padStart(2, '0')}
           </Text>
-          <Text style={{ color: '#10B981', fontSize: 18, fontWeight: '700', marginTop: 2 }}>
+          <Text style={{ color: colors.green, fontSize: 18, fontWeight: '700', marginTop: 2 }}>
             {fmtRevenue(sel.revenue)}
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2 }}>
@@ -104,7 +108,7 @@ function DailyRevenueChart({ data, periodLabel }: { data: { date: string; revenu
                     <View style={[
                       styles.bar,
                       { height: Math.max(h, 2), width: barWidth },
-                      isSelected && { backgroundColor: '#10B981' },
+                      isSelected && { backgroundColor: colors.green },
                     ]} />
                   </TouchableOpacity>
                 );
@@ -121,7 +125,7 @@ function DailyRevenueChart({ data, periodLabel }: { data: { date: string; revenu
                 <View key={i} style={{ alignItems: 'center', flex: 1 }}>
                   <Text style={[
                     { color: 'rgba(255,255,255,0.4)', fontSize: points.length > 14 ? 8 : 10 },
-                    isSelected && { color: '#10B981', fontWeight: '600' },
+                    isSelected && { color: colors.green, fontWeight: '600' },
                   ]}>
                     {showLabel ? String(d.getDate()) : ''}
                   </Text>
@@ -161,7 +165,7 @@ function expenseBarPct(amount: number, maxAmount: number): DimensionValue {
 // Color palette for dynamic payment types — known iiko codes get fixed colors,
 // unknown types cycle through the fallback palette
 const KNOWN_PAYMENT_COLORS: Record<string, string> = {
-  Cash: '#10B981',
+  Cash: '#22C55E',
   Kaspi: '#F59E0B',
   Halyk: '#3B82F6',
   Yandex_food: '#EF4444',
@@ -180,7 +184,7 @@ function paymentColor(iikoCode: string, index: number): string {
 export function PointDetailScreen({ pointId, onBack }: Props) {
   const {
     restaurant: r, statusColor: col, statusLabel, profit, profitColor,
-    hourlyData, planLine, maxBar, barW, expenseItems, isLoading,
+    hourlyData, planLine, maxBar, expenseItems, isLoading,
     directExpensesTotal, distributedExpensesTotal, distributedExpenseItems,
     financialResult, cashDiscrepancies, revenueChart, refetch,
     isStale, isOffline, cachedAt,
@@ -273,11 +277,11 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
               const pct = r.revenue > 0 ? Math.round((pt.amount / r.revenue) * 100) : 0;
               return (
                 <View key={pt.iikoCode} style={styles.expRow}>
-                  <Text style={[styles.expLabel, { width: 80 }]} numberOfLines={1}>{pt.name}</Text>
+                  <Text style={[styles.expLabel, { flex: 0, width: 80 }]} numberOfLines={1}>{pt.name}</Text>
                   <View style={styles.expBarBg}>
                     <View style={[styles.expBarFill, { width: expenseBarPct(pt.amount, maxPt), backgroundColor: color }]} />
                   </View>
-                  <Text style={[styles.expAmount, { color }]}>{fmtAmount(pt.amount)} ({pct}%)</Text>
+                  <Text style={[styles.expAmount, { color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{fmtAmount(pt.amount)} ({pct}%)</Text>
                 </View>
               );
             })}
@@ -293,18 +297,18 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
         <Text style={styles.expTitle}>Финансовый результат</Text>
         {/* Revenue line */}
         <View style={styles.expRow}>
-          <Text style={styles.expLabel}>Выручка</Text>
-          <Text style={[styles.expAmount, { color: '#10B981' }]}>₸{r.revenue.toLocaleString()}</Text>
+          <Text style={styles.expLabel} numberOfLines={1}>Выручка</Text>
+          <Text style={[styles.expAmount, { color: colors.green }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>₸{r.revenue.toLocaleString()}</Text>
         </View>
         {/* Direct expenses */}
         <View style={styles.expRow}>
-          <Text style={styles.expLabel}>Прямые расходы</Text>
-          <Text style={styles.expAmount}>-₸{directExpensesTotal.toLocaleString()}</Text>
+          <Text style={styles.expLabel} numberOfLines={1}>Прямые расходы</Text>
+          <Text style={styles.expAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>-₸{directExpensesTotal.toLocaleString()}</Text>
         </View>
         {/* Distributed expenses (HQ + Kitchen share) with breakdown */}
         <View style={styles.expRow}>
-          <Text style={styles.expLabel}>Распред. расходы</Text>
-          <Text style={styles.expAmount}>-₸{distributedExpensesTotal.toLocaleString()}</Text>
+          <Text style={styles.expLabel} numberOfLines={1}>Распред. расходы</Text>
+          <Text style={styles.expAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>-₸{distributedExpensesTotal.toLocaleString()}</Text>
         </View>
         {distributedExpenseItems.length > 0 ? (
           <View style={{ marginLeft: 12, marginBottom: 8 }}>
@@ -328,8 +332,13 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
         )}
         {/* Result line */}
         <View style={[styles.expRow, styles.finResultRow]}>
-          <Text style={[styles.expLabel, { fontWeight: '700' }]}>Фин. результат</Text>
-          <Text style={[styles.expAmount, { color: financialResult >= 0 ? '#10B981' : '#EF4444', fontWeight: '700', fontSize: 15 }]}>
+          <Text style={[styles.expLabel, { fontWeight: '700' }]} numberOfLines={1}>Фин. результат</Text>
+          <Text
+            style={[styles.expAmount, { color: financialResult >= 0 ? colors.green : colors.red, fontWeight: '700', fontSize: 15 }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             ₸{financialResult.toLocaleString()}
           </Text>
         </View>
@@ -347,7 +356,7 @@ export function PointDetailScreen({ pointId, onBack }: Props) {
             <Text style={[styles.discHeaderCell, { textAlign: 'right' }]}>Разница</Text>
           </View>
           {cashDiscrepancies.map((disc, i) => {
-            const diffColor = disc.difference >= 0 ? '#10B981' : '#EF4444';
+            const diffColor = disc.difference >= 0 ? colors.green : colors.red;
             const diffSign = disc.difference >= 0 ? '+' : '';
             return (
               <View key={i} style={styles.discRow}>

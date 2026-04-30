@@ -125,6 +125,7 @@ export class AuthError extends Error {
 import type {
   DashboardSummaryDto,
   BrandDetailDto,
+  LegalEntityDetailDto,
   RestaurantDetailDto,
   ArticleGroupDetailDto,
   NotificationListDto,
@@ -133,6 +134,7 @@ import type {
   ReportCompanyExpensesDto,
   ReportKitchenDto,
   ReportTrendsDto,
+  CompanyRevenueAggregatedDto,
 } from '../types';
 
 export const dashboardApi = {
@@ -152,6 +154,15 @@ export const dashboardApi = {
     if (dateFrom) params.append('dateFrom', dateFrom);
     if (dateTo) params.append('dateTo', dateTo);
     return api.request<BrandDetailDto>(`/api/finance/brand/${brandId}?${params.toString()}`);
+  },
+
+  // Level 1.5 — Legal entity detail (JURPERSON drill-down)
+  // GET /api/finance/legal-entity/:id?periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+  getLegalEntity: (legalEntityId: string, periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<LegalEntityDetailDto>(`/api/finance/legal-entity/${legalEntityId}?${params.toString()}`);
   },
 
   // Level 2 — Restaurant detail
@@ -231,6 +242,14 @@ export const dashboardApi = {
     if (dateFrom) params.append('dateFrom', dateFrom);
     if (dateTo) params.append('dateTo', dateTo);
     return api.request<ReportKitchenDto>(`/api/finance/reports/kitchen?${params.toString()}`);
+  },
+
+  // Company revenue aggregated — for RevenueDetailScreen
+  getRevenueAggregated: (periodType: string, dateFrom?: string, dateTo?: string) => {
+    const params = new URLSearchParams({ periodType });
+    if (dateFrom) params.append('dateFrom', dateFrom);
+    if (dateTo) params.append('dateTo', dateTo);
+    return api.request<CompanyRevenueAggregatedDto>(`/api/finance/dashboard/revenue-aggregated?${params.toString()}`);
   },
 
   // Reports — Trends (revenue + expenses over time)
