@@ -8,8 +8,15 @@ import { firstValueFrom } from 'rxjs';
 export class IikoAuthService {
   private readonly logger = new Logger(IikoAuthService.name);
   private readonly redis: Redis;
-  private readonly baseUrl =
-    process.env.IIKO_SERVER_URL || 'https://kexbrands-co.iiko.it:443/resto/api';
+  private readonly baseUrl = (() => {
+    const url = process.env.IIKO_SERVER_URL;
+    if (!url) {
+      throw new Error(
+        'IIKO_SERVER_URL env is required (e.g. https://your-org.iiko.it/resto/api)',
+      );
+    }
+    return url;
+  })();
   private readonly tokenCacheKey = 'iiko:access_token';
   private readonly tokenCacheTTL = 55 * 60; // 55 minutes
 

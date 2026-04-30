@@ -5,7 +5,6 @@ import { IikoAuthService } from './iiko-auth.service';
 import { firstValueFrom } from 'rxjs';
 import { XMLParser } from 'fast-xml-parser';
 import * as Sentry from '@sentry/node';
-import { startOfBusinessDay } from '../utils/date';
 // Decimal type is handled by Prisma internally, use type coercion
 
 interface CircuitBreakerState {
@@ -17,7 +16,12 @@ interface CorporateItemDto {
   id: string;
   parentId?: string;
   name: string;
-  type: 'DEPARTMENT' | 'ORGDEVELOPMENT';
+  // iiko returns more types in the wild than these two (e.g. JURPERSON for legal-entity nodes
+  // sitting between an ORGDEVELOPMENT brand and its DEPARTMENTs). We accept any string so the
+  // brand resolver can walk through intermediate nodes without filtering them out.
+  type: string;
+  // JURPERSON nodes carry the taxpayer id (BIN/IIN) — DEPARTMENTs sometimes carry it too.
+  taxpayerIdNumber?: string;
 }
 
 interface DayDishValue {
@@ -112,22 +116,21 @@ export class IikoSyncService {
   }
 
   /**
-   * Parse dd.MM.yyyy to the UTC instant that represents midnight of that
-   * calendar day in Asia/Almaty (UTC+5).
+   * Parse dd.MM.yyyy to the UTC midnight of that calendar date (no TZ shift).
    *
-   * Symmetric with formatDate: formatDate(parseDate(x)) === x for any
-   * valid dd.MM.yyyy string, regardless of the host process TZ.
+   * IMPORTANT: All `date` columns in our DB are Postgres `date` type (no time),
+   * stored & queried as bare calendar dates. We must NOT shift the instant by
+   * the Almaty offset here — that would cause Prisma to serialize "Almaty
+   * midnight" as "2026-03-30T19:00:00Z", and Postgres would truncate it to
+   * the previous calendar day, sliding all iiko data 1 day back.
    *
-   * Uses startOfBusinessDay so the Almaty offset lives in one place
-   * (utils/date.ts) rather than being duplicated here.
+   * Round-trip with formatDate is preserved because formatDate adds the +5h
+   * shift and uses UTC getters — both UTC midnight and Almaty midnight format
+   * to the same dd.MM.yyyy string in Almaty wall-clock terms.
    */
   private parseDate(dateStr: string): Date {
     const [day, month, year] = dateStr.split('.');
-    // Construct a UTC noon anchor for that calendar date, then snap to
-    // Almaty midnight. Using noon avoids any DST edge-cases if the
-    // region ever introduces them; Almaty has none today (UTC+5, no DST).
-    const utcAnchor = new Date(Date.UTC(+year, +month - 1, +day));
-    return startOfBusinessDay(utcAnchor);
+    return new Date(Date.UTC(+year, +month - 1, +day, 0, 0, 0, 0));
   }
 
   /**
@@ -172,9 +175,25 @@ export class IikoSyncService {
         return;
       }
 
-      // Separate brands (ORGDEVELOPMENT) and restaurants (DEPARTMENT)
+      // Index every node by id so the brand resolver can walk parent chains
+      // through intermediate nodes (e.g. JURPERSON) without hardcoded mappings.
+      const itemsById = new Map<string, CorporateItemDto>();
+      for (const item of items) {
+        if (item?.id) itemsById.set(item.id, item);
+      }
+
+      // Separate brands (ORGDEVELOPMENT), legal entities (JURPERSON) and restaurants (DEPARTMENT)
       const brands = items.filter((item) => item.type === 'ORGDEVELOPMENT');
+      const legalEntities = items.filter((item) => item.type === 'JURPERSON');
       const restaurants = items.filter((item) => item.type === 'DEPARTMENT');
+
+      // Track ids seen in this iiko response so we can soft-delete entries
+      // that disappeared from iiko (closed restaurants / removed brands / removed legal entities).
+      const seenBrandIikoIds = new Set<string>();
+      const seenLegalEntityIikoIds = new Set<string>();
+      const seenRestaurantIikoIds = new Set<string>();
+      let unresolvedRestaurants = 0;
+      let unresolvedLegalEntities = 0;
 
       // Process brands
       for (const brand of brands) {
@@ -196,68 +215,165 @@ export class IikoSyncService {
             type: brandType,
           },
         });
+        seenBrandIikoIds.add(brand.id);
       }
 
-      // Build parent ID to brand mapping
-      const parentToBrand = new Map<string, string>();
-      for (const brand of brands) {
-        parentToBrand.set(brand.id, brand.id);
-      }
-
-      // Map intermediate parent IDs to brands (from real data)
-      const intermediateParentMap: Record<string, string> = {
-        '0c6e8c78-ad8c-44a7-9165-b537cba775f2':
-          'f3864940-8072-4dde-9c03-d1fec8d661c4', // BNA
-        'bec562e9-1225-4436-9743-e3ff1e74fc7a':
-          'f401ea70-f72c-408b-b3a3-935e779c8043', // DNA
-      };
-
-      // Process restaurants
-      for (const restaurant of restaurants) {
-        let brandId = restaurant.parentId ?? '';
-
-        // Check if parentId is an intermediate node
-        if (brandId && intermediateParentMap[brandId]) {
-          brandId = intermediateParentMap[brandId];
-        }
-
-        // Find the brand by ID
-        const brand = await this.prisma.brand.findUnique({
-          where: { iikoGroupId: brandId },
-        });
-
-        if (!brand) {
+      // Process legal entities (JURPERSON). Each is upserted under the brand it
+      // belongs to (resolved by walking parents up to the first ORGDEVELOPMENT).
+      // Map iikoId → DB legalEntity.id for the restaurant pass below.
+      const legalEntityDbIdByIikoId = new Map<string, string>();
+      for (const le of legalEntities) {
+        const brandIikoId = this.resolveBrandIikoId(le, itemsById);
+        if (!brandIikoId) {
+          unresolvedLegalEntities += 1;
           this.logger.warn(
-            `Brand not found for restaurant ${restaurant.name} (parent: ${restaurant.parentId}, mapped: ${brandId}), skipping`,
+            `Could not resolve brand for legal entity ${le.name} ` +
+              `(id: ${le.id}, parent: ${le.parentId ?? '∅'}), skipping`,
           );
           continue;
         }
+        const brand = await this.prisma.brand.findUnique({
+          where: { iikoGroupId: brandIikoId },
+        });
+        if (!brand) {
+          unresolvedLegalEntities += 1;
+          this.logger.warn(
+            `Brand row missing for resolved iikoGroupId ${brandIikoId} ` +
+              `(legal entity ${le.name}), skipping`,
+          );
+          continue;
+        }
+        const upserted = await this.prisma.legalEntity.upsert({
+          where: { iikoId: le.id },
+          update: {
+            name: le.name,
+            brandId: brand.id,
+            taxpayerIdNumber: le.taxpayerIdNumber ?? null,
+            isActive: true,
+          },
+          create: {
+            iikoId: le.id,
+            brandId: brand.id,
+            name: le.name,
+            taxpayerIdNumber: le.taxpayerIdNumber ?? null,
+            isActive: true,
+          },
+        });
+        seenLegalEntityIikoIds.add(le.id);
+        legalEntityDbIdByIikoId.set(le.id, upserted.id);
+      }
+
+      // Process restaurants
+      for (const restaurant of restaurants) {
+        const brandIikoId = this.resolveBrandIikoId(restaurant, itemsById);
+
+        if (!brandIikoId) {
+          unresolvedRestaurants += 1;
+          this.logger.warn(
+            `Could not resolve brand for restaurant ${restaurant.name} ` +
+              `(id: ${restaurant.id}, parent: ${restaurant.parentId ?? '∅'}), skipping`,
+          );
+          Sentry.withScope((scope) => {
+            scope.setTag('system', 'IIKO');
+            scope.setTag('method', 'syncOrganizations');
+            scope.setContext('restaurant', {
+              id: restaurant.id,
+              name: restaurant.name,
+              parentId: restaurant.parentId ?? null,
+            });
+            Sentry.captureMessage(
+              `Unresolved iiko restaurant: ${restaurant.name}`,
+              'warning',
+            );
+          });
+          continue;
+        }
+
+        const brand = await this.prisma.brand.findUnique({
+          where: { iikoGroupId: brandIikoId },
+        });
+        if (!brand) {
+          // Should not happen — resolver returned an ORGDEVELOPMENT id but the
+          // brand row wasn't upserted. Log and skip rather than crash the sync.
+          unresolvedRestaurants += 1;
+          this.logger.warn(
+            `Brand row missing for resolved iikoGroupId ${brandIikoId} ` +
+              `(restaurant ${restaurant.name}), skipping`,
+          );
+          continue;
+        }
+
+        // Resolve immediate-ancestor JURPERSON (if any) so we can attach the
+        // restaurant to its legal entity. Restaurants without a JURPERSON
+        // ancestor get legalEntityId = null.
+        const directLegalEntityIikoId = this.resolveLegalEntityIikoId(
+          restaurant,
+          itemsById,
+        );
+        const legalEntityDbId = directLegalEntityIikoId
+          ? (legalEntityDbIdByIikoId.get(directLegalEntityIikoId) ?? null)
+          : null;
 
         await this.prisma.restaurant.upsert({
           where: { iikoId: restaurant.id },
           update: {
             name: restaurant.name,
+            brandId: brand.id,
+            legalEntityId: legalEntityDbId,
             isActive: true,
           },
           create: {
             iikoId: restaurant.id,
             brandId: brand.id,
+            legalEntityId: legalEntityDbId,
             name: restaurant.name,
             isActive: true,
           },
         });
+        seenRestaurantIikoIds.add(restaurant.id);
       }
+
+      // Soft-delete: mark anything no longer returned by iiko as inactive so
+      // closed restaurants / removed brands stop appearing in the dashboard.
+      const deactivatedRestaurants = await this.prisma.restaurant.updateMany({
+        where: {
+          iikoId: { notIn: Array.from(seenRestaurantIikoIds) },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+      const deactivatedLegalEntities = await this.prisma.legalEntity.updateMany({
+        where: {
+          iikoId: { not: null },
+          NOT: { iikoId: { in: Array.from(seenLegalEntityIikoIds) } },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+      const deactivatedBrands = await this.prisma.brand.updateMany({
+        where: {
+          iikoGroupId: { not: null },
+          NOT: { iikoGroupId: { in: Array.from(seenBrandIikoIds) } },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
 
       const durationMs = Date.now() - startTime;
       await this.logSync(
         tenantId,
         'IIKO',
         'SUCCESS',
-        brands.length + restaurants.length,
+        brands.length + legalEntities.length + restaurants.length,
         durationMs,
       );
       this.logger.log(
-        `✓ Synced ${restaurants.length} restaurants and ${brands.length} brands`,
+        `✓ Synced ${restaurants.length - unresolvedRestaurants}/${restaurants.length} restaurants, ` +
+          `${legalEntities.length - unresolvedLegalEntities}/${legalEntities.length} legal entities, ` +
+          `${brands.length} brands. ` +
+          `Deactivated: ${deactivatedRestaurants.count} restaurants, ` +
+          `${deactivatedLegalEntities.count} legal entities, ${deactivatedBrands.count} brands. ` +
+          `Unresolved: ${unresolvedRestaurants} restaurants, ${unresolvedLegalEntities} legal entities`,
       );
     } catch (error) {
       const durationMs = Date.now() - startTime;
@@ -374,6 +490,20 @@ export class IikoSyncService {
             const payments =
               paymentByDate.get(dateStr) || this.estimatePayments(dailyRevenue);
 
+            // ★ revenue = NET (sum of all OLAP payment types).
+            // Why: /reports/sales returns gross — sum by ticket price including
+            //   open/unpaid checks, comp items, and discount line items. iiko UI
+            //   "Отчёт о продажах" shows net (DishDiscountSumInt) which equals the
+            //   sum of payments by type. We mirror iiko UI here so dashboard
+            //   numbers match what the operator sees in iiko.
+            // Fallback to gross only when OLAP returned no payment rows at all
+            //   (e.g. day not yet closed in iiko, or OLAP request failed for
+            //   that date). estimatePayments() puts the full gross into "cash"
+            //   in that case, so olapNet would equal dailyRevenue anyway.
+            let olapNet = 0;
+            for (const v of payments.raw.values()) olapNet += v;
+            const netRevenue: number = olapNet > 0 ? olapNet : dailyRevenue;
+
             await this.prisma.financialSnapshot.upsert({
               where: {
                 restaurantId_date: {
@@ -382,7 +512,7 @@ export class IikoSyncService {
                 },
               },
               update: {
-                revenue: dailyRevenue,
+                revenue: netRevenue,
                 revenueCash: payments.cash,
                 revenueKaspi: payments.kaspi,
                 revenueHalyk: payments.halyk,
@@ -392,7 +522,7 @@ export class IikoSyncService {
               create: {
                 restaurantId: restaurant.id,
                 date: snapshotDate,
-                revenue: dailyRevenue,
+                revenue: netRevenue,
                 revenueCash: payments.cash,
                 revenueKaspi: payments.kaspi,
                 revenueHalyk: payments.halyk,
@@ -738,13 +868,18 @@ export class IikoSyncService {
   }
 
   /**
-   * Parse iiko date string to the UTC instant for midnight of that calendar
-   * day in Asia/Almaty (UTC+5). Supports two formats:
+   * Parse iiko date string to UTC midnight of that calendar day (no TZ shift).
+   * Supports two formats:
    *   - dd.MM.yyyy  (iiko Server XML / DDS shifts)
    *   - yyyy-MM-dd  (iiko Cloud OLAP / JSON responses)
    *
-   * Both branches produce the same UTC instant as parseDate/startOfBusinessDay
-   * so composite upsert keys are consistent regardless of host process TZ.
+   * IMPORTANT: All target columns are Postgres `date` type. We pass UTC
+   * midnight of the iiko calendar day so Prisma serializes it as
+   * "2026-03-31T00:00:00.000Z" and Postgres stores `'2026-03-31'` exactly.
+   *
+   * If we used Almaty start-of-business-day here (UTC instant 19:00 of the
+   * previous day), Prisma's ISO serialization would slide every iiko day
+   * 1 calendar day back in the DB.
    */
   private parseIikoDate(dateStr: string): Date | null {
     try {
@@ -753,17 +888,13 @@ export class IikoSyncService {
       // dd.MM.yyyy format
       if (trimmed.includes('.')) {
         const [day, month, year] = trimmed.split('.');
-        return startOfBusinessDay(
-          new Date(Date.UTC(+year, +month - 1, +day)),
-        );
+        return new Date(Date.UTC(+year, +month - 1, +day, 0, 0, 0, 0));
       }
 
-      // yyyy-MM-dd format (no time component — treat as Almaty calendar date)
+      // yyyy-MM-dd format (date-only — iiko already gave us a calendar date)
       if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
         const [year, month, day] = trimmed.split('-');
-        return startOfBusinessDay(
-          new Date(Date.UTC(+year, +month - 1, +day)),
-        );
+        return new Date(Date.UTC(+year, +month - 1, +day, 0, 0, 0, 0));
       }
 
       // yyyy-MM-ddTHH:mm:ss… — has an explicit time component, keep as-is
@@ -1430,6 +1561,59 @@ export class IikoSyncService {
   ): 'RESTAURANT' | 'KITCHEN' | 'MARKETPLACE' {
     if (/цех|kitchen|fabrika/i.test(name)) return 'KITCHEN';
     return 'RESTAURANT';
+  }
+
+  /**
+   * Walk the parentId chain upward until we hit an ORGDEVELOPMENT (brand).
+   * Returns the brand's iiko id, or null if no brand ancestor was found.
+   *
+   * iiko hierarchy in the wild looks like:
+   *   ORGDEVELOPMENT (brand) → JURPERSON (legal entity, optional) → DEPARTMENT (restaurant)
+   * — sometimes deeper. The previous implementation hardcoded specific
+   * intermediate UUIDs per brand and silently dropped restaurants whose
+   * intermediate node wasn't in the list. This generic walker removes the
+   * need for any per-brand configuration.
+   */
+  private resolveBrandIikoId(
+    restaurant: CorporateItemDto,
+    itemsById: Map<string, CorporateItemDto>,
+  ): string | null {
+    let cursor: string | undefined = restaurant.parentId;
+    const visited = new Set<string>();
+    while (cursor && !visited.has(cursor)) {
+      visited.add(cursor);
+      const node = itemsById.get(cursor);
+      if (!node) return null;
+      if (node.type === 'ORGDEVELOPMENT') return node.id;
+      cursor = node.parentId;
+    }
+    return null;
+  }
+
+  /**
+   * Walk the parentId chain upward until we hit a JURPERSON (legal entity).
+   * Returns the legal entity's iiko id, or null if no JURPERSON ancestor was
+   * found before reaching an ORGDEVELOPMENT (brand).
+   *
+   * A restaurant attached directly to an ORGDEVELOPMENT (no JURPERSON in
+   * between) returns null — that restaurant has no legal entity and its
+   * Restaurant.legalEntityId stays null.
+   */
+  private resolveLegalEntityIikoId(
+    restaurant: CorporateItemDto,
+    itemsById: Map<string, CorporateItemDto>,
+  ): string | null {
+    let cursor: string | undefined = restaurant.parentId;
+    const visited = new Set<string>();
+    while (cursor && !visited.has(cursor)) {
+      visited.add(cursor);
+      const node = itemsById.get(cursor);
+      if (!node) return null;
+      if (node.type === 'ORGDEVELOPMENT') return null;
+      if (node.type === 'JURPERSON') return node.id;
+      cursor = node.parentId;
+    }
+    return null;
   }
 
   private slugify(text: string): string {

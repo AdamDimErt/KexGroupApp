@@ -1,7 +1,10 @@
 jest.mock('@sentry/node', () => ({
   init: jest.fn(),
-  withScope: jest.fn((cb) => cb({ setTag: jest.fn(), setContext: jest.fn() })),
+  withScope: jest.fn((cb) =>
+    cb({ setTag: jest.fn(), setContext: jest.fn(), setLevel: jest.fn() }),
+  ),
   captureException: jest.fn(),
+  captureMessage: jest.fn(),
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -40,10 +43,16 @@ describe('IikoSyncService', () => {
             brand: {
               upsert: jest.fn(),
               findUnique: jest.fn(),
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
             },
             restaurant: {
               upsert: jest.fn(),
               findMany: jest.fn(),
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+            },
+            legalEntity: {
+              upsert: jest.fn().mockResolvedValue({ id: 'default-le-id' }),
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }),
             },
             financialSnapshot: {
               upsert: jest.fn(),
@@ -442,13 +451,16 @@ describe('IikoSyncService', () => {
     });
   });
 
-  describe('parseDate / parseIikoDate — Asia/Almaty midnight semantics', () => {
-    // 31 March 2026 00:00 Almaty (UTC+5) = 30 March 2026 19:00 UTC
-    const ALMATY_31_MAR = '2026-03-30T19:00:00.000Z';
+  describe('parseDate / parseIikoDate — UTC midnight of calendar date', () => {
+    // We deliberately do NOT shift to Almaty here: the target columns are
+    // Postgres `date` (no time), and Prisma serializes Date as ISO string.
+    // Almaty start-of-day (19:00 UTC of previous day) would slide every
+    // iiko date back by one calendar day after Postgres truncation.
+    const UTC_MIDNIGHT_31_MAR = '2026-03-31T00:00:00.000Z';
 
-    it('parseDate("31.03.2026") returns 2026-03-30T19:00:00.000Z', () => {
+    it('parseDate("31.03.2026") returns UTC midnight of 31.03.2026', () => {
       const result = (service as any).parseDate('31.03.2026');
-      expect(result.toISOString()).toBe(ALMATY_31_MAR);
+      expect(result.toISOString()).toBe(UTC_MIDNIGHT_31_MAR);
     });
 
     it('parseDate is the inverse of formatDate (round-trip)', () => {
@@ -460,14 +472,14 @@ describe('IikoSyncService', () => {
       }
     });
 
-    it('parseIikoDate("31.03.2026") — dot format — returns Almaty midnight', () => {
+    it('parseIikoDate("31.03.2026") — dot format — returns UTC midnight', () => {
       const result = (service as any).parseIikoDate('31.03.2026');
-      expect(result!.toISOString()).toBe(ALMATY_31_MAR);
+      expect(result!.toISOString()).toBe(UTC_MIDNIGHT_31_MAR);
     });
 
-    it('parseIikoDate("2026-03-31") — dash date-only format — returns same Almaty midnight', () => {
+    it('parseIikoDate("2026-03-31") — dash date-only format — returns same UTC midnight', () => {
       const result = (service as any).parseIikoDate('2026-03-31');
-      expect(result!.toISOString()).toBe(ALMATY_31_MAR);
+      expect(result!.toISOString()).toBe(UTC_MIDNIGHT_31_MAR);
     });
 
     it('parseIikoDate dot and dash formats return the same instant for the same calendar date', () => {
@@ -587,6 +599,351 @@ describe('IikoSyncService', () => {
       // Should not throw from logSync — the outer error from syncRevenue is still thrown
       await expect(service.syncRevenue(new Date(), new Date())).rejects.toThrow('Auth failed');
       // logSync completed without propagating the dead letter error
+    });
+  });
+
+  describe('resolveBrandIikoId — generic parent-chain resolver', () => {
+    const make = (
+      id: string,
+      type: string,
+      name: string,
+      parentId?: string,
+    ) => ({ id, type, name, parentId });
+
+    it('returns ORGDEVELOPMENT id when restaurant.parentId points to a brand directly', () => {
+      const items = new Map<string, any>();
+      const brand = make('brand-1', 'ORGDEVELOPMENT', 'BNA');
+      const dept = make('dept-1', 'DEPARTMENT', 'BNA Samal', 'brand-1');
+      items.set(brand.id, brand);
+      const result = (service as any).resolveBrandIikoId(dept, items);
+      expect(result).toBe('brand-1');
+    });
+
+    it('walks through a JURPERSON intermediate node up to the brand', () => {
+      const items = new Map<string, any>();
+      const brand = make('brand-jd', 'ORGDEVELOPMENT', 'Just Doner');
+      const jur = make('jur-1', 'JURPERSON', 'TOO Qazaq Guys', 'brand-jd');
+      const dept = make('dept-jd-ari', 'DEPARTMENT', 'Just Doner Ари', 'jur-1');
+      items.set(brand.id, brand);
+      items.set(jur.id, jur);
+      const result = (service as any).resolveBrandIikoId(dept, items);
+      expect(result).toBe('brand-jd');
+    });
+
+    it('returns null when no ORGDEVELOPMENT ancestor exists', () => {
+      const items = new Map<string, any>();
+      const orphanParent = make('jur-orphan', 'JURPERSON', 'Some legal entity');
+      const dept = make('dept-orphan', 'DEPARTMENT', 'Orphaned', 'jur-orphan');
+      items.set(orphanParent.id, orphanParent);
+      const result = (service as any).resolveBrandIikoId(dept, items);
+      expect(result).toBeNull();
+    });
+
+    it('returns null on missing parentId', () => {
+      const items = new Map<string, any>();
+      const dept = make('dept-no-parent', 'DEPARTMENT', 'Floating');
+      const result = (service as any).resolveBrandIikoId(dept, items);
+      expect(result).toBeNull();
+    });
+
+    it('does not loop on cyclic parent chains', () => {
+      const items = new Map<string, any>();
+      const a = make('a', 'JURPERSON', 'A', 'b');
+      const b = make('b', 'JURPERSON', 'B', 'a');
+      items.set(a.id, a);
+      items.set(b.id, b);
+      const dept = make('dept-cycle', 'DEPARTMENT', 'Cycle', 'a');
+      const result = (service as any).resolveBrandIikoId(dept, items);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('resolveLegalEntityIikoId — direct JURPERSON ancestor lookup', () => {
+    const make = (
+      id: string,
+      type: string,
+      name: string,
+      parentId?: string,
+    ) => ({ id, type, name, parentId });
+
+    it('returns the immediate JURPERSON id when restaurant.parentId is a JURPERSON', () => {
+      const items = new Map<string, any>();
+      const brand = make('brand-jd', 'ORGDEVELOPMENT', 'Just Doner');
+      const jur = make('jur-1', 'JURPERSON', 'TOO Qazaq Guys', 'brand-jd');
+      const dept = make('dept-jd-ari', 'DEPARTMENT', 'Just Doner Ари', 'jur-1');
+      items.set(brand.id, brand);
+      items.set(jur.id, jur);
+      const result = (service as any).resolveLegalEntityIikoId(dept, items);
+      expect(result).toBe('jur-1');
+    });
+
+    it('returns null when restaurant attaches directly to an ORGDEVELOPMENT (no JURPERSON in chain)', () => {
+      const items = new Map<string, any>();
+      const brand = make('brand-x', 'ORGDEVELOPMENT', 'Brand X');
+      const dept = make('dept-direct', 'DEPARTMENT', 'Direct child', 'brand-x');
+      items.set(brand.id, brand);
+      const result = (service as any).resolveLegalEntityIikoId(dept, items);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when no parent chain exists at all', () => {
+      const items = new Map<string, any>();
+      const dept = make('orphan', 'DEPARTMENT', 'Orphan');
+      const result = (service as any).resolveLegalEntityIikoId(dept, items);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('syncOrganizations — legal entities (JURPERSON) are upserted and linked', () => {
+    it('upserts legal entities and attaches restaurants via legalEntityId', async () => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+      jest.spyOn((service as any).xmlParser, 'parse').mockReturnValue({
+        corporateItemDtoes: {
+          corporateItemDto: [
+            { id: 'brand-dna', name: 'Doner na Abaya', type: 'ORGDEVELOPMENT' },
+            {
+              id: 'jur-zhekas',
+              parentId: 'brand-dna',
+              name: 'TOO Zhekas Family',
+              type: 'JURPERSON',
+              taxpayerIdNumber: '180840000123',
+            },
+            {
+              id: 'rest-abaya15',
+              parentId: 'jur-zhekas',
+              name: 'DNA Абая 15',
+              type: 'DEPARTMENT',
+            },
+          ],
+        },
+      });
+
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      (prisma.brand.upsert as jest.Mock).mockResolvedValue({ id: 'db-brand-dna' });
+      (prisma.brand.findUnique as jest.Mock).mockResolvedValue({
+        id: 'db-brand-dna',
+        iikoGroupId: 'brand-dna',
+      });
+      (prisma.company.upsert as jest.Mock).mockResolvedValue({ id: 'co-1' });
+      (prisma.legalEntity.upsert as jest.Mock).mockResolvedValue({
+        id: 'db-jur-zhekas',
+      });
+      (prisma.restaurant.upsert as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncOrganizations();
+
+      expect(prisma.legalEntity.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { iikoId: 'jur-zhekas' },
+          create: expect.objectContaining({
+            iikoId: 'jur-zhekas',
+            brandId: 'db-brand-dna',
+            name: 'TOO Zhekas Family',
+            taxpayerIdNumber: '180840000123',
+          }),
+        }),
+      );
+      expect(prisma.restaurant.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { iikoId: 'rest-abaya15' },
+          create: expect.objectContaining({
+            iikoId: 'rest-abaya15',
+            brandId: 'db-brand-dna',
+            legalEntityId: 'db-jur-zhekas',
+          }),
+        }),
+      );
+    });
+
+    it('soft-deletes legal entities no longer present in iiko response', async () => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+      jest.spyOn((service as any).xmlParser, 'parse').mockReturnValue({
+        corporateItemDtoes: {
+          corporateItemDto: [
+            { id: 'brand-dna', name: 'Doner na Abaya', type: 'ORGDEVELOPMENT' },
+            {
+              id: 'jur-still',
+              parentId: 'brand-dna',
+              name: 'Still here',
+              type: 'JURPERSON',
+            },
+          ],
+        },
+      });
+
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      (prisma.brand.upsert as jest.Mock).mockResolvedValue({ id: 'db-brand-dna' });
+      (prisma.brand.findUnique as jest.Mock).mockResolvedValue({
+        id: 'db-brand-dna',
+        iikoGroupId: 'brand-dna',
+      });
+      (prisma.company.upsert as jest.Mock).mockResolvedValue({ id: 'co-1' });
+      (prisma.legalEntity.upsert as jest.Mock).mockResolvedValue({
+        id: 'db-jur-still',
+      });
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncOrganizations();
+
+      expect(prisma.legalEntity.updateMany).toHaveBeenCalledWith({
+        where: {
+          iikoId: { not: null },
+          NOT: { iikoId: { in: ['jur-still'] } },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+    });
+  });
+
+  describe('syncOrganizations — full flow with JURPERSON intermediate (Just Doner regression)', () => {
+    it('upserts restaurants whose parent is a JURPERSON without any hardcoded mapping', async () => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+      jest.spyOn((service as any).xmlParser, 'parse').mockReturnValue({
+        corporateItemDtoes: {
+          corporateItemDto: [
+            {
+              id: 'brand-jd',
+              name: 'Just Doner',
+              type: 'ORGDEVELOPMENT',
+            },
+            {
+              id: 'jur-1',
+              parentId: 'brand-jd',
+              name: 'TOO Qazaq Guys',
+              type: 'JURPERSON',
+            },
+            {
+              id: 'rest-ari',
+              parentId: 'jur-1',
+              name: 'Just Doner Ари',
+              type: 'DEPARTMENT',
+            },
+            {
+              id: 'rest-almaly',
+              parentId: 'jur-1',
+              name: 'Just Doner Жк Алмалы',
+              type: 'DEPARTMENT',
+            },
+          ],
+        },
+      });
+
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      (prisma.brand.upsert as jest.Mock).mockResolvedValue({ id: 'db-brand-jd' });
+      (prisma.brand.findUnique as jest.Mock).mockResolvedValue({
+        id: 'db-brand-jd',
+        iikoGroupId: 'brand-jd',
+      });
+      (prisma.company.upsert as jest.Mock).mockResolvedValue({ id: 'co-1' });
+      (prisma.restaurant.upsert as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncOrganizations();
+
+      expect(prisma.restaurant.upsert).toHaveBeenCalledTimes(2);
+      expect(prisma.restaurant.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { iikoId: 'rest-ari' },
+          create: expect.objectContaining({
+            iikoId: 'rest-ari',
+            brandId: 'db-brand-jd',
+            name: 'Just Doner Ари',
+          }),
+        }),
+      );
+      expect(prisma.restaurant.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { iikoId: 'rest-almaly' },
+        }),
+      );
+    });
+
+    it('soft-deletes restaurants no longer present in the iiko response', async () => {
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+      jest.spyOn((service as any).xmlParser, 'parse').mockReturnValue({
+        corporateItemDtoes: {
+          corporateItemDto: [
+            { id: 'brand-x', name: 'X', type: 'ORGDEVELOPMENT' },
+            {
+              id: 'rest-still-here',
+              parentId: 'brand-x',
+              name: 'Still here',
+              type: 'DEPARTMENT',
+            },
+          ],
+        },
+      });
+
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      (prisma.brand.upsert as jest.Mock).mockResolvedValue({ id: 'db-x' });
+      (prisma.brand.findUnique as jest.Mock).mockResolvedValue({
+        id: 'db-x',
+        iikoGroupId: 'brand-x',
+      });
+      (prisma.company.upsert as jest.Mock).mockResolvedValue({ id: 'co-1' });
+      (prisma.restaurant.upsert as jest.Mock).mockResolvedValue({});
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncOrganizations();
+
+      expect(prisma.restaurant.updateMany).toHaveBeenCalledWith({
+        where: {
+          iikoId: { notIn: ['rest-still-here'] },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+      expect(prisma.brand.updateMany).toHaveBeenCalledWith({
+        where: {
+          iikoGroupId: { not: null },
+          NOT: { iikoGroupId: { in: ['brand-x'] } },
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
+    });
+
+    it('emits Sentry warning (not error) when a restaurant cannot be resolved to a brand', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Sentry = require('@sentry/node') as {
+        captureMessage: jest.Mock;
+        captureException: jest.Mock;
+      };
+      (Sentry.captureMessage as jest.Mock).mockClear();
+      (Sentry.captureException as jest.Mock).mockClear();
+
+      jest.spyOn(service as any, 'getTenantId').mockResolvedValue('test-tenant');
+      jest.spyOn(service as any, 'makeRequest').mockResolvedValue('');
+      jest.spyOn((service as any).xmlParser, 'parse').mockReturnValue({
+        corporateItemDtoes: {
+          corporateItemDto: [
+            {
+              id: 'rest-orphan',
+              parentId: 'unknown-parent',
+              name: 'Orphan',
+              type: 'DEPARTMENT',
+            },
+          ],
+        },
+      });
+
+      (iikoAuth.getAccessToken as jest.Mock).mockResolvedValue('test-token');
+      (prisma.syncLog.create as jest.Mock).mockResolvedValue({});
+
+      await service.syncOrganizations();
+
+      expect(Sentry.captureMessage).toHaveBeenCalledWith(
+        expect.stringContaining('Orphan'),
+        'warning',
+      );
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+      expect(prisma.restaurant.upsert).not.toHaveBeenCalled();
     });
   });
 

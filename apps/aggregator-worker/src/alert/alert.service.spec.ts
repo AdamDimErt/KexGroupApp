@@ -59,7 +59,11 @@ describe('AlertService', () => {
               const map: Record<string, string> = {
                 API_GATEWAY_URL: 'http://gateway:3000',
                 INTERNAL_API_SECRET: 'test-secret',
-                LARGE_EXPENSE_THRESHOLD_KZT: '500000',
+                ALERT_LARGE_EXPENSE_AMOUNT: '500000',
+                ALERT_LOW_REVENUE_PERCENT: '70',
+                ALERT_SYNC_FAILURE_MINUTES: '60',
+                ALERT_REVENUE_AVG_DAYS: '30',
+                ALERT_COOLDOWN_HOURS: '4',
               };
               return map[key];
             }),

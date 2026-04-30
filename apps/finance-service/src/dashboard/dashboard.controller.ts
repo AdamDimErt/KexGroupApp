@@ -12,6 +12,7 @@ import { DashboardQueryDto } from './dto/dashboard-query.dto';
 import {
   DashboardSummaryDto,
   BrandDetailDto,
+  LegalEntityDetailDto,
   RestaurantDetailDto,
   ArticleGroupDetailDto,
 } from './dto/summary.dto';
@@ -119,6 +120,24 @@ export class DashboardController {
   ): Promise<BrandDetailDto> {
     return this.dashboardService.getBrandDetail(
       brandId,
+      query.periodType || 'today',
+      query.dateFrom,
+      query.dateTo,
+    );
+  }
+
+  /**
+   * GET /dashboard/legal-entity/:legalEntityId?periodType=today&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+   * Legal entity detail (Level 1.5, JURPERSON drill-down): list of restaurants under one legal entity.
+   * Mobile UI rule: shown only when a brand has >= 2 active legal entities.
+   */
+  @Get('legal-entity/:legalEntityId')
+  async getLegalEntityDetail(
+    @Param('legalEntityId') legalEntityId: string,
+    @Query() query: DashboardQueryDto,
+  ): Promise<LegalEntityDetailDto> {
+    return this.dashboardService.getLegalEntityDetail(
+      legalEntityId,
       query.periodType || 'today',
       query.dateFrom,
       query.dateTo,

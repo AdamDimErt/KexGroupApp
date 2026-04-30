@@ -38,9 +38,22 @@ export class AuthService {
     return this.config.get<string>('DEV_BYPASS_CODE') ?? '111111';
   }
 
-  private isDevBypassActive(phone: string, code: string): boolean {
+  /**
+   * Bypass-режим для текущего телефона:
+   *  - DEV_BYPASS_ALL=true (или *) → ЛЮБОЙ номер в non-prod проходит с DEV_BYPASS_CODE
+   *  - иначе — только номера из DEV_BYPASS_PHONES
+   * NODE_ENV=production всегда выключает bypass — чтоб случайно не утащить в прод.
+   */
+  private isPhoneBypassed(phone: string): boolean {
     const isNonProd = this.config.get<string>('NODE_ENV') !== 'production';
-    return isNonProd && this.bypassPhones.includes(phone) && code === this.devOtpBypassCode;
+    if (!isNonProd) return false;
+    const all = (this.config.get<string>('DEV_BYPASS_ALL') ?? '').toLowerCase();
+    if (all === 'true' || all === '1' || all === '*') return true;
+    return this.bypassPhones.includes(phone);
+  }
+
+  private isDevBypassActive(phone: string, code: string): boolean {
+    return this.isPhoneBypassed(phone) && code === this.devOtpBypassCode;
   }
 
   constructor(
@@ -64,7 +77,7 @@ export class AuthService {
       );
     }
 
-    if (this.bypassPhones.includes(phone)) {
+    if (this.isPhoneBypassed(phone)) {
       const bypassCode = this.devOtpBypassCode;
       await this.redis.set(`otp:${phone}`, bypassCode, 'EX', this.OTP_TTL_SEC);
       this.logger.warn(`[DEV BYPASS] ${phone} — код: ${bypassCode}`);
@@ -307,11 +320,36 @@ export class AuthService {
     });
 
     if (!user) {
-      this.logger.log(`Создан новый пользователь: ${phone}`);
+      // В dev/staging новых пользователей сразу привязываем к DEV_DEFAULT_TENANT_ID,
+      // иначе после bypass-логина дашборд будет пустой (tenantId = null).
+      const isNonProd = this.config.get<string>('NODE_ENV') !== 'production';
+      const defaultTenant = this.config.get<string>('DEV_DEFAULT_TENANT_ID');
+      const initialTenantId = isNonProd && defaultTenant ? defaultTenant : null;
+
+      this.logger.log(
+        `Создан новый пользователь: ${phone}` +
+          (initialTenantId ? ` (tenantId=${initialTenantId})` : ''),
+      );
       user = await this.prisma.user.create({
-        data: { phone, role: 'OPERATIONS_DIRECTOR' },
+        data: {
+          phone,
+          role: 'OPERATIONS_DIRECTOR',
+          ...(initialTenantId ? { tenantId: initialTenantId } : {}),
+        },
         include: { tenant: true, restaurants: true },
       });
+    } else if (!user.tenantId) {
+      // Существующий user без tenant — также автопривязка в dev (например, если завели руками).
+      const isNonProd = this.config.get<string>('NODE_ENV') !== 'production';
+      const defaultTenant = this.config.get<string>('DEV_DEFAULT_TENANT_ID');
+      if (isNonProd && defaultTenant) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { tenantId: defaultTenant },
+          include: { tenant: true, restaurants: true },
+        });
+        this.logger.log(`Auto-bound ${phone} → tenant ${defaultTenant}`);
+      }
     }
 
     if (!user.isActive) {

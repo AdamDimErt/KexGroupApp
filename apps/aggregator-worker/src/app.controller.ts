@@ -25,6 +25,19 @@ export class AppController {
     };
   }
 
+  @Post('sync/organizations')
+  async syncOrganizations() {
+    this.logger.log('Manual organizations sync triggered...');
+    try {
+      await this.iikoSync.syncOrganizations();
+      return { status: 'ok' };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      this.logger.error(`Organizations sync failed: ${message}`);
+      return { status: 'error', message };
+    }
+  }
+
   @Post('sync/all')
   async syncAll() {
     this.logger.log('Manual sync triggered — starting all iiko syncs...');

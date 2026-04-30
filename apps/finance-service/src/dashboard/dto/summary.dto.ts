@@ -16,6 +16,7 @@ export class BrandIndicatorDto {
   financialResult: number;
   changePercent: number;
   restaurantCount: number;
+  plannedRevenue: number;
 }
 
 export class DashboardSummaryDto {
@@ -28,6 +29,7 @@ export class DashboardSummaryDto {
   totalRevenue: number;
   totalExpenses: number;
   financialResult: number;
+  totalPlannedRevenue: number;
   brands: BrandIndicatorDto[];
   lastSyncAt: string | null;
   lastSyncStatus: 'success' | 'error' | null;
@@ -98,9 +100,37 @@ export class RestaurantIndicatorDto {
   status: 'green' | 'yellow' | 'red';
 }
 
+export class LegalEntitySummaryDto {
+  id: string;
+  name: string;
+  taxpayerIdNumber: string | null;
+  revenue: number;
+  expenses: number;
+  financialResult: number;
+  restaurantCount: number;
+}
+
 export class BrandDetailDto {
   id: string;
   name: string;
+  period: PeriodDto;
+  totalRevenue: number;
+  totalExpenses: number;
+  restaurants: RestaurantIndicatorDto[];
+  /**
+   * Legal entities (JURPERSON in iiko) under this brand.
+   * Empty/zero-restaurant entries are filtered out.
+   * Mobile UI rule: show as a drill-down step only when length >= 2.
+   */
+  legalEntities: LegalEntitySummaryDto[];
+}
+
+export class LegalEntityDetailDto {
+  id: string;
+  name: string;
+  taxpayerIdNumber: string | null;
+  brandId: string;
+  brandName: string;
   period: PeriodDto;
   totalRevenue: number;
   totalExpenses: number;

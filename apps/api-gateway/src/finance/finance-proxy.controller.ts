@@ -175,6 +175,46 @@ export class FinanceProxyController {
     });
   }
 
+  @Get('legal-entity/:id')
+  @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
+  @ApiOperation({
+    summary:
+      'Получить детали юр-лица (OWNER, FINANCE_DIRECTOR, OPERATIONS_DIRECTOR)',
+  })
+  getLegalEntityDetail(
+    @Req() req: { user: JwtPayload },
+    @Param('id') legalEntityId: string,
+    @Headers('authorization') authHeader: string,
+    @Query('periodType') periodType?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const user = req.user;
+    if (this.isOpsDirectorWithNoScope(user)) {
+      this.logger.warn(
+        `OPS_DIRECTOR ${user.sub} called /finance/legal-entity/${legalEntityId} with empty scope`,
+      );
+      return this.emptyDashboardResponse(user.tenantId ?? '', {
+        periodType,
+        dateFrom,
+        dateTo,
+      });
+    }
+    const tenantId = user?.tenantId ?? '';
+    const userRole = user?.role ?? '';
+    const restaurantIds = (user?.restaurantIds ?? []).join(',');
+    const path = this.buildQueryString(
+      `/dashboard/legal-entity/${legalEntityId}`,
+      { periodType, dateFrom, dateTo },
+    );
+    return this.proxy.forward('GET', path, undefined, {
+      authorization: authHeader,
+      'x-tenant-id': tenantId,
+      'x-user-role': userRole,
+      'x-user-restaurant-ids': restaurantIds,
+    });
+  }
+
   @Get('restaurant/:id')
   @Roles([UserRole.OWNER, UserRole.FINANCE_DIRECTOR, UserRole.OPERATIONS_DIRECTOR, UserRole.ADMIN])
   @ApiOperation({

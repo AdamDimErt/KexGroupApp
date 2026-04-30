@@ -10,6 +10,8 @@ import {
   DashboardSummaryDto,
   BrandIndicatorDto,
   BrandDetailDto,
+  LegalEntitySummaryDto,
+  LegalEntityDetailDto,
   RestaurantDetailDto,
   ArticleGroupDetailDto,
   RestaurantIndicatorDto,
@@ -40,15 +42,9 @@ import {
 } from './dto/revenue-aggregated.dto';
 
 /**
- * Asia/Almaty = UTC+5 (no DST)
- * All business dates must be interpreted in this timezone.
+ * Asia/Almaty = UTC+5 (no DST). For DATE-only columns we filter by UTC
+ * midnight of the requested calendar date — see parseStartDate/parseEndDate.
  */
-const TIMEZONE_OFFSET_HOURS = 5;
-
-/**
- * ISO offset string derived from TIMEZONE_OFFSET_HOURS, e.g. "+05:00"
- */
-const TZ_OFFSET = `+${String(TIMEZONE_OFFSET_HOURS).padStart(2, '0')}:00`;
 
 @Injectable()
 export class DashboardService {
@@ -62,22 +58,29 @@ export class DashboardService {
   }
 
   /**
-   * Parse date string as start-of-day in Asia/Almaty timezone.
-   * Returns UTC Date representing 00:00:00 Almaty time.
+   * Parse date string as UTC midnight of that calendar date (no TZ shift).
+   *
+   * IMPORTANT: All filtered columns are Postgres `date` type (no time).
+   * Prisma serializes Date as ISO string and Postgres compares it to `date`
+   * by truncating the ISO string's calendar part. If we shifted to Almaty
+   * here (T00:00:00+05:00 → 19:00 UTC of previous day), the filter would
+   * effectively become `date >= '2026-04-26'` when the user asked for
+   * 2026-04-27 — capturing one extra day.
    */
   private parseStartDate(dateStr: string): Date {
     // Accept both "2026-01-15" and "2026-01-15T00:00:00Z" formats
     const dateOnly = dateStr.split('T')[0]; // Extract YYYY-MM-DD
-    return new Date(`${dateOnly}T00:00:00${TZ_OFFSET}`);
+    return new Date(`${dateOnly}T00:00:00.000Z`);
   }
 
   /**
-   * Parse date string as end-of-day in Asia/Almaty timezone.
-   * Returns UTC Date representing 23:59:59.999 Almaty time.
+   * Parse date string as UTC end-of-day of that calendar date (no TZ shift).
+   * Symmetric with parseStartDate — keeps both ends inside the same UTC day
+   * so date-column comparisons match the requested calendar range exactly.
    */
   private parseEndDate(dateStr: string): Date {
     const dateOnly = dateStr.split('T')[0];
-    return new Date(`${dateOnly}T23:59:59.999${TZ_OFFSET}`);
+    return new Date(`${dateOnly}T23:59:59.999Z`);
   }
 
   /**
@@ -256,6 +259,45 @@ export class DashboardService {
       ]),
     );
 
+    // План = СРЕДНЯЯ выручка за 3 предыдущих периода такой же длительности.
+    //
+    // Раньше использовался ОДИН предыдущий период — это было чувствительно к выбросам
+    // (один корпоратив в декабре завышал «план» на январь). Среднее за 3 периода
+    // сглаживает разовые всплески/провалы и даёт более стабильный baseline.
+    //
+    // Например для месячного периода Apr 1..30:
+    //   prev3StartDate = Jan 1   (Jan + Feb + Mar = 3 месяца)
+    //   prev3EndDate   = Mar 31
+    //   план на ресторан = (revenue за 3 месяца) / 3 = средняя месячная выручка
+    //
+    // Для thisWeek = эта неделя → среднее за 3 предыдущих недели.
+    // Для today → среднее за 3 предыдущих дня.
+    //
+    // Если данных меньше чем за 3 периода (например, БД заведена только месяц назад),
+    // среднее будет занижено — но это лучше чем 0.
+    const PLAN_PERIODS = 3;
+    const periodMs = endDate.getTime() - startDate.getTime();
+    const prevEndDate = new Date(startDate.getTime() - 1);
+    const prevStartDate = new Date(startDate.getTime() - PLAN_PERIODS * periodMs);
+
+    const prevRevenueByRestaurant = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_revenue: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId",
+             COALESCE(SUM("revenue"), 0)::float8 AS "sum_revenue"
+      FROM "finance"."FinancialSnapshot"
+      WHERE "restaurantId" = ANY(${allRestaurantIds})
+        AND "date" >= ${prevStartDate} AND "date" <= ${prevEndDate}
+      GROUP BY "restaurantId"
+    `);
+
+    const prevRevenueMap = new Map(
+      prevRevenueByRestaurant.map((item) => [
+        item.restaurantId,
+        this.toNumber(item.sum_revenue) / PLAN_PERIODS,
+      ]),
+    );
+
     // Build brand-to-restaurants map
     const brandRestaurantMap = new Map<string, string[]>();
     for (const r of allRestaurants) {
@@ -266,11 +308,13 @@ export class DashboardService {
 
     let totalRevenue = 0;
     let totalExpenses = 0;
+    let totalPlannedRevenue = 0;
 
     const brandIndicators: BrandIndicatorDto[] = brands.map((brand) => {
       const restaurantIds = brandRestaurantMap.get(brand.id) || [];
       let brandRevenue = 0;
       let brandExpenses = 0;
+      let brandPlanned = 0;
 
       for (const rid of restaurantIds) {
         const data = revenueMap.get(rid);
@@ -278,10 +322,19 @@ export class DashboardService {
           brandRevenue += data.revenue;
           brandExpenses += data.expenses;
         }
+        brandPlanned += prevRevenueMap.get(rid) ?? 0;
       }
 
       totalRevenue += brandRevenue;
       totalExpenses += brandExpenses;
+      totalPlannedRevenue += brandPlanned;
+
+      // changePercent = (current - previous) / previous × 100, rounded to 2dp.
+      // 0 when no prior data (avoids division by zero — UI treats this as "план не задан").
+      const changePercent =
+        brandPlanned > 0
+          ? Math.round(((brandRevenue - brandPlanned) / brandPlanned) * 10000) / 100
+          : 0;
 
       return {
         id: brand.id,
@@ -290,8 +343,9 @@ export class DashboardService {
         revenue: brandRevenue,
         expenses: brandExpenses,
         financialResult: brandRevenue - brandExpenses,
-        changePercent: 0, // TODO: compare with previous period
+        changePercent,
         restaurantCount: countMap.get(brand.id) ?? 0,
+        plannedRevenue: brandPlanned,
       };
     });
 
@@ -309,6 +363,7 @@ export class DashboardService {
       totalRevenue,
       totalExpenses,
       financialResult: totalRevenue - totalExpenses,
+      totalPlannedRevenue,
       brands: brandIndicators,
       lastSyncAt,
       lastSyncStatus: lastSyncAt ? 'success' : null,
@@ -675,7 +730,11 @@ export class DashboardService {
       include: {
         restaurants: {
           where: { isActive: true },
-          select: { id: true, name: true, brandId: true },
+          select: { id: true, name: true, brandId: true, legalEntityId: true },
+        },
+        legalEntities: {
+          where: { isActive: true },
+          select: { id: true, name: true, taxpayerIdNumber: true },
         },
       },
     });
@@ -688,6 +747,7 @@ export class DashboardService {
         totalRevenue: 0,
         totalExpenses: 0,
         restaurants: [],
+        legalEntities: [],
       };
     }
 
@@ -774,9 +834,183 @@ export class DashboardService {
       };
     });
 
+    // Aggregate per-legal-entity from the per-restaurant slice we already
+    // computed. We avoid extra queries by reusing snapshotMap + allocationMap.
+    const legalEntityAggregates = new Map<
+      string,
+      { revenue: number; expenses: number; restaurantCount: number }
+    >();
+    for (const r of brand.restaurants) {
+      if (!r.legalEntityId) continue;
+      const snap = snapshotMap.get(r.id);
+      const revenue = this.toNumber(snap?.sum_revenue);
+      const directExp = this.toNumber(snap?.sum_directExpenses);
+      const distributedExp = allocationMap.get(r.id) || 0;
+      const acc = legalEntityAggregates.get(r.legalEntityId) ?? {
+        revenue: 0,
+        expenses: 0,
+        restaurantCount: 0,
+      };
+      acc.revenue += revenue;
+      acc.expenses += directExp + distributedExp;
+      acc.restaurantCount += 1;
+      legalEntityAggregates.set(r.legalEntityId, acc);
+    }
+
+    // Skip legal entities with zero active restaurants (e.g. iiko shell entries).
+    const legalEntities: LegalEntitySummaryDto[] = brand.legalEntities
+      .map((le) => {
+        const agg = legalEntityAggregates.get(le.id);
+        const revenue = agg?.revenue ?? 0;
+        const expenses = agg?.expenses ?? 0;
+        return {
+          id: le.id,
+          name: le.name,
+          taxpayerIdNumber: le.taxpayerIdNumber,
+          revenue,
+          expenses,
+          financialResult: revenue - expenses,
+          restaurantCount: agg?.restaurantCount ?? 0,
+        };
+      })
+      .filter((le) => le.restaurantCount > 0);
+
     return {
       id: brand.id,
       name: brand.name,
+      period: { type: periodType, from: dateFrom, to: dateTo },
+      totalRevenue,
+      totalExpenses,
+      restaurants,
+      legalEntities,
+    };
+  }
+
+  /**
+   * Get legal-entity detail (JURPERSON drill-down).
+   * Mirrors getBrandDetail but scopes restaurants by legalEntityId.
+   * UI rule: this screen is only shown when a brand has >= 2 active legal entities.
+   */
+  async getLegalEntityDetail(
+    legalEntityId: string,
+    periodType: string,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<LegalEntityDetailDto> {
+    const startDate = this.parseStartDate(dateFrom);
+    const endDate = this.parseEndDate(dateTo);
+
+    const legalEntity = await this.prisma.legalEntity.findUnique({
+      where: { id: legalEntityId },
+      include: {
+        brand: { select: { id: true, name: true } },
+        restaurants: {
+          where: { isActive: true },
+          select: { id: true, name: true, brandId: true },
+        },
+      },
+    });
+
+    if (!legalEntity) {
+      return {
+        id: legalEntityId,
+        name: '',
+        taxpayerIdNumber: null,
+        brandId: '',
+        brandName: '',
+        period: { type: periodType, from: dateFrom, to: dateTo },
+        totalRevenue: 0,
+        totalExpenses: 0,
+        restaurants: [],
+      };
+    }
+
+    const restaurantIds = legalEntity.restaurants.map((r) => r.id);
+
+    const snapshots = await this.prisma.$queryRaw<
+      Array<{
+        restaurantId: string;
+        sum_revenue: number;
+        sum_revenueCash: number;
+        sum_revenueKaspi: number;
+        sum_revenueHalyk: number;
+        sum_revenueYandex: number;
+        sum_directExpenses: number;
+      }>
+    >(Prisma.sql`
+      SELECT "restaurantId",
+             COALESCE(SUM("revenue"), 0)::float8 AS "sum_revenue",
+             COALESCE(SUM("revenueCash"), 0)::float8 AS "sum_revenueCash",
+             COALESCE(SUM("revenueKaspi"), 0)::float8 AS "sum_revenueKaspi",
+             COALESCE(SUM("revenueHalyk"), 0)::float8 AS "sum_revenueHalyk",
+             COALESCE(SUM("revenueYandex"), 0)::float8 AS "sum_revenueYandex",
+             COALESCE(SUM("directExpenses"), 0)::float8 AS "sum_directExpenses"
+      FROM "finance"."FinancialSnapshot"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "date" >= ${startDate} AND "date" <= ${endDate}
+      GROUP BY "restaurantId"
+    `);
+
+    const snapshotMap = new Map(snapshots.map((s) => [s.restaurantId, s]));
+
+    const allocations = await this.prisma.$queryRaw<
+      Array<{ restaurantId: string; sum_allocatedAmount: number }>
+    >(Prisma.sql`
+      SELECT "restaurantId", COALESCE(SUM("allocatedAmount"), 0)::float8 AS "sum_allocatedAmount"
+      FROM "finance"."CostAllocation"
+      WHERE "restaurantId" = ANY(${restaurantIds})
+        AND "periodStart" <= ${endDate}
+        AND "periodEnd" >= ${startDate}
+      GROUP BY "restaurantId"
+    `);
+
+    const allocationMap = new Map(
+      allocations.map((a) => [
+        a.restaurantId,
+        this.toNumber(a.sum_allocatedAmount),
+      ]),
+    );
+
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+
+    const restaurants: RestaurantIndicatorDto[] = legalEntity.restaurants.map((r) => {
+      const snap = snapshotMap.get(r.id);
+      const revenue = this.toNumber(snap?.sum_revenue);
+      const cash = this.toNumber(snap?.sum_revenueCash);
+      const kaspi = this.toNumber(snap?.sum_revenueKaspi);
+      const halyk = this.toNumber(snap?.sum_revenueHalyk);
+      const yandex = this.toNumber(snap?.sum_revenueYandex);
+      const directExp = this.toNumber(snap?.sum_directExpenses);
+      const distributedExp = allocationMap.get(r.id) || 0;
+      const financialResult = revenue - directExp - distributedExp;
+
+      totalRevenue += revenue;
+      totalExpenses += directExp + distributedExp;
+
+      let status: 'green' | 'yellow' | 'red' = 'green';
+      if (financialResult < 0) status = 'red';
+      else if (financialResult === 0) status = 'yellow';
+
+      return {
+        id: r.id,
+        name: r.name,
+        brandId: r.brandId,
+        revenue: { total: revenue, cash, kaspi, halyk, yandex, byType: [] },
+        directExpenses: directExp,
+        distributedExpenses: distributedExp,
+        financialResult,
+        changePercent: 0,
+        status,
+      };
+    });
+
+    return {
+      id: legalEntity.id,
+      name: legalEntity.name,
+      taxpayerIdNumber: legalEntity.taxpayerIdNumber,
+      brandId: legalEntity.brand.id,
+      brandName: legalEntity.brand.name,
       period: { type: periodType, from: dateFrom, to: dateTo },
       totalRevenue,
       totalExpenses,

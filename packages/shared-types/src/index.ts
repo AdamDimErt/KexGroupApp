@@ -87,6 +87,7 @@ export interface BrandIndicatorDto {
   financialResult: number;
   changePercent: number;         // Динамика vs предыдущий период (+/-%)
   restaurantCount: number;
+  plannedRevenue: number;        // Выручка за предыдущий период такой же длительности (план)
 }
 
 export interface DashboardSummaryDto {
@@ -95,6 +96,7 @@ export interface DashboardSummaryDto {
   totalRevenue: number;
   totalExpenses: number;         // Прямые + распределённые
   financialResult: number;       // OWNER + FIN_DIRECTOR only (null для OPS_DIRECTOR)
+  totalPlannedRevenue: number;   // Сумма plannedRevenue по всем брендам (план = прошлый период)
   brands: BrandIndicatorDto[];
   lastSyncAt: string | null;
   lastSyncStatus: 'success' | 'error' | null;
@@ -116,9 +118,37 @@ export interface RestaurantIndicatorDto {
   status: 'green' | 'yellow' | 'red';
 }
 
+export interface LegalEntitySummaryDto {
+  id: string;
+  name: string;                     // "ТОО \"A Doner\""
+  taxpayerIdNumber: string | null;  // ИНН/БИН (taxpayerIdNumber из iiko)
+  revenue: number;
+  expenses: number;
+  financialResult: number;
+  restaurantCount: number;
+}
+
 export interface BrandDetailDto {
   id: string;
   name: string;
+  period: PeriodDto;
+  totalRevenue: number;
+  totalExpenses: number;
+  restaurants: RestaurantIndicatorDto[];
+  /**
+   * Юр-лица (JURPERSON в iiko) под этим брендом.
+   * Запись с restaurantCount === 0 не попадает в массив.
+   * UI: показывать как уровень drill-down только при length >= 2.
+   */
+  legalEntities: LegalEntitySummaryDto[];
+}
+
+export interface LegalEntityDetailDto {
+  id: string;
+  name: string;
+  taxpayerIdNumber: string | null;
+  brandId: string;
+  brandName: string;
   period: PeriodDto;
   totalRevenue: number;
   totalExpenses: number;

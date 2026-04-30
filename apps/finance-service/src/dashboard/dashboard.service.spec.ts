@@ -15,6 +15,9 @@ describe('DashboardService', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
     },
+    legalEntity: {
+      findUnique: jest.fn(),
+    },
     restaurant: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -1148,6 +1151,186 @@ describe('DashboardService', () => {
 
       const call = mockPrismaService.restaurant.findMany.mock.calls[0][0] as { where: Record<string, unknown> };
       expect(call.where).not.toHaveProperty('id');
+    });
+  });
+
+  describe('getBrandDetail — legalEntities[] aggregation', () => {
+    const dateFrom = '2026-04-01';
+    const dateTo = '2026-04-30';
+
+    it('aggregates revenue/expenses per legal entity from snapshots and skips entries with zero restaurants', async () => {
+      mockPrismaService.brand.findUnique.mockResolvedValue({
+        id: 'brand-dna',
+        name: 'Doner na Abaya',
+        restaurants: [
+          { id: 'r1', name: 'DNA Точка 1', brandId: 'brand-dna', legalEntityId: 'le-zhekas' },
+          { id: 'r2', name: 'DNA Точка 2', brandId: 'brand-dna', legalEntityId: 'le-zhekas' },
+          { id: 'r3', name: 'DNA Точка 3', brandId: 'brand-dna', legalEntityId: 'le-mekebaeva' },
+        ],
+        legalEntities: [
+          { id: 'le-zhekas', name: 'TOO Zhekas', taxpayerIdNumber: '180840000123' },
+          { id: 'le-mekebaeva', name: 'IP Mekebaeva', taxpayerIdNumber: null },
+          // empty entity should be filtered out
+          { id: 'le-empty', name: 'TOO Burger square', taxpayerIdNumber: null },
+        ],
+      });
+      // First $queryRaw call → FinancialSnapshot rollup
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          {
+            restaurantId: 'r1',
+            sum_revenue: 1_000_000,
+            sum_revenueCash: 0,
+            sum_revenueKaspi: 0,
+            sum_revenueHalyk: 0,
+            sum_revenueYandex: 0,
+            sum_directExpenses: 200_000,
+          },
+          {
+            restaurantId: 'r2',
+            sum_revenue: 2_000_000,
+            sum_revenueCash: 0,
+            sum_revenueKaspi: 0,
+            sum_revenueHalyk: 0,
+            sum_revenueYandex: 0,
+            sum_directExpenses: 500_000,
+          },
+          {
+            restaurantId: 'r3',
+            sum_revenue: 500_000,
+            sum_revenueCash: 0,
+            sum_revenueKaspi: 0,
+            sum_revenueHalyk: 0,
+            sum_revenueYandex: 0,
+            sum_directExpenses: 100_000,
+          },
+        ])
+        // Second $queryRaw call → CostAllocation rollup
+        .mockResolvedValueOnce([
+          { restaurantId: 'r1', sum_allocatedAmount: 50_000 },
+          { restaurantId: 'r2', sum_allocatedAmount: 100_000 },
+        ]);
+
+      const result = await service.getBrandDetail('brand-dna', 'monthly', dateFrom, dateTo);
+
+      expect(result.legalEntities).toHaveLength(2); // empty one filtered
+      const zhekas = result.legalEntities.find((le) => le.id === 'le-zhekas');
+      expect(zhekas).toEqual(
+        expect.objectContaining({
+          name: 'TOO Zhekas',
+          taxpayerIdNumber: '180840000123',
+          revenue: 3_000_000, // 1M + 2M
+          expenses: 850_000, // (200k + 500k) + (50k + 100k)
+          financialResult: 3_000_000 - 850_000,
+          restaurantCount: 2,
+        }),
+      );
+      const mekebaeva = result.legalEntities.find((le) => le.id === 'le-mekebaeva');
+      expect(mekebaeva).toEqual(
+        expect.objectContaining({
+          revenue: 500_000,
+          expenses: 100_000, // no CostAllocation row → distributed = 0
+          financialResult: 400_000,
+          restaurantCount: 1,
+        }),
+      );
+      // empty legal entity must be absent
+      expect(result.legalEntities.find((le) => le.id === 'le-empty')).toBeUndefined();
+    });
+
+    it('returns empty legalEntities[] when brand has no JURPERSONs', async () => {
+      mockPrismaService.brand.findUnique.mockResolvedValue({
+        id: 'brand-x',
+        name: 'X',
+        restaurants: [
+          { id: 'r1', name: 'X point', brandId: 'brand-x', legalEntityId: null },
+        ],
+        legalEntities: [],
+      });
+      mockPrismaService.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const result = await service.getBrandDetail('brand-x', 'today', dateFrom, dateTo);
+
+      expect(result.legalEntities).toEqual([]);
+    });
+  });
+
+  describe('getLegalEntityDetail', () => {
+    const dateFrom = '2026-04-01';
+    const dateTo = '2026-04-30';
+
+    it('returns empty payload when legal entity is not found', async () => {
+      mockPrismaService.legalEntity.findUnique.mockResolvedValue(null);
+
+      const result = await service.getLegalEntityDetail('missing', 'today', dateFrom, dateTo);
+
+      expect(result).toEqual({
+        id: 'missing',
+        name: '',
+        taxpayerIdNumber: null,
+        brandId: '',
+        brandName: '',
+        period: { type: 'today', from: dateFrom, to: dateTo },
+        totalRevenue: 0,
+        totalExpenses: 0,
+        restaurants: [],
+      });
+    });
+
+    it('returns brand context, totals and restaurants list scoped by legalEntityId', async () => {
+      mockPrismaService.legalEntity.findUnique.mockResolvedValue({
+        id: 'le-zhekas',
+        name: 'TOO Zhekas',
+        taxpayerIdNumber: '180840000123',
+        brand: { id: 'brand-dna', name: 'Doner na Abaya' },
+        restaurants: [
+          { id: 'r1', name: 'DNA Абая 15', brandId: 'brand-dna' },
+          { id: 'r2', name: 'DNA Сатпаева', brandId: 'brand-dna' },
+        ],
+      });
+      mockPrismaService.$queryRaw
+        .mockResolvedValueOnce([
+          {
+            restaurantId: 'r1',
+            sum_revenue: 1_500_000,
+            sum_revenueCash: 100_000,
+            sum_revenueKaspi: 200_000,
+            sum_revenueHalyk: 300_000,
+            sum_revenueYandex: 400_000,
+            sum_directExpenses: 400_000,
+          },
+          {
+            restaurantId: 'r2',
+            sum_revenue: 2_500_000,
+            sum_revenueCash: 0,
+            sum_revenueKaspi: 0,
+            sum_revenueHalyk: 0,
+            sum_revenueYandex: 0,
+            sum_directExpenses: 600_000,
+          },
+        ])
+        .mockResolvedValueOnce([
+          { restaurantId: 'r1', sum_allocatedAmount: 50_000 },
+        ]);
+
+      const result = await service.getLegalEntityDetail(
+        'le-zhekas',
+        'monthly',
+        dateFrom,
+        dateTo,
+      );
+
+      expect(result.id).toBe('le-zhekas');
+      expect(result.brandId).toBe('brand-dna');
+      expect(result.brandName).toBe('Doner na Abaya');
+      expect(result.taxpayerIdNumber).toBe('180840000123');
+      expect(result.totalRevenue).toBe(4_000_000);
+      expect(result.totalExpenses).toBe(400_000 + 50_000 + 600_000);
+      expect(result.restaurants).toHaveLength(2);
+      const r1 = result.restaurants.find((r) => r.id === 'r1')!;
+      expect(r1.distributedExpenses).toBe(50_000);
+      expect(r1.directExpenses).toBe(400_000);
+      expect(r1.financialResult).toBe(1_500_000 - 400_000 - 50_000);
     });
   });
 });

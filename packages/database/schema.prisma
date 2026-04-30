@@ -182,31 +182,55 @@ model Brand {
   companyId   String
   name        String              // "Burger na Abaya"
   slug        String   @unique    // "burger-na-abaya"
-  iikoGroupId String?  @unique    // ID структурного подразделения в iiko
+  iikoGroupId String?  @unique    // ID структурного подразделения в iiko (ORGDEVELOPMENT)
   isActive    Boolean  @default(true)
   type        BrandType @default(RESTAURANT)   // BUG-11-3
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  restaurants   Restaurant[]
+  legalEntities LegalEntity[]
+
+  @@schema("finance")
+}
+
+/// Юридическое лицо под брендом (iiko JURPERSON: ТОО "A Doner", ИП "Мекебаева").
+/// Опциональный промежуточный уровень между Brand и Restaurant.
+/// На UI — уровень drill-down, видимый только если у бренда ≥ 2 юр-лиц.
+model LegalEntity {
+  id               String   @id @default(uuid())
+  brandId          String
+  iikoId           String?  @unique     // ID JURPERSON из iiko
+  name             String                // "ТОО \"A Doner\""
+  taxpayerIdNumber String?               // ИНН/БИН (taxpayerIdNumber из iiko)
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  brand       Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
   restaurants Restaurant[]
 
+  @@index([brandId])
   @@schema("finance")
 }
 
 /// Торговая точка / Ресторан (BNA Бесагаш, DNA Аксай)
 model Restaurant {
-  id        String   @id @default(uuid())
-  brandId   String
-  iikoId    String?  @unique     // ID в системе iiko (торговое предприятие)
-  oneCId    String?  @unique     // ID в системе 1С
-  name      String               // "BNA Бесагаш"
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(uuid())
+  brandId       String
+  legalEntityId String?            // Юр-лицо (опционально — у части точек может не быть JURPERSON)
+  iikoId        String?  @unique   // ID в системе iiko (торговое предприятие)
+  oneCId        String?  @unique   // ID в системе 1С
+  name          String              // "BNA Бесагаш"
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   brand              Brand                @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  legalEntity        LegalEntity?         @relation(fields: [legalEntityId], references: [id], onDelete: SetNull)
   users              User[]               // Привязанные пользователи
   snapshots          FinancialSnapshot[]
   expenses           Expense[]
@@ -214,6 +238,7 @@ model Restaurant {
   kitchenShipments   KitchenShipment[]
   cashDiscrepancies  CashDiscrepancy[]
 
+  @@index([legalEntityId])
   @@schema("finance")
 }
 

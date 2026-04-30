@@ -9,7 +9,13 @@ import { firstValueFrom } from 'rxjs';
 export class AlertService {
   private readonly logger = new Logger(AlertService.name);
   private readonly redis: Redis;
-  readonly COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+  // Tunables loaded from env (with safe defaults). Keep all magic numbers here.
+  readonly cooldownMs: number;
+  private readonly lowRevenueRatio: number;
+  private readonly largeExpenseThreshold: number;
+  private readonly syncFailureMs: number;
+  private readonly revenueAvgDays: number;
 
   constructor(
     private readonly httpService: HttpService,
@@ -18,6 +24,25 @@ export class AlertService {
   ) {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     this.redis = new Redis(redisUrl);
+
+    this.cooldownMs =
+      Number(this.config.get<string>('ALERT_COOLDOWN_HOURS') ?? '4') *
+      60 *
+      60 *
+      1000;
+    this.lowRevenueRatio =
+      Number(this.config.get<string>('ALERT_LOW_REVENUE_PERCENT') ?? '70') /
+      100;
+    this.largeExpenseThreshold = Number(
+      this.config.get<string>('ALERT_LARGE_EXPENSE_AMOUNT') ?? '500000',
+    );
+    this.syncFailureMs =
+      Number(this.config.get<string>('ALERT_SYNC_FAILURE_MINUTES') ?? '60') *
+      60 *
+      1000;
+    this.revenueAvgDays = Number(
+      this.config.get<string>('ALERT_REVENUE_AVG_DAYS') ?? '30',
+    );
   }
 
   // ─── Check sync health ─────────────────────────────────────────────────────
@@ -27,13 +52,13 @@ export class AlertService {
         where: { system, status: 'SUCCESS' },
         orderBy: { createdAt: 'desc' },
       });
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      if (!lastSuccess || lastSuccess.createdAt < oneHourAgo) {
+      const cutoff = new Date(Date.now() - this.syncFailureMs);
+      if (!lastSuccess || lastSuccess.createdAt < cutoff) {
         const key = `alert:SYNC_FAILURE:${system}`;
         if (await this.shouldFireAlert(key)) {
           await this.fireAlert('SYNC_FAILURE', {
             system,
-            error: `No successful ${system} sync in over 1 hour`,
+            error: `No successful ${system} sync in over ${this.syncFailureMs / 60000} minutes`,
           });
         }
       }
@@ -59,19 +84,19 @@ export class AlertService {
         });
         if (!todaySnapshot) continue;
 
-        const thirtyDaysAgo = new Date(today);
-        thirtyDaysAgo.setDate(today.getDate() - 30);
+        const windowStart = new Date(today);
+        windowStart.setDate(today.getDate() - this.revenueAvgDays);
         const { _avg } = await this.prisma.financialSnapshot.aggregate({
           where: {
             restaurantId: restaurant.id,
-            date: { gte: thirtyDaysAgo, lt: today },
+            date: { gte: windowStart, lt: today },
           },
           _avg: { revenue: true },
         });
         const avg = Number(_avg.revenue ?? 0);
         if (avg === 0) continue; // not enough history
 
-        const threshold = avg * 0.7;
+        const threshold = avg * this.lowRevenueRatio;
         const todayRevenue = Number(todaySnapshot.revenue);
         if (todayRevenue < threshold) {
           const key = `alert:LOW_REVENUE:${restaurant.id}`;
@@ -92,14 +117,10 @@ export class AlertService {
   // ─── Check large expenses ──────────────────────────────────────────────────
   async checkLargeExpenses(since: Date): Promise<void> {
     try {
-      const thresholdKzt = Number(
-        this.config.get<string>('LARGE_EXPENSE_THRESHOLD_KZT') ?? '500000',
-      );
-
       const largeExpenses = await this.prisma.expense.findMany({
         where: {
           createdAt: { gte: since },
-          amount: { gt: thresholdKzt },
+          amount: { gt: this.largeExpenseThreshold },
         },
         include: {
           restaurant: { select: { name: true } },
@@ -126,7 +147,7 @@ export class AlertService {
   async shouldFireAlert(key: string): Promise<boolean> {
     const existing = await this.redis.get(key);
     if (existing) return false;
-    await this.redis.set(key, '1', 'PX', this.COOLDOWN_MS);
+    await this.redis.set(key, '1', 'PX', this.cooldownMs);
     return true;
   }
 
