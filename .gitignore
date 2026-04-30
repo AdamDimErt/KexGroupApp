@@ -58,3 +58,19 @@ firebase-service-account.json
 *.pid
 *.seed
 *.pid.lock
+
+# Local debugging / scratch artifacts (never commit)
+_*.json
+_*.txt
+_*.xml
+expo-qr.png
+iiko_departments.xml
+backfill*.json
+backfill*.sql
+diag-*.sql
+
+# Claude Code local skills (per-machine)
+.claude/skills/
+
+# Design / research bundles (kept locally, not in repo)
+*.zip

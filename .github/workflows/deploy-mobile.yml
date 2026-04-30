@@ -1,0 +1,84 @@
+name: Deploy Mobile (AliPush)
+
+# Запускается на main, когда меняется что-то в apps/mobile-dashboard.
+#
+# Стратегия:
+#   • update — для JS/JSX/TSX изменений: EAS Update (OTA, мгновенно, без TestFlight)
+#   • build  — для native-изменений (app.json, package.json, нативные deps):
+#              EAS Build → автоотправка в TestFlight (запускается вручную)
+#
+# OTA-обновление прилетает в уже установленное приложение при перезапуске.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile-dashboard/**'
+      - '.github/workflows/deploy-mobile.yml'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'update (OTA) or build (full IPA → TestFlight)'
+        required: true
+        default: 'update'
+        type: choice
+        options: [update, build]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  ota-update:
+    name: EAS Update (OTA)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.mode == 'update'
+    defaults:
+      run:
+        working-directory: apps/mobile-dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Expo / EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install deps (root)
+        run: npm ci
+        working-directory: .
+
+      - name: Publish OTA update
+        run: eas update --branch production --message "${{ github.event.head_commit.message }}"
+
+  full-build:
+    name: EAS Build → TestFlight
+    runs-on: ubuntu-latest
+    if: github.event.inputs.mode == 'build'
+    defaults:
+      run:
+        working-directory: apps/mobile-dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Expo / EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install deps (root)
+        run: npm ci
+        working-directory: .
+
+      - name: Build & submit iOS
+        run: eas build --platform ios --profile production --non-interactive --auto-submit

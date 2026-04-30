@@ -1,0 +1,61 @@
+name: Deploy Backend (prod)
+
+# Запускается ТОЛЬКО после успешного CI на main.
+# CI должен закончиться зелёным (тесты + Docker images в GHCR), иначе деплой не пойдёт.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Pull & restart on prod server
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}        # IP/домен прод-сервера
+          username: ${{ secrets.PROD_SSH_USER }}    # обычно `deploy` или `ubuntu`
+          key: ${{ secrets.PROD_SSH_KEY }}          # приватный SSH-ключ (ed25519)
+          port: ${{ secrets.PROD_SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            cd /opt/kexgroupapp
+            echo "==> git pull"
+            git pull origin main
+            echo "==> docker login ghcr"
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "==> docker compose pull"
+            docker compose --profile prod pull
+            echo "==> docker compose up -d"
+            docker compose --profile prod up -d --remove-orphans
+            echo "==> prune old images"
+            docker image prune -f
+            echo "==> health"
+            sleep 10
+            curl -fsS https://api.kexgroup.kz/health || (echo "HEALTH FAIL" && exit 1)
+
+      - name: Notify Telegram (success)
+        if: success()
+        uses: appleboy/telegram-action@v0.1.1
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🚀 Backend deployed
+            Commit: ${{ github.event.workflow_run.head_sha }}
+            By: ${{ github.event.workflow_run.head_commit.author.name }}
+
+      - name: Notify Telegram (failure)
+        if: failure()
+        uses: appleboy/telegram-action@v0.1.1
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          message: |
+            🔥 Backend deploy FAILED
+            Run: ${{ github.event.workflow_run.html_url }}
