@@ -95,7 +95,7 @@ describe('AlertService', () => {
     await service.checkSyncHealth('IIKO');
 
     expect(httpService.post).toHaveBeenCalledWith(
-      'http://gateway:3000/internal/notifications/trigger',
+      'http://gateway:3000/api/internal/notifications/trigger',
       expect.objectContaining({ type: 'SYNC_FAILURE' }),
       expect.objectContaining({ headers: { 'x-internal-secret': 'test-secret' } }),
     );
@@ -133,7 +133,7 @@ describe('AlertService', () => {
     await service.checkRevenueThresholds();
 
     expect(httpService.post).toHaveBeenCalledWith(
-      'http://gateway:3000/internal/notifications/trigger',
+      'http://gateway:3000/api/internal/notifications/trigger',
       expect.objectContaining({ type: 'LOW_REVENUE' }),
       expect.any(Object),
     );
@@ -192,7 +192,7 @@ describe('AlertService', () => {
     await service.checkLargeExpenses(new Date(Date.now() - 60 * 60 * 1000));
 
     expect(httpService.post).toHaveBeenCalledWith(
-      'http://gateway:3000/internal/notifications/trigger',
+      'http://gateway:3000/api/internal/notifications/trigger',
       expect.objectContaining({ type: 'LARGE_EXPENSE' }),
       expect.any(Object),
     );

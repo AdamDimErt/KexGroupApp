@@ -159,7 +159,7 @@ export class AlertService {
     const gatewayUrl =
       this.config.get<string>('API_GATEWAY_URL') ?? 'http://localhost:3000';
     const secret = this.config.get<string>('INTERNAL_API_SECRET') ?? '';
-    const url = `${gatewayUrl}/internal/notifications/trigger`;
+    const url = `${gatewayUrl}/api/internal/notifications/trigger`;
 
     try {
       await firstValueFrom(
