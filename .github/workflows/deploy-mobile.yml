@@ -53,7 +53,9 @@ jobs:
         working-directory: .
 
       - name: Publish OTA update
-        run: eas update --branch production --message "${{ github.event.head_commit.message }}"
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: eas update --branch production --message "$COMMIT_MSG"
 
   full-build:
     name: EAS Build → TestFlight
