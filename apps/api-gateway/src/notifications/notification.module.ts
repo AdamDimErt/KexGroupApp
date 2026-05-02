@@ -18,9 +18,10 @@ import { NotificationService } from './notification.service';
       provide: 'PRISMA_CLIENT',
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const connectionString =
-          config.get<string>('POSTGRES_URL') ??
-          'postgresql://root:root@127.0.0.1:5434/dashboard';
+        const connectionString = config.get<string>('POSTGRES_URL');
+        if (!connectionString) {
+          throw new Error('POSTGRES_URL env var is required');
+        }
         const pool = new Pool({ connectionString });
         const adapter = new PrismaPg(pool as never);
         return new PrismaClient({ adapter });

@@ -11,9 +11,10 @@ export class PrismaService
   private pool: Pool;
 
   constructor() {
-    const connectionString =
-      process.env.POSTGRES_URL ??
-      'postgresql://root:root@127.0.0.1:5434/dashboard';
+    const connectionString = process.env.POSTGRES_URL;
+    if (!connectionString) {
+      throw new Error('POSTGRES_URL env var is required');
+    }
     const pool = new Pool({ connectionString });
     const adapter = new PrismaPg(pool as any);
     super({ adapter } as any);

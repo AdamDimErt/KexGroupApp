@@ -14,10 +14,14 @@ import { AuthService } from './auth.service';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') ?? 'fallback-secret',
-        signOptions: { expiresIn: '15m' },
-      }),
+      useFactory: (config: ConfigService) => {
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret) throw new Error('JWT_SECRET env var is required');
+        return {
+          secret,
+          signOptions: { expiresIn: '15m' },
+        };
+      },
     }),
   ],
   controllers: [AuthController],
@@ -33,9 +37,10 @@ import { AuthService } from './auth.service';
       provide: 'PRISMA_CLIENT',
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const connectionString =
-          config.get<string>('POSTGRES_URL') ??
-          'postgresql://root:root@127.0.0.1:5434/dashboard';
+        const connectionString = config.get<string>('POSTGRES_URL');
+        if (!connectionString) {
+          throw new Error('POSTGRES_URL env var is required');
+        }
         const pool = new Pool({ connectionString });
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         const adapter = new PrismaPg(pool as any);
