@@ -16,10 +16,16 @@ async function bootstrap() {
     }),
   );
 
-  // CORS: в dev разрешаем localhost, в prod — только свой домен
+  // CORS:
+  //   - prod: read CORS_ALLOWED_ORIGINS (comma-separated) or default to ['https://api.kexgroup.kz']
+  //   - dev: localhost + LAN
+  const prodOriginsEnv = process.env.CORS_ALLOWED_ORIGINS;
+  const prodOrigins = prodOriginsEnv
+    ? prodOriginsEnv.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['https://api.kexgroup.kz'];
   const allowedOrigins =
     process.env.NODE_ENV === 'production'
-      ? ['https://api.kexgroup.kz']
+      ? prodOrigins
       : [/^http:\/\/localhost:\d+$/, /^http:\/\/192\.168\.\d+\.\d+:\d+$/];
 
   app.enableCors({

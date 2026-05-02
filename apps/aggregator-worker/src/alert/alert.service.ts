@@ -22,8 +22,16 @@ export class AlertService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    this.redis = new Redis(redisUrl);
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('REDIS_URL env var is required in production');
+      }
+      this.logger.warn(
+        'REDIS_URL not set, falling back to redis://localhost:6379 (dev only)',
+      );
+    }
+    this.redis = new Redis(redisUrl ?? 'redis://localhost:6379');
 
     this.cooldownMs =
       Number(this.config.get<string>('ALERT_COOLDOWN_HOURS') ?? '4') *
@@ -156,8 +164,11 @@ export class AlertService {
     type: string,
     payload: Record<string, unknown>,
   ): Promise<void> {
-    const gatewayUrl =
-      this.config.get<string>('API_GATEWAY_URL') ?? 'http://localhost:3000';
+    const gatewayUrlEnv = this.config.get<string>('API_GATEWAY_URL');
+    if (!gatewayUrlEnv && process.env.NODE_ENV === 'production') {
+      throw new Error('API_GATEWAY_URL env var is required in production');
+    }
+    const gatewayUrl = gatewayUrlEnv ?? 'http://localhost:3000';
     const secret = this.config.get<string>('INTERNAL_API_SECRET') ?? '';
     const url = `${gatewayUrl}/api/internal/notifications/trigger`;
 

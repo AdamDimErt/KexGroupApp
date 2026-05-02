@@ -21,8 +21,16 @@ export class IikoAuthService {
   private readonly tokenCacheTTL = 55 * 60; // 55 minutes
 
   constructor(private readonly httpService: HttpService) {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    this.redis = new Redis(redisUrl);
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('REDIS_URL env var is required in production');
+      }
+      this.logger.warn(
+        'REDIS_URL not set, falling back to redis://localhost:6379 (dev only)',
+      );
+    }
+    this.redis = new Redis(redisUrl ?? 'redis://localhost:6379');
   }
 
   async getAccessToken(): Promise<string> {

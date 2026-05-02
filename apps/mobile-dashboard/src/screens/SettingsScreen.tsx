@@ -36,6 +36,7 @@ import {
   getBiometricType,
 } from '../services/biometric';
 import { useDashboardStore, type PeriodType } from '../store/dashboard';
+import { SUPPORT_EMAIL } from '../config';
 
 // Persist default period across app launches.
 export const DEFAULT_PERIOD_KEY = 'kex_default_period';
@@ -187,7 +188,7 @@ export function SettingsScreen({ onBack, onLogout }: SettingsScreenProps) {
             const body = encodeURIComponent(
               `Опишите проблему ниже:\n\n\n— —\nВерсия: ${v.version} (build ${v.build})\nПлатформа: ${Platform.OS}\nПользователь: ${user?.phone ?? '—'}\n`,
             );
-            void Linking.openURL(`mailto:support@kexgroup.kz?subject=${subject}&body=${body}`);
+            void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
           },
         },
       ],

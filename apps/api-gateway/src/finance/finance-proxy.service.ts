@@ -13,8 +13,18 @@ export class FinanceProxyService {
     private readonly http: HttpService,
     private readonly config: ConfigService,
   ) {
-    this.financeUrl =
-      config.get<string>('FINANCE_SERVICE_URL') ?? 'http://localhost:3002';
+    const url = config.get<string>('FINANCE_SERVICE_URL');
+    if (!url) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'FINANCE_SERVICE_URL env var is required in production',
+        );
+      }
+      this.logger.warn(
+        'FINANCE_SERVICE_URL not set, falling back to http://localhost:3002 (dev only)',
+      );
+    }
+    this.financeUrl = url ?? 'http://localhost:3002';
   }
 
   async forward<T>(

@@ -13,8 +13,16 @@ export class AuthProxyService {
     private readonly http: HttpService,
     private readonly config: ConfigService,
   ) {
-    this.authUrl =
-      config.get<string>('AUTH_SERVICE_URL') ?? 'http://localhost:3001';
+    const url = config.get<string>('AUTH_SERVICE_URL');
+    if (!url) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('AUTH_SERVICE_URL env var is required in production');
+      }
+      this.logger.warn(
+        'AUTH_SERVICE_URL not set, falling back to http://localhost:3001 (dev only)',
+      );
+    }
+    this.authUrl = url ?? 'http://localhost:3001';
   }
 
   async forward<T>(

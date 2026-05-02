@@ -30,8 +30,17 @@ import { AuthService } from './auth.service';
     {
       provide: 'REDIS_CLIENT',
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
-        new Redis(config.get<string>('REDIS_URL') ?? 'redis://localhost:6380'),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('REDIS_URL');
+        if (!url) {
+          if (process.env.NODE_ENV === 'production') {
+            throw new Error('REDIS_URL env var is required in production');
+          }
+          // dev fallback — keep matching docker-compose.yml port (6380)
+          return new Redis('redis://localhost:6380');
+        }
+        return new Redis(url);
+      },
     },
     {
       provide: 'PRISMA_CLIENT',

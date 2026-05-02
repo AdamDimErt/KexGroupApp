@@ -26,3 +26,7 @@ export const BUSINESS_TIMEZONE = 'Asia/Almaty';
 /** Валюта */
 export const CURRENCY_SYMBOL = '₸';
 export const CURRENCY_CODE = 'KZT';
+
+/** Support contact (env-overridable for white-label/staging builds) */
+export const SUPPORT_EMAIL =
+  process.env.EXPO_PUBLIC_SUPPORT_EMAIL || 'support@kexgroup.kz';
