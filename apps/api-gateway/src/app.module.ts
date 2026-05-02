@@ -21,7 +21,12 @@ import { HealthModule } from './health/health.module';
         return { secret };
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 30 }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: Number(process.env.THROTTLE_TTL_MS ?? '60000'),
+        limit: Number(process.env.THROTTLE_LIMIT ?? '30'),
+      },
+    ]),
     AuthProxyModule,
     FinanceProxyModule,
     NotificationModule,

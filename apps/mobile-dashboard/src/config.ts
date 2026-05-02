@@ -30,3 +30,7 @@ export const CURRENCY_CODE = 'KZT';
 /** Support contact (env-overridable for white-label/staging builds) */
 export const SUPPORT_EMAIL =
   process.env.EXPO_PUBLIC_SUPPORT_EMAIL || 'support@kexgroup.kz';
+
+/** Auto-logout after N minutes in background. Env-overridable for SecOps tuning. */
+export const INACTIVITY_TIMEOUT_MS =
+  Number(process.env.EXPO_PUBLIC_INACTIVITY_MIN ?? '10') * 60 * 1000;

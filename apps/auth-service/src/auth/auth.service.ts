@@ -21,10 +21,18 @@ import {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly MAX_ATTEMPTS = 5;
-  private readonly BLOCK_DURATION_SEC = 900; // 15 min
-  private readonly OTP_TTL_SEC = 300; // 5 min
-  private readonly REFRESH_TTL_SEC = 2592000; // 30 days
+  // Security tunables — env-driven so SecOps/IR can ratchet without redeploy.
+  // Defaults match the prior hardcoded values to keep behavior unchanged.
+  private readonly MAX_ATTEMPTS = Number(
+    process.env.OTP_MAX_ATTEMPTS ?? '5',
+  );
+  private readonly BLOCK_DURATION_SEC = Number(
+    process.env.OTP_BLOCK_DURATION_SEC ?? '900',
+  ); // 15 min
+  private readonly OTP_TTL_SEC = Number(process.env.OTP_TTL_SEC ?? '300'); // 5 min
+  private readonly REFRESH_TTL_SEC = Number(
+    process.env.REFRESH_TTL_SEC ?? '2592000',
+  ); // 30 days
 
   private get bypassPhones(): string[] {
     const raw = this.config.get<string>('DEV_BYPASS_PHONES') ?? '';

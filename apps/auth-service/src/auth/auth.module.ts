@@ -17,9 +17,10 @@ import { AuthService } from './auth.service';
       useFactory: (config: ConfigService) => {
         const secret = config.get<string>('JWT_SECRET');
         if (!secret) throw new Error('JWT_SECRET env var is required');
+        const expiresIn = config.get<string>('JWT_ACCESS_TTL') ?? '15m';
         return {
           secret,
-          signOptions: { expiresIn: '15m' },
+          signOptions: { expiresIn },
         };
       },
     }),

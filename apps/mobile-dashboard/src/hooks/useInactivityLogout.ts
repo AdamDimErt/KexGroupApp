@@ -1,7 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-
-const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+import { INACTIVITY_TIMEOUT_MS } from '../config';
 
 export function useInactivityLogout(
   isAuthenticated: boolean,
