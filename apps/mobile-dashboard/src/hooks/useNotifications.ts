@@ -1,4 +1,5 @@
 import { useApiQuery } from './useApi';
+import { notificationApi } from '../services/api';
 import type { NotificationListDto } from '../types';
 
 // Map API notification types to colors
@@ -11,11 +12,7 @@ const notificationTypeColors: Record<string, string> = {
 
 export function useNotifications(page: number = 1, pageSize: number = 20) {
   const { data, isLoading, error } = useApiQuery<NotificationListDto>(
-    async () => {
-      const res = await fetch(`/api/notifications?page=${page}&pageSize=${pageSize}`);
-      if (!res.ok) throw new Error('Failed to fetch notifications');
-      return res.json();
-    },
+    () => notificationApi.getNotifications(page, pageSize),
     [page, pageSize],
   );
 
