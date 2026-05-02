@@ -7,7 +7,7 @@ export async function registerPushToken(
   accessToken: string,
   fcmToken: string,
 ): Promise<void> {
-  await fetch(`${API_URL}/notifications/register-token`, {
+  await fetch(`${API_URL}/api/notifications/register-token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -27,7 +27,7 @@ export async function unregisterPushToken(
   accessToken: string,
   fcmToken: string,
 ): Promise<void> {
-  await fetch(`${API_URL}/notifications/unregister-token`, {
+  await fetch(`${API_URL}/api/notifications/unregister-token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -61,7 +61,7 @@ export async function fetchNotifications(
   page = 1,
 ): Promise<NotificationsResponse> {
   const res = await fetch(
-    `${API_URL}/notifications?page=${page}&pageSize=20`,
+    `${API_URL}/api/notifications?page=${page}&pageSize=20`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT),
@@ -76,7 +76,7 @@ export async function markNotificationRead(
   accessToken: string,
   notificationId: string,
 ): Promise<void> {
-  await fetch(`${API_URL}/notifications/${notificationId}/read`, {
+  await fetch(`${API_URL}/api/notifications/${notificationId}/read`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
@@ -86,7 +86,7 @@ export async function markNotificationRead(
 export async function markAllNotificationsRead(
   accessToken: string,
 ): Promise<void> {
-  await fetch(`${API_URL}/notifications/read-all`, {
+  await fetch(`${API_URL}/api/notifications/read-all`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
@@ -103,7 +103,7 @@ export interface NotificationPref {
 export async function fetchNotificationPrefs(
   accessToken: string,
 ): Promise<NotificationPref[]> {
-  const res = await fetch(`${API_URL}/notifications/preferences`, {
+  const res = await fetch(`${API_URL}/api/notifications/preferences`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   });
@@ -115,7 +115,7 @@ export async function updateNotificationPref(
   type: string,
   enabled: boolean,
 ): Promise<void> {
-  await fetch(`${API_URL}/notifications/preferences/${type}`, {
+  await fetch(`${API_URL}/api/notifications/preferences/${type}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
