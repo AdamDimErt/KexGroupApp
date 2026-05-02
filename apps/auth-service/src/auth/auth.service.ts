@@ -9,7 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { randomInt, randomUUID } from 'crypto';
 import Redis from 'ioredis';
 import {
   AuthSuccessDto,
@@ -100,8 +100,8 @@ export class AuthService {
       };
     }
 
-    // Fallback to SMS
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // Fallback to SMS — crypto.randomInt for unpredictability
+    const code = randomInt(100000, 1000000).toString();
     await this.redis.set(`otp:${phone}`, code, 'EX', this.OTP_TTL_SEC);
     await this.sendSms(phone, `Ваш код подтверждения: ${code}`);
 

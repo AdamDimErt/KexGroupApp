@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AuthProxyModule } from './auth/auth-proxy.module';
 import { FinanceProxyModule } from './finance/finance-proxy.module';
@@ -27,5 +28,11 @@ import { HealthModule } from './health/health.module';
     HealthModule,
   ],
   controllers: [AppController],
+  providers: [
+    // Register ThrottlerGuard as APP_GUARD so @Throttle decorators on
+    // /auth/send-otp, /auth/verify-otp etc. actually rate-limit. Without this
+    // the @Throttle metadata is set but no guard reads it.
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}
