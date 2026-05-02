@@ -22,7 +22,7 @@
 
 ---
 
-## 1. Что было сделано (8 коммитов в origin/main)
+## 1. Что было сделано (11 коммитов в origin/main)
 
 | # | SHA | Тип | Описание |
 |---|-----|-----|----------|
@@ -34,6 +34,9 @@
 | 6 | `27bb93e` | fix(worker) | `/api` префикс в alert dispatch URL (тот же баг семейства, что в mobile) |
 | 7 | `cae925f` | fix(mobile) | notifications fail loudly + typed API client (assertOk + notificationApi) |
 | 8 | `c74abf0` | sec(auth) | `crypto.randomInt` для OTP + ThrottlerGuard как APP_GUARD |
+| 9 | `6192562` | docs | codebase map + 4 audit reports + summary |
+| 10 | `8a61522` | sec | production-strict env fallbacks (6 inter-service URLs) + CORS env override + SUPPORT_EMAIL |
+| 11 | `b4ab528` | sec | security tunables в env (OTP_*, REFRESH_TTL, JWT_ACCESS_TTL, THROTTLE_*, INACTIVITY) |
 
 После каждого коммита прогонялись тесты затронутого сервиса. 271 unit-тест зелёные.
 
@@ -48,6 +51,22 @@
 4. **Silent /api/ префикс bug №2.** `apps/aggregator-worker/src/alert/alert.service.ts:162` POST на `/internal/notifications/trigger`, gateway имеет `setGlobalPrefix('api')`, реальный путь `/api/internal/notifications/trigger`. Всё семейство alerts (sync failure, low revenue, large expense) тихо 404'ило (потому что `fireAlert` логирует warn и продолжает). Тот же тип бага, что мы вместе закрывали в `notifications.ts`.
 
 5. **Mobile notifications — silent HTTP errors.** `apps/mobile-dashboard/src/services/notifications.ts` — все 8 функций делали `await fetch(...)` без проверки `res.ok`. 500/403/timeout превращались в silent no-op (для void-функций) или в `res.json()` на HTML-странице ошибки → cryptic `SyntaxError`. Push-токены могли никогда не регистрироваться, а пользователь видел "ОК" в UI. Добавлен `assertOk()` helper.
+
+### Дополнительно из 2-й волны hardcode-аудита (8a61522, b4ab528)
+
+6. **Inter-service URL silent localhost fallback в prod.** `auth-proxy.service.ts:17`, `finance-proxy.service.ts:17`, `alert.service.ts:25,168` — fallbacks `http://localhost:3001/3002/3000` и `redis://localhost:6379`. Если env пуст в проде, сервис тихо ходил по контейнерному `localhost`. Теперь — `throw` в `NODE_ENV=production`, иначе `logger.warn` + fallback (dev exp не страдает).
+7. **Redis port mismatch.** auth-service fallback `:6380`, worker `:6379` — разрывало state на два инстанса. Для prod теперь `throw`, для dev оставлен match с docker-compose.
+8. **CORS hardcoded** `'https://api.kexgroup.kz'` → `CORS_ALLOWED_ORIGINS` env-overridable (comma-separated).
+9. **support@kexgroup.kz** в `SettingsScreen.tsx` → `SUPPORT_EMAIL` константа в `config.ts`, `EXPO_PUBLIC_SUPPORT_EMAIL` env-overridable.
+10. **Security tunables вынесены в env (без изменения дефолтов):**
+    - `OTP_MAX_ATTEMPTS` (5), `OTP_BLOCK_DURATION_SEC` (900), `OTP_TTL_SEC` (300), `REFRESH_TTL_SEC` (2592000)
+    - `JWT_ACCESS_TTL` ('15m'), `THROTTLE_TTL_MS` (60000), `THROTTLE_LIMIT` (30)
+    - `EXPO_PUBLIC_INACTIVITY_MIN` (10) — mobile auto-logout
+    - SecOps теперь может ужесточать без передеплоя.
+
+### ✅ Подтверждено на проде
+
+После деплоя 8a61522/b4ab528 — отправил 6 запросов на `/auth/send-otp` подряд. Первые 5 → HTTP 200, **6-й → HTTP 429 Too Many Requests**. До фикса всё бы прошло — ThrottlerGuard теперь реально гард, brute-force OTP/SMS bombing блокируется.
 
 ---
 
@@ -141,18 +160,16 @@ total:           271/272 (1 todo)
 - ✅ Mobile fix `notifications.ts` `/api/` префикс — залит scp в `/opt/kex/apps/mobile-dashboard/src/services/notifications.ts`. Серверный Metro (PID 560045, watch-mode) подхватил через HMR.
 - ✅ iiko credentials для worker — обновлён `IIKO_PASSWORD` в `/opt/kex/apps/aggregator-worker/.env`, плюс снят `\r` из CRLF (этот `\r` и был причиной 401). Worker перезапущен (PID 1342744+), `/sync/organizations` отработал: 86 ресторанов, 12 legal entities, 6 брендов синхронизированы. БД на проде догнала локальную — `LegalEntity = 12` (было 0), FinancialSnapshot до 02.05 (было до 30.04).
 
-**Что НЕ задеплоено (новые фиксы из этой сессии):**
-- Backend: 6 файлов (`auth.module.ts`, `auth.service.ts`, `app.module.ts`, `notification.module.ts`, `prisma.service.ts` × 2, `alert.service.ts`, `alert.service.spec.ts`).
-- Mobile: 2 файла (`useNotifications.ts`, обновлённый `notifications.ts`).
+**Задеплоено в этой сессии (2 волны деплоя):**
 
-**План деплоя (запущен в фоне сейчас, см. todo):**
-1. Локально — `npm run build` для каждого из 4 backend сервисов.
-2. SCP `dist/` каждого сервиса в `/opt/kex/apps/<svc>/dist/`.
-3. SCP обновлённых mobile sources в `/opt/kex/apps/mobile-dashboard/src/{hooks,services}/`.
-4. Рестарт каждого сервиса по шаблону `SERVER.md` (kill port → setsid bash → новый PID).
-5. Health-check всех сервисов.
+Wave 1 (commits e21516b…c74abf0): backup в `/opt/kex-backup/dist-20260502-140439/`. SCP dist всех 4 сервисов + mobile sources, рестарт. Health-check 200. Smoke-test: revenue 101 млн ₸.
 
-Backup предыдущего dist лежит в `/opt/kex-backup/dist-prev/`. Если что — откат в одну команду по SERVER.md.
+Wave 2 (commits 8a61522, b4ab528): backup в `/opt/kex-backup/dist-20260502-153317-v2/`. SCP dist auth/gateway/worker (finance не менялся) + mobile sources (config.ts, useInactivityLogout.ts, SettingsScreen.tsx), рестарт. Health-check 200. Подтверждено: rate-limit реально работает (HTTP 429 на 6-м запросе подряд). Revenue теперь 109 млн ₸ (worker продолжает синкать).
+
+**⚠️ Важный нюанс по prod-strict env fallbacks:**
+На сервере `NODE_ENV` не задан ни в одном `.env` файле. Мои `if (NODE_ENV === 'production') throw` поэтому **не активны** — сервис использует fallback. Чтобы strict-режим заработал, добавь `NODE_ENV=production` в `/opt/kex/.env` и перезапусти сервисы. Сейчас же мои фиксы безопасны (никаких регрессий), но и `silent localhost fallback` баг ещё формально не закрыт.
+
+**Backup предыдущих dist** — на сервере есть несколько таймштампов в `/opt/kex-backup/`. Откат в одну команду по SERVER.md.
 
 ---
 
